@@ -1,13 +1,13 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import NavBar from '../components/NavBar'
 
 const featuredFilms = [
   {
     id: 1,
-    title: "Captain Marvel",
-    director: "Sarah Chen",
+    title: "The Solo",
+    director: "Ryan Ma",
     year: 2024,
-    image: "wallpaper-1.jpg",
+    image: "Ryan-Ma-2.jpeg",
     description: "A powerful superhero origin story that follows Carol Danvers as she becomes one of the universe's most powerful heroes.",
     duration: "2h 4m",
     rating: "PG-13",
@@ -43,6 +43,7 @@ const featuredFilms = [
 const HomePage = () => {
   const [scrollPosition, setScrollPosition] = useState(0);
   const [selectedFilm, setSelectedFilm] = useState(null);
+  const [visibleSections, setVisibleSections] = useState({});
 
   useEffect(() => {
     const handleScroll = () => {
@@ -51,6 +52,30 @@ const HomePage = () => {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          setVisibleSections(prev => ({
+            ...prev,
+            [entry.target.id]: entry.isIntersecting
+          }));
+        });
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '0px 0px -100px 0px'
+      }
+    );
+
+    const sections = document.querySelectorAll('section[id]');
+    sections.forEach(section => observer.observe(section));
+
+    return () => {
+      sections.forEach(section => observer.unobserve(section));
+    };
   }, []);
 
   const handleFilmClick = (film) => {
@@ -65,45 +90,62 @@ const HomePage = () => {
     <div className="min-h-screen bg-black text-white">
       <NavBar />
       {/* Hero Section */}
-      <section className="relative h-screen flex items-center justify-center overflow-hidden">
+      <section id="hero" className="relative h-screen flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-black/50 to-black z-10"></div>
         <div 
-          className="absolute inset-0 bg-black bg-cover bg-center opacity-50"
+          className="absolute inset-0 bg-black bg-cover bg-center opacity-50 animate-fade-in"
           style={{ transform: `translateY(${scrollPosition * 0.5}px)` }}
         ></div>
         <div className="relative z-20 text-center px-4">
-          <h1 className="text-7xl font-bold mb-6 tracking-tight">
-            Welcome to NEMA
+          <div className="mb-4 animate-slide-down" style={{ animationDelay: '0.2s' }}>
+            <span className="text-amber-100/80 tracking-[0.3em] uppercase text-sm font-light">Independent Cinema</span>
+          </div>
+          <h1 className="text-8xl font-light mb-4 tracking-[0.2em] uppercase animate-slide-up" style={{ animationDelay: '0.4s' }}>
+            NEMA
           </h1>
-          <p className="text-xl text-gray-300 mb-12 max-w-2xl mx-auto">
+          <div className="w-24 h-[1px] bg-amber-100/30 mx-auto mb-8 animate-expand" style={{ animationDelay: '0.6s' }}></div>
+          <p className="text-2xl text-gray-300 mb-6 max-w-2xl mx-auto leading-relaxed font-light tracking-wide animate-fade-in" style={{ animationDelay: '0.8s' }}>
             Discover independent films and short stories from emerging filmmakers worldwide.
           </p>
-          <button className="bg-white text-black px-8 py-3 rounded-md hover:bg-gray-200 transition-colors">
-            Start Watching
-          </button>
+          <p className="text-gray-400 mb-12 max-w-xl mx-auto font-light animate-fade-in" style={{ animationDelay: '1s' }}>
+            A curated collection of unique voices and perspectives in contemporary cinema.
+          </p>
+          <div className="flex gap-6 justify-center animate-fade-in" style={{ animationDelay: '1.2s' }}>
+            <button className="border-2 border-white/30 px-10 py-4 rounded-none hover:bg-white/10 transition-all duration-300 text-white/90 tracking-wider text-lg uppercase">
+              Start Watching
+            </button>
+            <button className="border-2 border-amber-100/30 px-10 py-4 rounded-none hover:bg-amber-100/10 transition-all duration-300 text-amber-100/90 tracking-wider text-lg uppercase">
+              Learn More
+            </button>
+          </div>
         </div>
       </section>
 
       {/* Featured Section */}
-      <section className="relative min-h-screen py-20 px-4 flex items-center overflow-hidden">
+      <section 
+        id="featured" 
+        className={`relative min-h-screen py-20 px-4 flex items-center overflow-hidden transition-opacity duration-1000 ${
+          visibleSections['featured'] ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
         <div 
           className="absolute inset-0 featured-bg bg-cover bg-center opacity-30"
           style={{ transform: `translateY(${scrollPosition * 0.3}px)` }}
         ></div>
         <div className="relative z-20 max-w-7xl mx-auto w-full">
-          <h2 className="text-3xl font-semibold mb-12 text-center">Featured Films</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <h2 className="text-3xl font-semibold mb-16 text-center">Featured Films</h2>
+          <div className="flex gap-8 overflow-x-auto pb-8">
             {featuredFilms.map((film) => (
               <div 
                 key={film.id} 
-                className="group relative aspect-video bg-cover bg-center rounded-lg overflow-hidden cursor-pointer"
+                className="group relative w-[400px] h-[500px] flex-shrink-0 bg-cover bg-center rounded-lg overflow-hidden cursor-pointer"
                 style={{ backgroundImage: `url(${film.image})` }}
                 onClick={() => handleFilmClick(film)}
               >
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="absolute bottom-0 p-6">
-                    <h3 className="text-xl font-medium mb-2">{film.title}</h3>
-                    <p className="text-sm text-gray-300">{film.director} • {film.year}</p>
+                  <div className="absolute bottom-0 p-8">
+                    <h3 className="text-2xl font-medium mb-2">{film.title}</h3>
+                    <p className="text-base text-gray-300">{film.director} • {film.year}</p>
                   </div>
                 </div>
               </div>
@@ -170,7 +212,12 @@ const HomePage = () => {
       )}
 
       {/* Categories Section */}
-      <section className="relative min-h-screen py-20 px-4 flex items-center overflow-hidden">
+      <section 
+        id="categories" 
+        className={`relative min-h-screen py-20 px-4 flex items-center overflow-hidden transition-opacity duration-1000 ${
+          visibleSections['categories'] ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
         <div 
           className="absolute inset-0 categories-bg bg-cover bg-center opacity-30"
           style={{ transform: `translateY(${scrollPosition * 0.2}px)` }}
@@ -214,7 +261,12 @@ const HomePage = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="relative min-h-screen py-20 px-4 flex items-center overflow-hidden">
+      <section 
+        id="cta" 
+        className={`relative min-h-screen py-20 px-4 flex items-center overflow-hidden transition-opacity duration-1000 ${
+          visibleSections['cta'] ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
         <div 
           className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&q=80')] bg-cover bg-center opacity-30"
           style={{ transform: `translateY(${scrollPosition * 0.1}px)` }}
