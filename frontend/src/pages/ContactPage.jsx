@@ -27,17 +27,17 @@ const contactInfo = {
   departments: [
     {
       name: "Film Submissions",
-      email: "submissions@nema.com",
+      email: "",
       description: "Submit your film for consideration"
     },
     {
       name: "Partnerships",
-      email: "partnerships@nema.com",
+      email: "",
       description: "Collaborate with us"
     },
     {
       name: "Press",
-      email: "press@nema.com",
+      email: "",
       description: "Media inquiries and press releases"
     }
   ]
