@@ -4,8 +4,8 @@ import { Link, useLocation } from 'react-router-dom';
 const NavBar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const location = useLocation();
-  
 
   useEffect(() => {
     const handleScroll = () => {
@@ -21,10 +21,31 @@ const NavBar = () => {
     };
   }, [scrolled]);
 
+  // Check if user is admin
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('adminUser'));
+    setIsAdmin(user?.isAdmin || false);
+  }, [location]);
+
   // Close mobile menu when route changes
   useEffect(() => {
     setMenuOpen(false);
   }, [location]);
+
+  const navItems = [
+    { name: 'Home', path: '/' },
+    { name: 'About', path: '/about' },
+    { name: 'Catalog', path: '/catalog' },
+    { name: 'Featured', path: '/video/1' },
+    { name: 'Contact', path: '/contact' }
+  ];
+
+  // Add admin link based on authentication status
+  if (isAdmin) {
+    navItems.push({ name: 'Admin Upload', path: '/admin/upload' });
+  } else {
+    navItems.push({ name: 'Admin Login', path: '/admin/login' });
+  }
 
   return (
     <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ${
@@ -43,34 +64,26 @@ const NavBar = () => {
           </div>
           
           {/* Desktop Navigation */}
-          <div className="hidden md:block">
-            <div className="ml-10 flex items-center space-x-8">
-              {[
-                { name: 'Home', path: '/' },
-                { name: 'About', path: '/about' },
-                { name: 'Catalog', path: '/catalog' },
-                { name: 'Featured', path: '/video/1' },
-                { name: 'Contact', path: '/contact' }
-              ].map((item) => {
-                const isActive = location.pathname === item.path;
-                return (
-                  <Link
-                    key={item.name}
-                    to={item.path}
-                    className={`group relative px-3 py-2 text-sm font-light tracking-wide transition-colors duration-300 ${
-                      isActive ? 'text-amber-100' : 'text-white/70 hover:text-white'
+          <div className="hidden md:flex items-center space-x-8">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.path;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.path}
+                  className={`group relative px-3 py-2 text-sm font-light tracking-wide transition-colors duration-300 ${
+                    isActive ? 'text-amber-100' : 'text-white/70 hover:text-white'
+                  }`}
+                >
+                  {item.name}
+                  <span 
+                    className={`absolute left-0 bottom-0 w-0 h-[1px] bg-amber-100/50 transition-all duration-300 group-hover:w-full ${
+                      isActive ? 'w-full' : ''
                     }`}
-                  >
-                    {item.name}
-                    <span 
-                      className={`absolute left-0 bottom-0 w-0 h-[1px] bg-amber-100/50 transition-all duration-300 group-hover:w-full ${
-                        isActive ? 'w-full' : ''
-                      }`}
-                    ></span>
-                  </Link>
-                );
-              })}
-            </div>
+                  ></span>
+                </Link>
+              );
+            })}
           </div>
           
           {/* Mobile menu button */}
@@ -93,18 +106,12 @@ const NavBar = () => {
         </div>
       </div>
       
-      {/* Mobile menu, show/hide based on menu state */}
-      <div className={`md:hidden transition-all duration-300 ease-in-out overflow-hidden ${
-        menuOpen ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'
+      {/* Mobile menu - hidden on desktop */}
+      <div className={`md:hidden absolute w-full transition-all duration-300 ease-in-out ${
+        menuOpen ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0 pointer-events-none'
       }`}>
         <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-black/90 backdrop-blur-md">
-          {[
-            { name: 'Home', path: '/' },
-            { name: 'About', path: '/about' },
-            { name: 'Catalog', path: '/catalog' },
-            { name: 'Featured', path: '/video/1' },
-            { name: 'Contact', path: '/contact' }
-          ].map((item) => {
+          {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <Link
