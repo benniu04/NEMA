@@ -3,6 +3,8 @@ import AboutPage from './pages/AboutPage'
 import ContactPage from './pages/ContactPage'
 import CatalogPage from './pages/CatalogPage'
 import VideoPlayerPage from './pages/VideoPlayerPage'
+import AdminUploadPage from './pages/AdminUploadPage'
+import AdminLogin from './pages/AdminLogin'
 import { Routes, Route } from 'react-router-dom'
 
 
@@ -15,6 +17,8 @@ function App() {
       <Route path="/catalog" element={<CatalogPage />} />
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/video/:id" element={<VideoPlayerPage />} />
+      <Route path="/admin/login" element={<AdminLogin />} />
+      <Route path="/admin/upload" element={<AdminUploadPage />} />
     </Routes>
   )
 }
