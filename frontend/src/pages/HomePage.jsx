@@ -3,45 +3,6 @@ import { Link } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import { Play, ChevronDown, ArrowRight } from 'lucide-react'
 
-const featuredFilms = [
-  {
-    id: 1,
-    title: "The Solo",
-    director: "Ryan Ma",
-    year: 2024,
-    image: "Ryan-Ma-2.jpeg",
-    description: "A powerful superhero origin story that follows Carol Danvers as she becomes one of the universe's most powerful heroes.",
-    duration: "2h 4m",
-    rating: "PG-13",
-    genre: "Action, Adventure, Sci-Fi",
-    cast: ["Brie Larson", "Samuel L. Jackson", "Ben Mendelsohn"]
-  },
-  {
-    id: 2,
-    title: "Pacific Rim",
-    director: "Jean Dupont",
-    year: 2024,
-    image: "wallpaper-2.jpg",
-    description: "As a war between humankind and monstrous sea creatures wages on, a former pilot and a trainee are paired up to drive a seemingly obsolete special weapon in a desperate effort to save the world from the apocalypse.",
-    duration: "2h 11m",
-    rating: "PG-13",
-    genre: "Action, Adventure, Sci-Fi",
-    cast: ["Idris Elba", "Charlie Hunnam", "Rinko Kikuchi"]
-  },
-  {
-    id: 3,
-    title: "TRON: Legacy",
-    director: "Marcus Johnson",
-    year: 2024,
-    image: "wallpaper-3.jpg",
-    description: "The son of a virtual world designer goes looking for his father and ends up inside the digital world that his father designed. He meets his father's corrupted creation and a unique ally who was born inside the digital world.",
-    duration: "2h 5m",
-    rating: "PG",
-    genre: "Action, Adventure, Sci-Fi",
-    cast: ["Jeff Bridges", "Garrett Hedlund", "Olivia Wilde"]
-  }
-];
-
 // Testimonials from directors and filmmakers
 const testimonials = [
   {
@@ -88,11 +49,12 @@ const HomePage = () => {
   const [scrollPosition, setScrollPosition] = useState(0);
   const [visibleSections, setVisibleSections] = useState({});
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
+  const [featuredMovies, setFeaturedMovies] = useState([]);
+  const [loading, setLoading] = useState(true);
   const heroVideoRef = useRef(null);
   const heroRef = useRef(null);
   const featuredFilmsRef = useRef(null);
 
- 
   useEffect(() => {
     const handleScroll = () => {
       setScrollPosition(window.scrollY);
@@ -102,6 +64,24 @@ const HomePage = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    const fetchFeaturedMovies = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/movies?limit=3');
+        if (!response.ok) {
+          throw new Error('Failed to fetch featured movies');
+        }
+        const data = await response.json();
+        setFeaturedMovies(data);
+      } catch (err) {
+        console.error('Error fetching featured movies:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFeaturedMovies();
+  }, []);
 
   const scrollToFeatured = () => {
     featuredFilmsRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -236,10 +216,15 @@ const HomePage = () => {
               <span className="relative z-10">Explore Films</span>
               <span className="absolute inset-0 bg-white/5 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-500"></span>
             </Link>
-            <Link to="/video/1" className="group relative overflow-hidden border border-amber-100/20 px-10 py-4 transition-all duration-500 text-amber-100/90 tracking-wider text-base uppercase">
-              <span className="relative z-10">Featured Film</span>
-              <span className="absolute inset-0 bg-amber-100/10 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-500"></span>
-            </Link>
+            {featuredMovies.length > 0 && (
+              <Link 
+                to={`/video/${featuredMovies[0]._id}`} 
+                className="group relative overflow-hidden border border-amber-100/20 px-10 py-4 transition-all duration-500 text-amber-100/90 tracking-wider text-base uppercase"
+              >
+                <span className="relative z-10">Featured Film</span>
+                <span className="absolute inset-0 bg-amber-100/10 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-500"></span>
+              </Link>
+            )}
           </div>
           
           {/* Scroll Indicator - Repositioned */}
@@ -286,53 +271,65 @@ const HomePage = () => {
           {/* Film Reel Layout */}
           <div className="featured-films-container">
             <div className="flex gap-8 overflow-x-auto pb-12 md:pb-6 featured-scrollbar snap-x snap-mandatory">
-              {featuredFilms.map((film) => (
-                <Link 
-                  key={film.id} 
-                  to={`/video/${film.id}`}
-                  className="group relative w-[300px] md:w-[400px] h-[450px] md:h-[600px] flex-shrink-0 bg-cover bg-center overflow-hidden cursor-pointer transform transition-all duration-700 hover:scale-[1.02] snap-center"
-                  style={{ backgroundImage: `url(${film.image})` }}
-                >
-                  {/* Film Frame Border */}
-                  <div className="absolute inset-0 border border-white/10 opacity-70 group-hover:opacity-0 transition-opacity duration-500"></div>
-                  
-                  {/* Film Information Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700">
-                    <div className="absolute bottom-0 p-10">
-                      <div className="mb-3 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-100">
-                        <span className="text-amber-100/80 uppercase text-xs tracking-widest font-light">{film.genre.split(',')[0]}</span>
-                      </div>
-                      <h3 className="text-3xl font-extralight mb-3 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-200">{film.title}</h3>
-                      <p className="text-base text-white/70 mb-6 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-300">
-                        {film.director} • {film.year}
-                      </p>
-                      <p className="text-sm text-white/50 mb-8 line-clamp-3 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-400">
-                        {film.description}
-                      </p>
-                      
-                      {/* Film Metadata Row */}
-                      <div className="flex gap-4 text-xs text-white/60 mb-6 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-500">
-                        <span>{film.duration}</span>
-                        <span>•</span>
-                        <span>{film.rating}</span>
-                      </div>
-                      
-                      {/* Watch Button */}
-                      <div className="inline-flex items-center gap-2 text-amber-100/80 group-hover:text-amber-100 transition-colors transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 duration-500 delay-600">
-                        <span className="uppercase tracking-widest text-xs font-light">Watch Film</span>
-                        <ArrowRight className="w-4 h-4" />
+              {loading ? (
+                <div className="text-amber-100/60">Loading featured films...</div>
+              ) : (
+                featuredMovies.map((movie) => (
+                  <Link 
+                    key={movie._id} 
+                    to={`/video/${movie._id}`}
+                    className="group relative w-[400px] md:w-[500px] h-[225px] md:h-[280px] flex-shrink-0 overflow-hidden cursor-pointer transform transition-all duration-700 hover:scale-[1.02] snap-center"
+                  >
+                    {/* Image with proper aspect ratio */}
+                    <img 
+                      src={movie.thumbnailUrl} 
+                      alt={movie.title}
+                      className="w-full h-full object-cover"
+                    />
+                    
+                    {/* Film Frame Border */}
+                    <div className="absolute inset-0 border border-white/10 opacity-70 group-hover:opacity-0 transition-opacity duration-500"></div>
+                    
+                    {/* Film Information Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700">
+                      <div className="absolute bottom-0 p-6">
+                        <div className="mb-2 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-100">
+                          <div className="flex flex-wrap gap-2">
+                            {movie.genre.map((g, index) => (
+                              <span 
+                                key={index}
+                                className="px-2 py-1 text-xs bg-amber-100/10 text-amber-100/80 rounded-sm"
+                              >
+                                {g}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <h3 className="text-xl md:text-2xl font-extralight mb-2 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-200">{movie.title}</h3>
+                        <p className="text-sm text-white/70 mb-4 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-300">
+                          {movie.director} • {new Date(movie.releaseDate).getFullYear()}
+                        </p>
+                        <p className="text-xs text-white/50 mb-4 line-clamp-2 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-400">
+                          {movie.description}
+                        </p>
+                        
+                        {/* Watch Button */}
+                        <div className="inline-flex items-center gap-2 text-amber-100/80 group-hover:text-amber-100 transition-colors transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 duration-500 delay-500">
+                          <span className="uppercase tracking-widest text-xs font-light">Watch Film</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  {/* Play Icon */}
-                  <div className="absolute inset-0 flex items-center justify-center z-10">
-                    <div className="w-20 h-20 flex items-center justify-center border border-white/30 rounded-full bg-black/20 opacity-0 group-hover:opacity-100 transition-all duration-700 transform translate-y-4 group-hover:translate-y-0 group-hover:scale-110">
-                      <Play className="w-8 h-8 text-white/90 ml-1" />
+                    
+                    {/* Play Icon */}
+                    <div className="absolute inset-0 flex items-center justify-center z-10">
+                      <div className="w-16 h-16 flex items-center justify-center border border-white/30 rounded-full bg-black/20 opacity-0 group-hover:opacity-100 transition-all duration-700 transform translate-y-4 group-hover:translate-y-0 group-hover:scale-110">
+                        <Play className="w-6 h-6 text-white/90 ml-1" />
+                      </div>
                     </div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                ))
+              )}
             </div>
           </div>
         </div>

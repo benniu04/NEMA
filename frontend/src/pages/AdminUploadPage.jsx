@@ -24,6 +24,13 @@ const AdminUploadPage = () => {
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({
+    'video-720p': 0,
+    'video-1080p': 0,
+    'thumbnail': 0,
+    'poster': 0
+  });
 
   // Check if user is logged in and is admin
   useEffect(() => {
@@ -118,6 +125,73 @@ const AdminUploadPage = () => {
       if (err.message === 'Authentication required') {
         navigate('/admin/login');
       }
+    }
+  };
+
+  const handleFileUpload = async (file, type, quality) => {
+    if (!file) return;
+    
+    setUploading(true);
+    const progressKey = type === 'video' ? `video-${quality}` : type;
+    setUploadProgress(prev => ({ ...prev, [progressKey]: 0 }));
+
+    try {
+      const formData = new FormData();
+      // Use 'image' endpoint for both thumbnail and poster
+      const endpoint = type === 'video' ? 'video' : 'image';
+      formData.append(type === 'video' ? 'video' : 'image', file);
+      if (type === 'video') {
+        formData.append('quality', quality);
+      }
+
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`http://localhost:5000/api/upload/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      // Log the raw response for debugging
+      const responseText = await response.text();
+      console.log('Server response:', responseText);
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse server response:', parseError);
+        throw new Error(`Server returned invalid JSON: ${responseText}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Upload failed');
+      }
+      
+      if (type === 'video') {
+        setFormData(prev => ({
+          ...prev,
+          videoUrls: {
+            ...prev.videoUrls,
+            [quality]: data.fileUrl
+          }
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          [type === 'thumbnail' ? 'thumbnailUrl' : 'posterUrl']: data.fileUrl
+        }));
+      }
+
+      setUploadProgress(prev => ({ ...prev, [progressKey]: 100 }));
+      setSuccess(`${type === 'video' ? 'Video' : type === 'thumbnail' ? 'Thumbnail' : 'Poster'} uploaded successfully!`);
+    } catch (error) {
+      console.error('Upload error:', error);
+      setError(`Failed to upload ${type}: ${error.message}`);
+      setUploadProgress(prev => ({ ...prev, [progressKey]: 0 }));
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -266,54 +340,106 @@ const AdminUploadPage = () => {
 
             <div>
               <label className="block text-sm font-medium text-amber-100/60 mb-2">
-                720p Video URL
+                720p Video File
               </label>
               <input
-                type="url"
-                name="videoUrls.720p"
-                value={formData.videoUrls['720p']}
-                onChange={handleChange}
+                type="file"
+                accept="video/*"
+                onChange={(e) => handleFileUpload(e.target.files[0], 'video', '720p')}
                 className="w-full bg-white/5 border border-amber-100/20 rounded px-4 py-2 focus:outline-none focus:border-amber-500"
               />
+              {uploadProgress['video-720p'] > 0 && uploadProgress['video-720p'] < 100 && (
+                <div className="mt-2">
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="bg-amber-500 h-2.5 rounded-full" 
+                      style={{ width: `${uploadProgress['video-720p']}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-amber-100/60 mt-1">Uploading 720p video...</p>
+                </div>
+              )}
+              {formData.videoUrls['720p'] && (
+                <p className="text-xs text-green-500/60 mt-1">✓ 720p video uploaded</p>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-amber-100/60 mb-2">
-                1080p Video URL
+                1080p Video File
               </label>
               <input
-                type="url"
-                name="videoUrls.1080p"
-                value={formData.videoUrls['1080p']}
-                onChange={handleChange}
+                type="file"
+                accept="video/*"
+                onChange={(e) => handleFileUpload(e.target.files[0], 'video', '1080p')}
                 className="w-full bg-white/5 border border-amber-100/20 rounded px-4 py-2 focus:outline-none focus:border-amber-500"
               />
+              {uploadProgress['video-1080p'] > 0 && uploadProgress['video-1080p'] < 100 && (
+                <div className="mt-2">
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="bg-amber-500 h-2.5 rounded-full" 
+                      style={{ width: `${uploadProgress['video-1080p']}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-amber-100/60 mt-1">Uploading 1080p video...</p>
+                </div>
+              )}
+              {formData.videoUrls['1080p'] && (
+                <p className="text-xs text-green-500/60 mt-1">✓ 1080p video uploaded</p>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-amber-100/60 mb-2">
-                Thumbnail URL
+                Thumbnail File
               </label>
               <input
-                type="url"
-                name="thumbnailUrl"
-                value={formData.thumbnailUrl}
-                onChange={handleChange}
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleFileUpload(e.target.files[0], 'thumbnail')}
                 className="w-full bg-white/5 border border-amber-100/20 rounded px-4 py-2 focus:outline-none focus:border-amber-500"
               />
+              {uploadProgress['thumbnail'] > 0 && uploadProgress['thumbnail'] < 100 && (
+                <div className="mt-2">
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="bg-amber-500 h-2.5 rounded-full" 
+                      style={{ width: `${uploadProgress['thumbnail']}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-amber-100/60 mt-1">Uploading thumbnail...</p>
+                </div>
+              )}
+              {formData.thumbnailUrl && (
+                <p className="text-xs text-green-500/60 mt-1">✓ Thumbnail uploaded</p>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-amber-100/60 mb-2">
-                Poster URL
+                Poster File
               </label>
               <input
-                type="url"
-                name="posterUrl"
-                value={formData.posterUrl}
-                onChange={handleChange}
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleFileUpload(e.target.files[0], 'poster')}
                 className="w-full bg-white/5 border border-amber-100/20 rounded px-4 py-2 focus:outline-none focus:border-amber-500"
               />
+              {uploadProgress['poster'] > 0 && uploadProgress['poster'] < 100 && (
+                <div className="mt-2">
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="bg-amber-500 h-2.5 rounded-full" 
+                      style={{ width: `${uploadProgress['poster']}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-amber-100/60 mt-1">Uploading poster...</p>
+                </div>
+              )}
+              {formData.posterUrl && (
+                <p className="text-xs text-green-500/60 mt-1">✓ Poster uploaded</p>
+              )}
             </div>
           </div>
 

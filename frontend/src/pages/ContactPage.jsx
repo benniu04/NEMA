@@ -8,6 +8,8 @@ const ContactPage = () => {
     message: ''
   });
   const [visibleSections, setVisibleSections] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState({ type: '', message: '' });
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -40,10 +42,52 @@ const ContactPage = () => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle form submission here
-    console.log(formData);
+    setIsSubmitting(true);
+    setSubmitStatus({ type: '', message: '' });
+
+    try {
+      console.log('Sending form data:', formData); // Debug log
+
+      const response = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          access_key: '71ef79fd-30fc-43fd-a768-f5d55d5be598',
+          name: formData.name,
+          email: formData.email,
+          message: formData.message,
+          subject: `New message from ${formData.name} - NEMA Contact Form`
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setSubmitStatus({
+          type: 'success',
+          message: 'Message sent successfully!'
+        });
+        setFormData({ name: '', email: '', message: '' });
+      } else {
+        // Show the actual error from Web3Forms
+        setSubmitStatus({
+          type: 'error',
+          message: result.message || 'Failed to send message'
+        });
+      }
+    } catch (error) {
+      console.error('Fetch error:', error); // Debug log
+      setSubmitStatus({
+        type: 'error',
+        message: `Error: ${error.message}`
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -77,6 +121,16 @@ const ContactPage = () => {
           }`}>
             {/* Contact Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
+              {submitStatus.message && (
+                <div className={`p-4 border ${
+                  submitStatus.type === 'success' 
+                    ? 'border-green-500/30 bg-green-500/10 text-green-100' 
+                    : 'border-red-500/30 bg-red-500/10 text-red-100'
+                }`}>
+                  {submitStatus.message}
+                </div>
+              )}
+
               <div>
                 <label htmlFor="name" className="block text-sm text-amber-100/60 mb-2 tracking-wide">Name</label>
                 <input
@@ -118,9 +172,14 @@ const ContactPage = () => {
 
               <button
                 type="submit"
-                className="w-full border-2 border-amber-100/30 px-10 py-4 rounded-none hover:bg-amber-100/10 transition-all duration-300 text-amber-100/90 tracking-wider text-lg uppercase"
+                disabled={isSubmitting}
+                className={`w-full border-2 border-amber-100/30 px-10 py-4 rounded-none transition-all duration-300 text-amber-100/90 tracking-wider text-lg uppercase ${
+                  isSubmitting 
+                    ? 'opacity-50 cursor-not-allowed' 
+                    : 'hover:bg-amber-100/10'
+                }`}
               >
-                Send Message →
+                {isSubmitting ? 'Sending...' : 'Send Message →'}
               </button>
             </form>
 

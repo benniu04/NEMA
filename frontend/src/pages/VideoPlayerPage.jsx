@@ -1,65 +1,96 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 
-const videosData = [
-  {
-    id: 1,
-    title: "The Solo",
-    director: "Ryan Ma",
-    year: 2024,
-    image: "Ryan-Ma-2.jpeg",
-    videoSrc: "/trimmedmovie.mov", // Using the video from public folder
-    description: "A powerful superhero origin story that follows Carol Danvers as she becomes one of the universe's most powerful heroes.",
-    duration: "2h 4m",
-    rating: "PG-13",
-    genre: "Action, Adventure, Sci-Fi",
-    cast: ["Brie Larson", "Samuel L. Jackson", "Ben Mendelsohn"]
-  },
-  {
-    id: 2,
-    title: "Pacific Rim",
-    director: "Jean Dupont",
-    year: 2024,
-    image: "wallpaper-2.jpg",
-    videoSrc: "/varun_sign.mp4", // Using the same video for demo purposes
-    description: "As a war between humankind and monstrous sea creatures wages on, a former pilot and a trainee are paired up to drive a seemingly obsolete special weapon in a desperate effort to save the world from the apocalypse.",
-    duration: "2h 11m",
-    rating: "PG-13",
-    genre: "Action, Adventure, Sci-Fi",
-    cast: ["Idris Elba", "Charlie Hunnam", "Rinko Kikuchi"]
-  },
-  {
-    id: 3,
-    title: "TRON: Legacy",
-    director: "Marcus Johnson",
-    year: 2024,
-    image: "wallpaper-3.jpg",
-    videoSrc: "/varun_sign.mp4", // Using the same video for demo purposes
-    description: "The son of a virtual world designer goes looking for his father and ends up inside the digital world that his father designed. He meets his father's corrupted creation and a unique ally who was born inside the digital world.",
-    duration: "2h 5m",
-    rating: "PG",
-    genre: "Action, Adventure, Sci-Fi",
-    cast: ["Jeff Bridges", "Garrett Hedlund", "Olivia Wilde"]
-  }
-];
-
-const getRelatedVideos = (currentId) => {
-  return videosData.filter(video => video.id !== parseInt(currentId));
-};
-
 const VideoPlayerPage = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [movie, setMovie] = useState(null);
+  const [relatedMovies, setRelatedMovies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [selectedQuality, setSelectedQuality] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+  const controlsTimeoutRef = React.useRef(null);
   const [visibleSections, setVisibleSections] = useState({});
   const videoRef = useRef(null);
-  const { id } = useParams(); 
-  
 
-  const videoData = videosData.find(video => video.id === parseInt(id)) || videosData[0];
-  const relatedVideos = getRelatedVideos(id);
+  // Fetch movie data and related movies
+  useEffect(() => {
+    const fetchMovieAndRelated = async () => {
+      try {
+        // Fetch the main movie
+        const movieResponse = await fetch(`http://localhost:5000/api/movies/${id}`);
+        if (!movieResponse.ok) {
+          throw new Error('Failed to fetch movie');
+        }
+        const movieData = await movieResponse.json();
+        setMovie(movieData);
+
+        // Set the first available quality as default
+        const availableQualities = Object.entries(movieData.videoUrls).filter(([quality, url]) => url && url.trim() !== '');
+        if (availableQualities.length > 0) {
+          setSelectedQuality(availableQualities[0][0]);
+        }
+
+        // Fetch related movies (excluding current movie)
+        const relatedResponse = await fetch(`http://localhost:5000/api/movies?limit=3&exclude=${id}`);
+        if (!relatedResponse.ok) {
+          throw new Error('Failed to fetch related movies');
+        }
+        const relatedData = await relatedResponse.json();
+        setRelatedMovies(relatedData);
+      } catch (err) {
+        console.error('Error fetching movie data:', err);
+        setError('Failed to load movie. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMovieAndRelated();
+  }, [id]);
+
+  // Handle video player controls visibility
+  useEffect(() => {
+    const handleMouseMove = () => {
+      setShowControls(true);
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+      controlsTimeoutRef.current = setTimeout(() => {
+        if (isPlaying) {
+          setShowControls(false);
+        }
+      }, 3000);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+    };
+  }, [isPlaying]);
+
+  // Handle fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement !== null);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -85,226 +116,228 @@ const VideoPlayerPage = () => {
     };
   }, []);
 
-
-  const togglePlay = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
+  const handlePlayPause = () => {
+    const video = videoRef.current;
+    if (!video || !video.src) return;
+    
+    if (video.paused) {
+      video.play();
+      setIsPlaying(true);
+    } else {
+      video.pause();
+      setIsPlaying(false);
     }
   };
 
-
-  useEffect(() => {
-    let animationFrameId;
-    
-    const updateProgress = () => {
-      if (videoRef.current) {
-        setCurrentTime(videoRef.current.currentTime);
-      }
-      animationFrameId = requestAnimationFrame(updateProgress);
-    };
-    
-    if (isPlaying) {
-      animationFrameId = requestAnimationFrame(updateProgress);
-    }
-    
-    return () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-    };
-  }, [isPlaying]);
-
-  const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      setDuration(videoRef.current.duration);
-    }
+  const handleTimeUpdate = (e) => {
+    setCurrentTime(e.target.currentTime);
+    setDuration(e.target.duration);
   };
 
   const handleSeek = (e) => {
-    const seekTime = parseFloat(e.target.value);
-    if (videoRef.current) {
-      videoRef.current.currentTime = seekTime;
-      setCurrentTime(seekTime);
-    }
+    const video = document.querySelector('video');
+    const seekTime = (e.nativeEvent.offsetX / e.target.offsetWidth) * duration;
+    video.currentTime = seekTime;
+    setCurrentTime(seekTime);
   };
 
   const handleVolumeChange = (e) => {
+    const video = document.querySelector('video');
     const newVolume = parseFloat(e.target.value);
-    if (videoRef.current) {
-      videoRef.current.volume = newVolume;
-      setVolume(newVolume);
+    video.volume = newVolume;
+    setVolume(newVolume);
+    setIsMuted(newVolume === 0);
+  };
+
+  const handleMute = () => {
+    const video = document.querySelector('video');
+    if (isMuted) {
+      video.volume = volume;
+      setIsMuted(false);
+    } else {
+      video.volume = 0;
+      setIsMuted(true);
     }
   };
 
-  const formatTime = (timeInSeconds) => {
-    const minutes = Math.floor(timeInSeconds / 60);
-    const seconds = Math.floor(timeInSeconds % 60);
-    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+  const handleQualityChange = (quality) => {
+    const video = videoRef.current;
+    if (!video || !movie.videoUrls[quality]) return;
+    
+    const currentTime = video.currentTime;
+    const wasPlaying = !video.paused;
+    
+    setSelectedQuality(quality);
+    video.src = movie.videoUrls[quality];
+    video.currentTime = currentTime;
+    
+    if (wasPlaying) {
+      video.play();
+    }
   };
+
+  const toggleFullscreen = () => {
+    const videoContainer = document.querySelector('.video-container');
+    if (!document.fullscreenElement) {
+      videoContainer.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  const formatTime = (time) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // Get available video qualities (only those with valid URLs)
+  const getAvailableQualities = () => {
+    if (!movie?.videoUrls) return [];
+    return Object.entries(movie.videoUrls).filter(([quality, url]) => url && url.trim() !== '');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <NavBar />
+        <div className="flex items-center justify-center h-[calc(100vh-64px)]">
+          <div className="text-amber-100/60">Loading movie...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !movie) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <NavBar />
+        <div className="flex items-center justify-center h-[calc(100vh-64px)]">
+          <div className="text-red-500">{error || 'Movie not found'}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white">
       <NavBar />
       
       <div className="relative min-h-screen pt-20">
-
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-1/4 -left-20 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-1/3 -right-20 w-60 h-60 bg-purple-500/10 rounded-full blur-3xl"></div>
+          <div className="absolute top-1/3 -left-40 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-1/4 -right-40 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl"></div>
         </div>
 
-        <div className="relative max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-
-          <section 
-            id="video-player" 
-            className={`mb-12 transition-opacity duration-1000 ${
-              visibleSections['video-player'] ? 'opacity-100' : 'opacity-0'
-            }`}
-          >
-            <div className="relative aspect-video bg-black/40 border border-amber-100/20 overflow-hidden mb-6">
-
-              <video
-                ref={videoRef}
-                className="w-full h-full object-contain"
-                onLoadedMetadata={handleLoadedMetadata}
-                onClick={togglePlay}
-                poster={videoData.image}
-                playsInline
-              >
-                <source src={videoData.videoSrc} type="video/mp4" />
-                Your browser does not support the video tag.
-              </video>
-              
-    
-              {!isPlaying && (
-                <div 
-                  className="absolute inset-0 flex items-center justify-center bg-black/30 cursor-pointer"
-                  onClick={togglePlay}
-                >
-                  <div className="w-20 h-20 flex items-center justify-center border-2 border-white/50 rounded-full bg-black/30 hover:bg-black/50 transition-colors">
-                    <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                  </div>
+        <div className="relative max-w-7xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
+          <section className="mb-16">
+            <div className="video-container relative aspect-video bg-black rounded-none overflow-hidden">
+              {movie && selectedQuality && movie.videoUrls[selectedQuality] ? (
+                <video
+                  ref={videoRef}
+                  src={movie.videoUrls[selectedQuality]}
+                  className="w-full h-full"
+                  onTimeUpdate={handleTimeUpdate}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onEnded={() => setIsPlaying(false)}
+                  onClick={handlePlayPause}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                  <p className="text-white/60">No video available</p>
                 </div>
               )}
               
+              <div 
+                className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 transition-opacity duration-300 ${
+                  showControls ? 'opacity-100' : 'opacity-0'
+                }`}
+              >
+                <div 
+                  className="relative h-1 bg-white/20 mb-4 cursor-pointer"
+                  onClick={handleSeek}
+                >
+                  <div 
+                    className="absolute h-full bg-amber-500"
+                    style={{ width: `${(currentTime / duration) * 100}%` }}
+                  />
+                </div>
 
-              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
-                <div className="flex flex-col space-y-2">
-                 
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs text-amber-100/60">{formatTime(currentTime)}</span>
-                    <div className="relative flex-1 h-1 bg-white/20 rounded-none cursor-pointer" onClick={(e) => {
-                      const bounds = e.currentTarget.getBoundingClientRect();
-                      const percent = (e.clientX - bounds.left) / bounds.width;
-                      const newTime = percent * duration;
-                      if (videoRef.current) {
-                        videoRef.current.currentTime = newTime;
-                        setCurrentTime(newTime);
-                      }
-                    }}>
-                      <div 
-                        className="absolute top-0 left-0 h-full bg-amber-500/70 rounded-none"
-                        style={{ width: `${(currentTime / duration) * 100}%` }}
-                      ></div>
-                      <input
-                        type="range"
-                        min="0"
-                        max={duration || 0}
-                        value={currentTime}
-                        onChange={handleSeek}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      />
-                    </div>
-                    <span className="text-xs text-amber-100/60">{formatTime(duration)}</span>
-                  </div>
-                  
-               
+                <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
-                    <button 
-                      onClick={togglePlay}
-                      className="text-white/80 hover:text-white transition-colors"
+                    <button
+                      onClick={handlePlayPause}
+                      className="text-white hover:text-amber-500 transition-colors"
                     >
                       {isPlaying ? (
-                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                       ) : (
-                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M8 5v14l11-7z" />
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                       )}
                     </button>
-                    
-               
-                    <div className="flex items-center space-x-2 volume-slider">
-                      <button 
-                        className="text-white/80 hover:text-white transition-colors"
-                        onClick={() => {
-                          if (videoRef.current) {
-                            const newVolume = volume === 0 ? 1 : 0;
-                            videoRef.current.volume = newVolume;
-                            setVolume(newVolume);
-                          }
-                        }}
+
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={handleMute}
+                        className="text-white hover:text-amber-500 transition-colors"
                       >
-                        {volume === 0 ? (
-                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
+                        {isMuted ? (
+                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
                           </svg>
                         ) : (
-                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                           </svg>
                         )}
                       </button>
-                      <div className="relative w-20 h-1 bg-white/20 rounded-none cursor-pointer" onClick={(e) => {
-                        const bounds = e.currentTarget.getBoundingClientRect();
-                        const percent = (e.clientX - bounds.left) / bounds.width;
-                        const newVolume = Math.max(0, Math.min(1, percent));
-                        if (videoRef.current) {
-                          videoRef.current.volume = newVolume;
-                          setVolume(newVolume);
-                        }
-                      }}>
-                        <div 
-                          className="absolute top-0 left-0 h-full bg-amber-500/70 rounded-none"
-                          style={{ width: `${volume * 100}%` }}
-                        ></div>
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.01"
-                          value={volume}
-                          onChange={handleVolumeChange}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        />
-                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        value={volume}
+                        onChange={handleVolumeChange}
+                        className="w-20"
+                      />
                     </div>
-                    
-  
-                    <button 
-                      className="text-white/80 hover:text-white transition-colors ml-auto"
-                      onClick={() => {
-                        if (videoRef.current) {
-                          if (document.fullscreenElement) {
-                            document.exitFullscreen();
-                          } else {
-                            videoRef.current.requestFullscreen();
-                          }
-                        }
-                      }}
+
+                    <div className="text-sm text-white/80">
+                      {formatTime(currentTime)} / {formatTime(duration)}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-4">
+                    <select
+                      value={selectedQuality}
+                      onChange={(e) => handleQualityChange(e.target.value)}
+                      className="bg-white/5 border border-amber-100/20 rounded-none px-2 py-1 text-sm focus:outline-none focus:border-amber-100/40 transition-colors"
                     >
-                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
-                      </svg>
+                      {getAvailableQualities().map(([quality, url]) => (
+                        <option key={quality} value={quality}>{quality}</option>
+                      ))}
+                    </select>
+
+                    <button
+                      onClick={toggleFullscreen}
+                      className="text-white hover:text-amber-500 transition-colors"
+                    >
+                      {isFullscreen ? (
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M15 9h4.5M15 9V4.5M9 15v4.5M9 15H4.5M15 15h4.5M15 15v4.5" />
+                        </svg>
+                      ) : (
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                        </svg>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -312,76 +345,75 @@ const VideoPlayerPage = () => {
             </div>
           </section>
 
-      
-          <section 
-            id="video-info" 
-            className={`mb-16 transition-opacity duration-1000 ${
-              visibleSections['video-info'] ? 'opacity-100' : 'opacity-0'
-            }`}
-          >
-            <div className="border border-amber-100/20 p-8 bg-white/5">
-              <h1 className="text-4xl font-light mb-2">{videoData.title}</h1>
-              <div className="flex flex-wrap gap-4 text-amber-100/60 mb-6">
-                <span>{videoData.director}</span>
+          <section className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+            <div className="lg:col-span-2">
+              <h1 className="text-4xl font-light mb-4 tracking-wide">{movie.title}</h1>
+              <div className="flex items-center space-x-4 text-amber-100/60 mb-6">
+                <span>{movie.director}</span>
                 <span>•</span>
-                <span>{videoData.year}</span>
-                <span>•</span>
-                <span>{videoData.duration}</span>
-                <span>•</span>
-                <span>{videoData.rating}</span>
+                <span>{new Date(movie.releaseDate).getFullYear()}</span>
+                {movie.rating && (
+                  <>
+                    <span>•</span>
+                    <span>Rating: {movie.rating}/10</span>
+                  </>
+                )}
               </div>
+              <p className="text-lg text-gray-300 leading-relaxed mb-8">{movie.description}</p>
               
-              <p className="text-lg text-white/80 mb-8 leading-relaxed">
-                {videoData.description}
-              </p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-4">
                 <div>
-                  <h3 className="text-lg font-medium mb-4 border-b border-amber-100/20 pb-2">Genre</h3>
-                  <p className="text-amber-100/60">{videoData.genre}</p>
+                  <h3 className="text-amber-100/80 mb-2">Genre</h3>
+                  <p className="text-gray-300">{movie.genre.join(', ')}</p>
                 </div>
-                
                 <div>
-                  <h3 className="text-lg font-medium mb-4 border-b border-amber-100/20 pb-2">Cast</h3>
-                  <div className="space-y-2">
-                    {videoData.cast.map((actor, index) => (
-                      <div key={index} className="text-amber-100/60">{actor}</div>
-                    ))}
+                  <h3 className="text-amber-100/80 mb-2">Language</h3>
+                  <p className="text-gray-300">{movie.language}</p>
+                </div>
+                {movie.cast && (
+                  <div>
+                    <h3 className="text-amber-100/80 mb-2">Cast</h3>
+                    <p className="text-gray-300">{movie.cast.join(', ')}</p>
                   </div>
-                </div>
+                )}
               </div>
+            </div>
+
+            <div className="lg:col-span-1">
+              <div className="aspect-[2/3] bg-cover bg-center rounded-none overflow-hidden mb-6"
+                style={{ backgroundImage: `url(${movie.posterUrl})` }}
+              />
             </div>
           </section>
 
-    
           <section 
             id="related-videos" 
-            className={`transition-opacity duration-1000 ${
+            className={`mt-16 transition-opacity duration-1000 ${
               visibleSections['related-videos'] ? 'opacity-100' : 'opacity-0'
             }`}
           >
             <h2 className="text-2xl font-light mb-8 border-b border-amber-100/20 pb-4">Related Films</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {relatedVideos.map((video) => (
+              {relatedMovies.map((movie) => (
                 <Link 
-                  key={video.id}
-                  to={`/video/${video.id}`}
+                  key={movie._id}
+                  to={`/video/${movie._id}`}
                   className="group relative aspect-video bg-cover bg-center rounded-none overflow-hidden cursor-pointer border border-amber-100/20"
-                  style={{ backgroundImage: `url(${video.image})` }}
+                  style={{ backgroundImage: `url(${movie.thumbnailUrl})` }}
                 >
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="absolute bottom-0 p-4">
-                      <h3 className="text-xl font-light mb-1">{video.title}</h3>
-                      <p className="text-amber-100/60 text-sm">{video.director} • {video.year}</p>
-                      <p className="text-amber-100/60 text-sm">{video.duration}</p>
+                      <h3 className="text-xl font-light mb-1">{movie.title}</h3>
+                      <p className="text-amber-100/60 text-sm">{movie.director} • {new Date(movie.releaseDate).getFullYear()}</p>
+                      <p className="text-amber-100/60 text-sm">{movie.genre.join(', ')}</p>
                     </div>
                   </div>
                   
-              
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-14 h-14 flex items-center justify-center border-2 border-white/50 rounded-full bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z" />
+                      <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
                   </div>
