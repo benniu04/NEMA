@@ -7,7 +7,24 @@ const moviesRoutes = express.Router();
 // Public routes
 moviesRoutes.get('/', async (req, res) => {
   try {
-    const movies = await Movie.find();
+    const { limit, exclude } = req.query;
+    let query = {};
+
+    // If exclude parameter is provided, exclude that movie from results
+    if (exclude) {
+      query._id = { $ne: exclude };
+    }
+
+    // Build the query
+    let moviesQuery = Movie.find(query);
+
+    // If limit is provided, limit the number of results
+    if (limit) {
+      moviesQuery = moviesQuery.limit(parseInt(limit));
+    }
+
+    // Execute the query
+    const movies = await moviesQuery;
     res.status(200).json(movies);
   } catch (error) {
     console.error('Error fetching movies:', error);
