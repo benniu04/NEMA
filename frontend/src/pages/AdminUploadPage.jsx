@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import NavBar from '../components/NavBar';
+import API_BASE_URL from '../../config/api.js';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -52,12 +53,22 @@ const AdminDashboard = () => {
   const fetchMovies = async () => {
     try {
       setLoading(true);
+      console.log('Fetching movies from:', `${API_BASE_URL}/api/movies`);
+      
       const response = await fetch(`${API_BASE_URL}/api/movies`);
-      if (!response.ok) throw new Error('Failed to fetch movies');
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('Fetched movies:', data);
+      
       setMovies(data);
     } catch (err) {
-      setError('Failed to load movies');
+      console.error('Error fetching movies:', err);
+      setError(`Failed to load movies: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -147,8 +158,14 @@ const AdminDashboard = () => {
         tags: formData.tags.split(',').map(t => t.trim())
       };
 
-      const response = await fetch('http://localhost:5000/api/movies', {
-        method: 'POST',
+      const url = editingMovie 
+        ? `${API_BASE_URL}/api/movies/${editingMovie._id}`
+        : `${API_BASE_URL}/api/movies`;
+      
+      const method = editingMovie ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -296,13 +313,25 @@ const AdminDashboard = () => {
           {/* Alerts */}
           {error && (
             <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-3 rounded-lg mb-6">
-              {error}
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="font-medium">Error:</span>
+                <span>{error}</span>
+              </div>
             </div>
           )}
           
           {success && (
             <div className="bg-green-500/20 border border-green-500/50 text-green-200 px-4 py-3 rounded-lg mb-6">
-              {success}
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="font-medium">Success:</span>
+                <span>{success}</span>
+              </div>
             </div>
           )}
 
@@ -313,16 +342,19 @@ const AdminDashboard = () => {
                 <div className="bg-white/5 border border-amber-100/20 rounded-lg p-6">
                   <h3 className="text-lg font-medium text-amber-100/90 mb-2">Total Movies</h3>
                   <p className="text-3xl font-light">{movies.length}</p>
+                  <p className="text-xs text-amber-100/40 mt-1">Movies in database</p>
                 </div>
                 <div className="bg-white/5 border border-amber-100/20 rounded-lg p-6">
                   <h3 className="text-lg font-medium text-amber-100/90 mb-2">Featured Movies</h3>
                   <p className="text-3xl font-light">{movies.filter(m => m.isFeatured).length}</p>
+                  <p className="text-xs text-amber-100/40 mt-1">Currently featured</p>
                 </div>
                 <div className="bg-white/5 border border-amber-100/20 rounded-lg p-6">
                   <h3 className="text-lg font-medium text-amber-100/90 mb-2">Recent Uploads</h3>
                   <p className="text-3xl font-light">
                     {movies.filter(m => new Date(m.createdAt || m.releaseDate) > new Date(Date.now() - 30*24*60*60*1000)).length}
                   </p>
+                  <p className="text-xs text-amber-100/40 mt-1">In last 30 days</p>
                 </div>
               </div>
 
@@ -341,6 +373,7 @@ const AdminDashboard = () => {
                   >
                     Manage Movies
                   </button>
+                  
                 </div>
               </div>
             </div>
@@ -591,7 +624,12 @@ const AdminDashboard = () => {
           {activeTab === 'manage' && (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-light">Manage Movies</h2>
+                <div>
+                  <h2 className="text-2xl font-light">Manage Movies</h2>
+                  <p className="text-amber-100/60 text-sm mt-1">
+                    {loading ? 'Loading...' : `${movies.length} movies found`}
+                  </p>
+                </div>
                 <button
                   onClick={() => {
                     resetForm();
@@ -606,6 +644,10 @@ const AdminDashboard = () => {
               {loading ? (
                 <div className="text-center py-12">
                   <div className="text-amber-100/60">Loading movies...</div>
+                </div>
+              ) : movies.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-amber-100/60">No movies found. Upload your first movie to get started!</div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
