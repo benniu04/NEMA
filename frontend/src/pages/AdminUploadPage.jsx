@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import NavBar from '../components/NavBar';
-import API_BASE_URL from '../../config/api.js';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -148,14 +147,8 @@ const AdminDashboard = () => {
         tags: formData.tags.split(',').map(t => t.trim())
       };
 
-      const url = editingMovie 
-        ? `${API_BASE_URL}/api/movies/${editingMovie._id}`
-        : `${API_BASE_URL}/api/movies`;
-      
-      const method = editingMovie ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
+      const response = await fetch('http://localhost:5000/api/movies', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
