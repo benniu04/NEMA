@@ -14,7 +14,7 @@ const PORT = ENV_VARS.PORT;
 
 app.use(cors({
   origin: [
-    'https://nemaa.netlify.app/',
+    'https://nemaa.netlify.app',
     'http://localhost:5173',
     'http://localhost:3000'  
   ],
