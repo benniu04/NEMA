@@ -18,9 +18,11 @@ const VideoPlayerPage = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [isSeeking, setIsSeeking] = useState(false);
   const controlsTimeoutRef = React.useRef(null);
   const [visibleSections, setVisibleSections] = useState({});
   const videoRef = useRef(null);
+  const progressBarRef = useRef(null);
 
   // Fetch movie data and related movies
   useEffect(() => {
@@ -66,7 +68,7 @@ const VideoPlayerPage = () => {
         clearTimeout(controlsTimeoutRef.current);
       }
       controlsTimeoutRef.current = setTimeout(() => {
-        if (isPlaying) {
+        if (isPlaying && !isSeeking) {
           setShowControls(false);
         }
       }, 3000);
@@ -79,7 +81,7 @@ const VideoPlayerPage = () => {
         clearTimeout(controlsTimeoutRef.current);
       }
     };
-  }, [isPlaying]);
+  }, [isPlaying, isSeeking]);
 
   // Handle fullscreen changes
   useEffect(() => {
@@ -117,6 +119,28 @@ const VideoPlayerPage = () => {
     };
   }, []);
 
+  // Prevent video download and right-click
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    return false;
+  };
+
+  // Disable keyboard shortcuts that could be used to download
+  const handleKeyDown = (e) => {
+    // Prevent Ctrl+S, Ctrl+U, F12, etc.
+    if ((e.ctrlKey && (e.key === 's' || e.key === 'u')) || e.key === 'F12') {
+      e.preventDefault();
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
   const handlePlayPause = () => {
     const video = videoRef.current;
     if (!video || !video.src) return;
@@ -131,19 +155,55 @@ const VideoPlayerPage = () => {
   };
 
   const handleTimeUpdate = (e) => {
-    setCurrentTime(e.target.currentTime);
+    if (!isSeeking) {
+      setCurrentTime(e.target.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = (e) => {
     setDuration(e.target.duration);
   };
 
+  // Fixed seek function with better accuracy
   const handleSeek = (e) => {
-    const video = document.querySelector('video');
-    const seekTime = (e.nativeEvent.offsetX / e.target.offsetWidth) * duration;
+    const video = videoRef.current;
+    const progressBar = progressBarRef.current;
+    
+    if (!video || !progressBar || !duration || isNaN(duration)) return;
+    
+    const rect = progressBar.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const progressBarWidth = rect.width;
+    const seekPercentage = Math.max(0, Math.min(1, clickX / progressBarWidth));
+    const seekTime = seekPercentage * duration;
+    
     video.currentTime = seekTime;
     setCurrentTime(seekTime);
   };
 
+  // Enhanced seek with mouse drag support
+  const handleMouseDown = (e) => {
+    setIsSeeking(true);
+    handleSeek(e);
+    
+    const handleMouseMove = (e) => {
+      handleSeek(e);
+    };
+    
+    const handleMouseUp = () => {
+      setIsSeeking(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
   const handleVolumeChange = (e) => {
-    const video = document.querySelector('video');
+    const video = videoRef.current;
+    if (!video) return;
+    
     const newVolume = parseFloat(e.target.value);
     video.volume = newVolume;
     setVolume(newVolume);
@@ -151,9 +211,11 @@ const VideoPlayerPage = () => {
   };
 
   const handleMute = () => {
-    const video = document.querySelector('video');
+    const video = videoRef.current;
+    if (!video) return;
+    
     if (isMuted) {
-      video.volume = volume;
+      video.volume = volume > 0 ? volume : 0.5;
       setIsMuted(false);
     } else {
       video.volume = 0;
@@ -170,11 +232,17 @@ const VideoPlayerPage = () => {
     
     setSelectedQuality(quality);
     video.src = movie.videoUrls[quality];
-    video.currentTime = currentTime;
     
-    if (wasPlaying) {
-      video.play();
-    }
+    // Wait for video to load before setting time
+    const handleLoadedData = () => {
+      video.currentTime = currentTime;
+      if (wasPlaying) {
+        video.play();
+      }
+      video.removeEventListener('loadeddata', handleLoadedData);
+    };
+    
+    video.addEventListener('loadeddata', handleLoadedData);
   };
 
   const toggleFullscreen = () => {
@@ -187,6 +255,7 @@ const VideoPlayerPage = () => {
   };
 
   const formatTime = (time) => {
+    if (!time || isNaN(time)) return '0:00';
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
@@ -196,6 +265,12 @@ const VideoPlayerPage = () => {
   const getAvailableQualities = () => {
     if (!movie?.videoUrls) return [];
     return Object.entries(movie.videoUrls).filter(([quality, url]) => url && url.trim() !== '');
+  };
+
+  // Calculate progress percentage safely
+  const getProgressPercentage = () => {
+    if (!duration || isNaN(duration) || duration === 0) return 0;
+    return Math.max(0, Math.min(100, (currentTime / duration) * 100));
   };
 
   if (loading) {
@@ -239,10 +314,16 @@ const VideoPlayerPage = () => {
                   src={movie.videoUrls[selectedQuality]}
                   className="w-full h-full"
                   onTimeUpdate={handleTimeUpdate}
+                  onLoadedMetadata={handleLoadedMetadata}
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => setIsPlaying(false)}
                   onEnded={() => setIsPlaying(false)}
                   onClick={handlePlayPause}
+                  onContextMenu={handleContextMenu}
+                  controlsList="nodownload nofullscreen noremoteplayback"
+                  disablePictureInPicture
+                  playsInline
+                  preload="metadata"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gray-900">
@@ -255,13 +336,28 @@ const VideoPlayerPage = () => {
                   showControls ? 'opacity-100' : 'opacity-0'
                 }`}
               >
+                {/* Enhanced Progress Bar */}
                 <div 
-                  className="relative h-1 bg-white/20 mb-4 cursor-pointer"
-                  onClick={handleSeek}
+                  ref={progressBarRef}
+                  className="relative h-1 bg-white/20 mb-4 cursor-pointer group"
+                  onMouseDown={handleMouseDown}
                 >
+                  {/* Background bar */}
+                  <div className="absolute inset-0 bg-white/20 rounded-full"></div>
+                  
+                  {/* Progress fill */}
                   <div 
-                    className="absolute h-full bg-amber-500"
-                    style={{ width: `${(currentTime / duration) * 100}%` }}
+                    className="absolute h-full bg-amber-500 rounded-full transition-all duration-150"
+                    style={{ width: `${getProgressPercentage()}%` }}
+                  />
+                  
+                  {/* Hover indicator */}
+                  <div 
+                    className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-amber-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none"
+                    style={{ 
+                      left: `${getProgressPercentage()}%`,
+                      transform: 'translateX(-50%) translateY(-50%)'
+                    }}
                   />
                 </div>
 
@@ -304,7 +400,7 @@ const VideoPlayerPage = () => {
                         min="0"
                         max="1"
                         step="0.1"
-                        value={volume}
+                        value={isMuted ? 0 : volume}
                         onChange={handleVolumeChange}
                         className="w-20"
                       />
@@ -416,6 +512,7 @@ const VideoPlayerPage = () => {
                         <div className="text-amber-100/60 text-sm italic">
                           +{movie.cast.length - 5} more
                         </div>
+         
                       )}
                     </div>
                   </div>
@@ -425,9 +522,48 @@ const VideoPlayerPage = () => {
 
             <div className="lg:col-span-1">
               <div className="sticky top-24">
-                <div className="aspect-[2/3] bg-cover bg-center rounded-lg overflow-hidden mb-6 border border-amber-100/20 shadow-2xl"
+                <div 
+                  className="poster-container group relative aspect-[2/3] bg-cover bg-center rounded-lg overflow-hidden mb-6 border border-amber-100/20 shadow-2xl transition-all duration-500 hover:shadow-3xl hover:shadow-amber-500/30 cursor-pointer"
                   style={{ backgroundImage: `url(${movie.posterUrl})` }}
-                />
+                  onContextMenu={handleContextMenu}
+                >
+                  {/* Edge glow effects */}
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-700">
+                    {/* Top edge */}
+                    <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-b from-amber-400/60 to-transparent transform -translate-y-2 group-hover:translate-y-0 transition-transform duration-500"></div>
+                    {/* Bottom edge */}
+                    <div className="absolute bottom-0 left-0 right-0 h-2 bg-gradient-to-t from-amber-400/60 to-transparent transform translate-y-2 group-hover:translate-y-0 transition-transform duration-500"></div>
+                    {/* Left edge */}
+                    <div className="absolute top-0 bottom-0 left-0 w-2 bg-gradient-to-r from-amber-400/60 to-transparent transform -translate-x-2 group-hover:translate-x-0 transition-transform duration-500"></div>
+                    {/* Right edge */}
+                    <div className="absolute top-0 bottom-0 right-0 w-2 bg-gradient-to-l from-amber-400/60 to-transparent transform translate-x-2 group-hover:translate-x-0 transition-transform duration-500"></div>
+                  </div>
+                  
+                  {/* Corner highlights */}
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-500">
+                    {/* Top-left corner */}
+                    <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-amber-400/80 transform -translate-x-2 -translate-y-2 group-hover:translate-x-2 group-hover:translate-y-2 transition-transform duration-700"></div>
+                    {/* Top-right corner */}
+                    <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-amber-400/80 transform translate-x-2 -translate-y-2 group-hover:-translate-x-2 group-hover:translate-y-2 transition-transform duration-700"></div>
+                    {/* Bottom-left corner */}
+                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-amber-400/80 transform -translate-x-2 translate-y-2 group-hover:translate-x-2 group-hover:-translate-y-2 transition-transform duration-700"></div>
+                    {/* Bottom-right corner */}
+                    <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-amber-400/80 transform translate-x-2 translate-y-2 group-hover:-translate-x-2 group-hover:-translate-y-2 transition-transform duration-700"></div>
+                  </div>
+
+                  {/* Subtle overlay animation */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 via-transparent to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                  
+                  {/* Floating particles effect */}
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-1000">
+                    <div className="absolute top-1/4 left-1/4 w-1 h-1 bg-amber-400/60 rounded-full animate-ping"></div>
+                    <div className="absolute top-3/4 right-1/3 w-1 h-1 bg-amber-400/40 rounded-full animate-ping animation-delay-300"></div>
+                    <div className="absolute bottom-1/3 left-2/3 w-1 h-1 bg-amber-400/50 rounded-full animate-ping animation-delay-700"></div>
+                  </div>
+
+                  {/* Protective overlay to prevent right-click save */}
+                  <div className="absolute inset-0 pointer-events-none select-none"></div>
+                </div>
               </div>
             </div>
           </section>
@@ -446,6 +582,7 @@ const VideoPlayerPage = () => {
                   to={`/video/${movie._id}`}
                   className="group relative aspect-video bg-cover bg-center rounded-none overflow-hidden cursor-pointer border border-amber-100/20"
                   style={{ backgroundImage: `url(${movie.thumbnailUrl})` }}
+                  onContextMenu={handleContextMenu}
                 >
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="absolute bottom-0 p-4">
@@ -469,6 +606,18 @@ const VideoPlayerPage = () => {
           </section>
         </div>
       </div>
+
+      <style jsx>{`
+        .animation-delay-300 {
+          animation-delay: 300ms;
+        }
+        .animation-delay-700 {
+          animation-delay: 700ms;
+        }
+        .poster-container:hover {
+          transform: scale(1.02);
+        }
+      `}</style>
     </div>
   )
 }

@@ -4,7 +4,6 @@ import { Link, useLocation } from 'react-router-dom';
 const NavBar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -21,12 +20,6 @@ const NavBar = () => {
     };
   }, [scrolled]);
 
-  // Check if user is admin
-  useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('adminUser'));
-    setIsAdmin(user?.isAdmin || false);
-  }, [location]);
-
   // Close mobile menu when route changes
   useEffect(() => {
     setMenuOpen(false);
@@ -38,13 +31,6 @@ const NavBar = () => {
     { name: 'Catalog', path: '/catalog' },
     { name: 'Contact', path: '/contact' }
   ];
-
-  // Add admin link based on authentication status
-  if (isAdmin) {
-    navItems.push({ name: 'Admin Upload', path: '/admin/upload' });
-  } else {
-    navItems.push({ name: 'Admin Login', path: '/admin/login' });
-  }
 
   return (
     <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ${
@@ -90,6 +76,7 @@ const NavBar = () => {
             <button
               onClick={() => setMenuOpen(!menuOpen)}
               className="text-white/70 hover:text-white transition-colors"
+              aria-label="Toggle mobile menu"
             >
               {menuOpen ? (
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -105,7 +92,7 @@ const NavBar = () => {
         </div>
       </div>
       
-      {/* Mobile menu - hidden on desktop */}
+      {/* Mobile menu */}
       <div className={`md:hidden absolute w-full transition-all duration-300 ease-in-out ${
         menuOpen ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0 pointer-events-none'
       }`}>

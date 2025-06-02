@@ -67,6 +67,15 @@ const CatalogPage = () => {
     return 0;
   });
 
+  // Clear all filters
+  const clearFilters = () => {
+    setSelectedCategory("All");
+    setSelectedYear("All");
+    setSelectedLanguage("All");
+    setSearchQuery("");
+    setSortBy("newest");
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black text-white">
@@ -113,53 +122,99 @@ const CatalogPage = () => {
             </p>
           </section>
 
-          {/* Filters Section */}
-          <section id="filters" className="mb-12">
-            <div className="flex flex-col md:flex-row gap-6 items-center justify-between">
-              <input
-                type="text"
-                placeholder="Search films..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full md:w-64 bg-white/5 border border-amber-100/20 rounded-none px-4 py-3 focus:outline-none focus:border-amber-100/40 transition-colors"
-              />
-              <div className="flex flex-wrap gap-4">
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="bg-white/5 border border-amber-100/20 rounded-none px-4 py-3 focus:outline-none focus:border-amber-100/40 transition-colors"
-                >
-                  {categories.map(category => (
-                    <option key={category} value={category}>{category}</option>
-                  ))}
-                </select>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="bg-white/5 border border-amber-100/20 rounded-none px-4 py-3 focus:outline-none focus:border-amber-100/40 transition-colors"
-                >
-                  {years.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="bg-white/5 border border-amber-100/20 rounded-none px-4 py-3 focus:outline-none focus:border-amber-100/40 transition-colors"
-                >
-                  {languages.map(language => (
-                    <option key={language} value={language}>{language}</option>
-                  ))}
-                </select>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="bg-white/5 border border-amber-100/20 rounded-none px-4 py-3 focus:outline-none focus:border-amber-100/40 transition-colors"
-                >
-                  <option value="newest">Newest First</option>
-                  <option value="oldest">Oldest First</option>
-                  <option value="title">Title A-Z</option>
-                </select>
+          {/* Compact Search and Filters */}
+          <section id="filters" className="mb-8">
+            <div className="bg-white/5 border border-amber-100/10 p-4">
+              <div className="flex flex-col lg:flex-row gap-4 items-center">
+                {/* Compact Search Bar */}
+                <div className="relative w-full lg:w-80">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-4 w-4 text-amber-100/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-white/5 border border-amber-100/20 rounded-none px-3 pl-10 py-2 text-sm font-light focus:outline-none focus:border-amber-100/40 transition-colors placeholder-amber-100/30"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-amber-100/40 hover:text-amber-100 transition-colors"
+                    >
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+
+                {/* Compact Filters */}
+                <div className="flex flex-wrap gap-3 items-center flex-1">
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="bg-white/5 border border-amber-100/20 rounded-none px-3 py-2 text-sm font-light focus:outline-none focus:border-amber-100/40 transition-colors"
+                  >
+                    {categories.map(category => (
+                      <option key={category} value={category} className="bg-black text-white">
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(e.target.value)}
+                    className="bg-white/5 border border-amber-100/20 rounded-none px-3 py-2 text-sm font-light focus:outline-none focus:border-amber-100/40 transition-colors"
+                  >
+                    {years.map(year => (
+                      <option key={year} value={year} className="bg-black text-white">
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={selectedLanguage}
+                    onChange={(e) => setSelectedLanguage(e.target.value)}
+                    className="bg-white/5 border border-amber-100/20 rounded-none px-3 py-2 text-sm font-light focus:outline-none focus:border-amber-100/40 transition-colors"
+                  >
+                    {languages.map(language => (
+                      <option key={language} value={language} className="bg-black text-white">
+                        {language}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="bg-white/5 border border-amber-100/20 rounded-none px-3 py-2 text-sm font-light focus:outline-none focus:border-amber-100/40 transition-colors"
+                  >
+                    <option value="newest" className="bg-black text-white">Newest</option>
+                    <option value="oldest" className="bg-black text-white">Oldest</option>
+                    <option value="title" className="bg-black text-white">A-Z</option>
+                  </select>
+                </div>
+
+                {/* Compact Status and Clear */}
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="text-amber-100/50 whitespace-nowrap">
+                    {filteredMovies.length} films
+                  </span>
+                  {(selectedCategory !== "All" || selectedYear !== "All" || selectedLanguage !== "All" || searchQuery) && (
+                    <button
+                      onClick={clearFilters}
+                      className="text-amber-100/60 hover:text-amber-100 underline transition-colors whitespace-nowrap"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </section>

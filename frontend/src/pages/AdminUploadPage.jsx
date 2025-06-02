@@ -95,6 +95,78 @@ const AdminDashboard = () => {
     setSuccess('');
   };
 
+  const handleCancelEdit = () => {
+    resetForm();
+    setActiveTab('manage');
+  };
+
+  // Analytics functions
+  const getAnalytics = () => {
+    if (movies.length === 0) return null;
+
+    // Genre analysis
+    const genreCount = {};
+    movies.forEach(movie => {
+      if (Array.isArray(movie.genre)) {
+        movie.genre.forEach(g => {
+          genreCount[g] = (genreCount[g] || 0) + 1;
+        });
+      }
+    });
+    const topGenres = Object.entries(genreCount)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 5);
+
+    // Director analysis
+    const directorCount = {};
+    movies.forEach(movie => {
+      directorCount[movie.director] = (directorCount[movie.director] || 0) + 1;
+    });
+    const topDirectors = Object.entries(directorCount)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 3);
+
+    // Language analysis
+    const languageCount = {};
+    movies.forEach(movie => {
+      languageCount[movie.language] = (languageCount[movie.language] || 0) + 1;
+    });
+
+    // Rating analysis
+    const ratings = movies.map(m => parseFloat(m.rating)).filter(r => !isNaN(r));
+    const avgRating = ratings.length > 0 ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : 0;
+    const highRatedMovies = movies.filter(m => parseFloat(m.rating) >= 8).length;
+
+    // Release year analysis
+    const currentYear = new Date().getFullYear();
+    const recentMovies = movies.filter(m => new Date(m.releaseDate).getFullYear() >= currentYear - 2).length;
+    const yearCount = {};
+    movies.forEach(movie => {
+      const year = new Date(movie.releaseDate).getFullYear();
+      yearCount[year] = (yearCount[year] || 0) + 1;
+    });
+
+    // Quality analysis
+    const moviesWithVideo = movies.filter(m => m.videoUrls?.['720p'] || m.videoUrls?.['1080p']).length;
+    const movies720p = movies.filter(m => m.videoUrls?.['720p']).length;
+    const movies1080p = movies.filter(m => m.videoUrls?.['1080p']).length;
+
+    return {
+      topGenres,
+      topDirectors,
+      languageCount,
+      avgRating,
+      highRatedMovies,
+      recentMovies,
+      yearCount,
+      moviesWithVideo,
+      movies720p,
+      movies1080p
+    };
+  };
+
+  const analytics = getAnalytics();
+
   const handleEdit = (movie) => {
     setEditingMovie(movie);
     setFormData({
@@ -358,6 +430,17 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
+              {/* Debug Info */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="bg-gray-800/50 border border-gray-600 rounded-lg p-4">
+                  <h3 className="text-sm font-medium text-gray-300 mb-2">Debug Info</h3>
+                  <p className="text-xs text-gray-400">API Base URL: {API_BASE_URL}</p>
+                  <p className="text-xs text-gray-400">Movies Array Length: {movies.length}</p>
+                  <p className="text-xs text-gray-400">Loading: {loading.toString()}</p>
+                  {error && <p className="text-xs text-red-400">Error: {error}</p>}
+                </div>
+              )}
+
               <div className="bg-white/5 border border-amber-100/20 rounded-lg p-6">
                 <h3 className="text-xl font-medium text-amber-100/90 mb-4">Quick Actions</h3>
                 <div className="flex flex-wrap gap-4">
@@ -373,7 +456,42 @@ const AdminDashboard = () => {
                   >
                     Manage Movies
                   </button>
-                  
+                  <button
+                    onClick={fetchMovies}
+                    className="px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-lg text-blue-100 hover:bg-blue-500/30 transition-colors"
+                  >
+                    Refresh Data
+                  </button>
+                  {process.env.NODE_ENV === 'development' && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          console.log('Testing API connection...');
+                          const response = await fetch(`${API_BASE_URL}/api/movies`);
+                          console.log('API Response:', {
+                            status: response.status,
+                            statusText: response.statusText,
+                            url: response.url
+                          });
+                          const text = await response.text();
+                          console.log('Raw response:', text);
+                          if (response.ok) {
+                            const data = JSON.parse(text);
+                            console.log('Parsed data:', data);
+                            alert(`API test successful! Found ${Array.isArray(data) ? data.length : 'unknown'} movies`);
+                          } else {
+                            alert(`API test failed: ${response.status} ${response.statusText}`);
+                          }
+                        } catch (error) {
+                          console.error('API test error:', error);
+                          alert(`API test error: ${error.message}`);
+                        }
+                      }}
+                      className="px-4 py-2 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-100 hover:bg-purple-500/30 transition-colors"
+                    >
+                      Test API
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -388,7 +506,7 @@ const AdminDashboard = () => {
                 </h2>
                 {editingMovie && (
                   <button
-                    onClick={resetForm}
+                    onClick={handleCancelEdit}
                     className="px-4 py-2 border border-amber-100/20 rounded-lg text-amber-100/60 hover:bg-white/5"
                   >
                     Cancel Edit
@@ -603,7 +721,7 @@ const AdminDashboard = () => {
                 <div className="flex justify-end space-x-4 pt-6">
                   <button
                     type="button"
-                    onClick={resetForm}
+                    onClick={editingMovie ? handleCancelEdit : resetForm}
                     className="px-6 py-3 border border-amber-100/20 rounded-lg text-amber-100/60 hover:bg-white/5 transition-colors"
                   >
                     Cancel
