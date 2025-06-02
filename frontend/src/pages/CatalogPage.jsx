@@ -168,30 +168,53 @@ const CatalogPage = () => {
           <section id="movies-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {sortedMovies && sortedMovies.length > 0 ? (
               sortedMovies.map((movie) => (
-                <Link 
-                  key={movie._id}
-                  to={`/video/${movie._id}`}
-                  className="group relative aspect-[16/9] bg-gray-800 border border-amber-100/20 rounded-none overflow-hidden cursor-pointer min-h-[200px]"
-                  style={{ 
-                    backgroundImage: `url(${movie.thumbnailUrl})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center'
-                  }}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-br from-amber-900/20 to-purple-900/20"></div>
-                  
-                  <div className="absolute bottom-0 p-4 bg-black/80 w-full">
-                    <h3 className="text-lg font-light mb-1 text-white">{movie.title}</h3>
-                    <p className="text-amber-100/80 text-sm">{movie.director} • {new Date(movie.releaseDate).getFullYear()}</p>
-                    <p className="text-amber-100/60 text-xs">{movie.genre.join(', ')}</p>
-                    {movie.rating && (
-                      <p className="text-amber-100/60 text-xs mt-1">Rating: {movie.rating}/10</p>
-                    )}
+                <div key={movie._id} className="group relative">
+                  <Link 
+                    to={`/video/${movie._id}`}
+                    className="block relative aspect-[16/9] bg-gray-800 border border-amber-100/20 rounded-lg overflow-hidden cursor-pointer transform transition-all duration-300 hover:scale-105 hover:border-amber-100/40"
+                    style={{ 
+                      backgroundImage: `url(${movie.thumbnailUrl})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center'
+                    }}
+                  >
+                    {/* Subtle gradient overlay that doesn't block the image */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
+                    
+                    {/* Simple hover overlay - just darkens the image slightly */}
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-all duration-300"></div>
+
+                    {/* Play button overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-16 h-16 flex items-center justify-center border-2 border-white/70 rounded-full bg-black/40 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-75 group-hover:scale-100">
+                        <svg className="w-7 h-7 text-white ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </Link>
+
+                  {/* Title card below the thumbnail - always visible */}
+                  <div className="mt-4 px-2">
+                    <h3 className="text-lg font-light text-white mb-1 line-clamp-1">{movie.title}</h3>
+                    <p className="text-amber-100/70 text-sm">{movie.director} • {new Date(movie.releaseDate).getFullYear()}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-amber-100/60 text-xs">{movie.genre[0]}</span>
+                      {movie.rating && (
+                        <>
+                          <span className="text-amber-100/40">•</span>
+                          <div className="flex items-center gap-1">
+                            <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                            <span className="text-amber-400 text-xs">{movie.rating}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                  </div>
-                </Link>
+                </div>
               ))
             ) : (
               <div className="col-span-full text-center py-12">

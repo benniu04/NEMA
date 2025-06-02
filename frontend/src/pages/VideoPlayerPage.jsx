@@ -348,42 +348,87 @@ const VideoPlayerPage = () => {
 
           <section className="grid grid-cols-1 lg:grid-cols-3 gap-12">
             <div className="lg:col-span-2">
-              <h1 className="text-4xl font-light mb-4 tracking-wide">{movie.title}</h1>
-              <div className="flex items-center space-x-4 text-amber-100/60 mb-6">
-                <span>{movie.director}</span>
-                <span>•</span>
-                <span>{new Date(movie.releaseDate).getFullYear()}</span>
-                {movie.rating && (
-                  <>
-                    <span>•</span>
-                    <span>Rating: {movie.rating}/10</span>
-                  </>
-                )}
+              {/* Title and Meta Info */}
+              <div className="mb-8">
+                <h1 className="text-5xl font-light mb-6 tracking-wide text-white leading-tight">{movie.title}</h1>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-amber-100/70 text-lg">
+                  <span className="font-medium">{movie.director}</span>
+                  <span className="text-amber-100/40">•</span>
+                  <span>{new Date(movie.releaseDate).getFullYear()}</span>
+                  {movie.rating && (
+                    <>
+                      <span className="text-amber-100/40">•</span>
+                      <div className="flex items-center gap-2">
+                        <svg className="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                        <span className="text-amber-400 font-medium">{movie.rating}/10</span>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-              <p className="text-lg text-gray-300 leading-relaxed mb-8">{movie.description}</p>
+
+              {/* Description Section - Enhanced */}
+              <div className="mb-10">
+                <div className="relative">
+                  <div className="absolute -left-4 top-0 w-1 h-full bg-gradient-to-b from-amber-500 to-amber-600 rounded-full"></div>
+                  <div className="pl-8">
+                    <h2 className="text-xl font-medium text-amber-100/90 mb-4 tracking-wide">Synopsis</h2>
+                    <div className="prose prose-lg max-w-none">
+                      <p className="text-gray-200 leading-relaxed text-lg font-light tracking-wide leading-8">
+                        {movie.description}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
               
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-amber-100/80 mb-2">Genre</h3>
-                  <p className="text-gray-300">{movie.genre.join(', ')}</p>
+              {/* Movie Details Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-gradient-to-br from-white/5 to-white/2 backdrop-blur-sm border border-amber-100/10 rounded-lg p-8">
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-amber-100/90 font-medium mb-3 text-sm uppercase tracking-wider">Genre</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {movie.genre.map((g, index) => (
+                        <span key={index} className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-100/80 text-sm">
+                          {g}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-amber-100/90 font-medium mb-3 text-sm uppercase tracking-wider">Language</h3>
+                    <p className="text-gray-200 text-lg">{movie.language}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-amber-100/80 mb-2">Language</h3>
-                  <p className="text-gray-300">{movie.language}</p>
-                </div>
+                
                 {movie.cast && (
                   <div>
-                    <h3 className="text-amber-100/80 mb-2">Cast</h3>
-                    <p className="text-gray-300">{movie.cast.join(', ')}</p>
+                    <h3 className="text-amber-100/90 font-medium mb-3 text-sm uppercase tracking-wider">Cast</h3>
+                    <div className="space-y-2">
+                      {movie.cast.slice(0, 5).map((actor, index) => (
+                        <div key={index} className="text-gray-200 text-lg">
+                          {actor}
+                        </div>
+                      ))}
+                      {movie.cast.length > 5 && (
+                        <div className="text-amber-100/60 text-sm italic">
+                          +{movie.cast.length - 5} more
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
             </div>
 
             <div className="lg:col-span-1">
-              <div className="aspect-[2/3] bg-cover bg-center rounded-none overflow-hidden mb-6"
-                style={{ backgroundImage: `url(${movie.posterUrl})` }}
-              />
+              <div className="sticky top-24">
+                <div className="aspect-[2/3] bg-cover bg-center rounded-lg overflow-hidden mb-6 border border-amber-100/20 shadow-2xl"
+                  style={{ backgroundImage: `url(${movie.posterUrl})` }}
+                />
+              </div>
             </div>
           </section>
 
