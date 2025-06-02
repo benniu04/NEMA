@@ -12,7 +12,14 @@ const app = express();
 
 const PORT = ENV_VARS.PORT;
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://nemaa.netlify.app/',
+    'http://localhost:5173',
+    'http://localhost:3000'  
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 // Routes
