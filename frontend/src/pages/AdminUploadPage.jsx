@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import NavBar from '../components/NavBar';
+import API_BASE_URL from '../../config/api.js'
 
 const AdminUploadPage = () => {
   const navigate = useNavigate();
@@ -86,7 +87,7 @@ const AdminUploadPage = () => {
         tags: formData.tags.split(',').map(t => t.trim())
       };
 
-      const response = await fetch('http://localhost:5000/api/movies', {
+      const response = await fetch(`${API_BASE_URL}/api/movies`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -145,7 +146,7 @@ const AdminUploadPage = () => {
       }
 
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`http://localhost:5000/api/upload/${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}/api/upload/${endpoint}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
