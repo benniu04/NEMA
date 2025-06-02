@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import { Play, ChevronDown, ArrowRight } from 'lucide-react'
-import { ENV_VARS } from 'backend/config/envVars.js';
+import API_BASE_URL from '../../config/api.js'
 
 // Testimonials from directors and filmmakers
 const testimonials = [
@@ -68,7 +68,7 @@ const HomePage = () => {
   useEffect(() => {
     const fetchFeaturedMovies = async () => {
       try {
-        const response = await fetch(`${ENV_VARS.API_URL}/api/movies?limit=3`);
+        const response = await fetch(`${API_BASE_URL}/api/movies?limit=3`);
         if (!response.ok) {
           throw new Error('Failed to fetch featured movies');
         }

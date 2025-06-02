@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import NavBar from '../components/NavBar'
-import { ENV_VARS } from 'backend/config/envVars.js';
+import API_BASE_URL from '../../config/api.js'
 
 const CatalogPage = () => {
   const [movies, setMovies] = useState([]);
@@ -19,7 +19,7 @@ const CatalogPage = () => {
 
     const fetchMovies = async () => {
       try {
-        const response = await fetch(`${ENV_VARS.API_URL}/api/movies`);
+        const response = await fetch(`${API_BASE_URL}/api/movies`);
         if (!response.ok) {
           throw new Error('Failed to fetch movies');
         }
