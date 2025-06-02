@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import { Play, ChevronDown, ArrowRight } from 'lucide-react'
-import { ENV_VARS } from './envVars.js';
+import { ENV_VARS } from 'backend/config/envVars.js';
 
 // Testimonials from directors and filmmakers
 const testimonials = [

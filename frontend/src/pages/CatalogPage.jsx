@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import NavBar from '../components/NavBar'
-import { ENV_VARS } from './envVars.js';
+import { ENV_VARS } from 'backend/config/envVars.js';
 
 const CatalogPage = () => {
   const [movies, setMovies] = useState([]);

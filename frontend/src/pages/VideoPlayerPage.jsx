@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import NavBar from '../components/NavBar'
-import { ENV_VARS } from './envVars.js';
+import { ENV_VARS } from 'backend/config/envVars.js';
 
 const VideoPlayerPage = () => {
   const { id } = useParams();
