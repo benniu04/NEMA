@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import NavBar from '../components/NavBar'
-import { ENV_VARS } from 'backend/config/envVars.js';
+import API_BASE_URL from '../../config/api.js'
 
 const VideoPlayerPage = () => {
   const { id } = useParams();
@@ -27,7 +27,7 @@ const VideoPlayerPage = () => {
     const fetchMovieAndRelated = async () => {
       try {
         // Fetch the main movie
-        const movieResponse = await fetch(`${ENV_VARS.API_URL}/api/movies/${id}`);
+        const movieResponse = await fetch(`${API_BASE_URL}/api/movies/${id}`);
         if (!movieResponse.ok) {
           throw new Error('Failed to fetch movie');
         }
@@ -41,7 +41,7 @@ const VideoPlayerPage = () => {
         }
 
         // Fetch related movies (excluding current movie)
-        const relatedResponse = await fetch(`${ENV_VARS.API_URL}/api/movies?limit=3&exclude=${id}`);
+        const relatedResponse = await fetch(`${API_BASE_URL}/api/movies?limit=3&exclude=${id}`);
         if (!relatedResponse.ok) {
           throw new Error('Failed to fetch related movies');
         }
