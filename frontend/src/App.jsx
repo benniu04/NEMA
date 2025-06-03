@@ -6,6 +6,7 @@ import VideoPlayerPage from './pages/VideoPlayerPage'
 import AdminUploadPage from './pages/AdminUploadPage'
 import AdminLogin from './pages/AdminLogin'
 import { Routes, Route } from 'react-router-dom'
+import ProtectedRoute from './components/ProtectedRoute'
 
 
 function App() {
@@ -18,7 +19,14 @@ function App() {
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/video/:id" element={<VideoPlayerPage />} />
       <Route path="/admin/login" element={<AdminLogin />} />
-      <Route path="/admin/upload" element={<AdminUploadPage />} />
+      <Route 
+        path="/admin/upload" 
+        element={
+          <ProtectedRoute>
+            <AdminUploadPage />
+          </ProtectedRoute>
+        } 
+      />
     </Routes>
   )
 }

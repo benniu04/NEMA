@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import NavBar from '../components/NavBar';
-import API_BASE_URL from '../../config/api.js'
+import API_BASE_URL from '../config/api.js';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -11,15 +11,31 @@ const AdminLogin = () => {
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // Check if user is already logged in
+  // Check if user is already logged in by calling /me endpoint
   useEffect(() => {
-    const token = localStorage.getItem('adminToken');
-    const user = JSON.parse(localStorage.getItem('adminUser'));
-    
-    if (token && user?.isAdmin) {
-      navigate('/admin/upload');
-    }
+    const checkAuthStatus = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const userData = await response.json();
+          if (userData.isAdmin) {
+            navigate('/admin/upload');
+            return;
+          }
+        }
+      } catch (error) {
+        console.log('Not authenticated');
+      } finally {
+        setCheckingAuth(false);
+      }
+    };
+
+    checkAuthStatus();
   }, [navigate]);
 
   const handleChange = (e) => {
@@ -41,6 +57,7 @@ const AdminLogin = () => {
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify(formData)
       });
 
@@ -54,10 +71,6 @@ const AdminLogin = () => {
         throw new Error('Access denied: Admin privileges required');
       }
 
-      // Store token and user data
-      localStorage.setItem('adminToken', data.token);
-      localStorage.setItem('adminUser', JSON.stringify(data.user));
-
       // Redirect to admin upload page
       navigate('/admin/upload');
     } catch (err) {
@@ -66,6 +79,17 @@ const AdminLogin = () => {
       setIsLoading(false);
     }
   };
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
+          <p>Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white">
