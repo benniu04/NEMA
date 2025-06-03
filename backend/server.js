@@ -1,5 +1,5 @@
 import express from 'express';
-import mongoose from 'mongoose';
+import cookieParser from 'cookie-parser';
 import moviesRoutes from './routes/movies.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import cors from 'cors';
@@ -21,6 +21,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+app.use(cookieParser());
 
 // Routes
 app.use('/api/movies', moviesRoutes);
