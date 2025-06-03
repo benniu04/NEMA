@@ -26,12 +26,11 @@ authRoutes.post('/login', async (req, res) => {
       { expiresIn: '2h' }
     );
 
-    // Set httpOnly cookie instead of sending token in response
     res.cookie('adminToken', token, {
-      httpOnly: true,        // Can't be accessed by JavaScript
-      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
-      sameSite: 'strict',    // CSRF protection
-      maxAge: 2 * 60 * 60 * 1000  // 2 hours in milliseconds
+      httpOnly: true,   
+      secure: true,
+      sameSite: 'none',
+      maxAge: 2 * 60 * 60 * 1000
     });
 
     res.json({
@@ -74,8 +73,8 @@ authRoutes.post('/logout', async (req, res) => {
     // Clear the httpOnly cookie
     res.clearCookie('adminToken', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict'
+      secure: true,
+      sameSite: 'none'
     });
     
     res.json({ message: 'Logged out successfully' });
