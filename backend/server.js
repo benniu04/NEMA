@@ -14,7 +14,6 @@ import {ENV_VARS} from './config/envVars.js';
 const app = express();
 const PORT = ENV_VARS.PORT;
 
-// CRITICAL: Trust Render's proxy for proper IP detection
 app.set('trust proxy', 1);
 
 // Security headers with Helmet
@@ -45,10 +44,9 @@ app.use(cors({
 }));
 
 // Body parsing and cookie parsing
-app.use(express.json({ limit: '10mb' })); // Limit JSON payload size
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 
-// CUSTOM MongoDB injection protection (Express v5 compatible)
 const customSanitize = (req, res, next) => {
   const sanitizeObject = (obj) => {
     if (obj && typeof obj === 'object') {
@@ -58,7 +56,6 @@ const customSanitize = (req, res, next) => {
         } else if (typeof obj[key] === 'object') {
           sanitizeObject(obj[key]);
         } else if (typeof obj[key] === 'string') {
-          // Remove potential NoSQL injection patterns
           obj[key] = obj[key].replace(/[\$\.]/g, '');
         }
       });
@@ -104,7 +101,6 @@ const speedLimiter = slowDown({
   validate: { delayMs: false } // Disable the warning
 });
 
-// Apply rate limiting
 app.use('/api/', generalLimiter);
 app.use('/api/auth/', authLimiter);
 app.use('/api/auth/', speedLimiter);
@@ -114,12 +110,10 @@ app.use('/api/movies', moviesRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
 
-// FIXED: 404 handler (avoid '*' wildcard)
 app.use((req, res, next) => {
   res.status(404).json({ message: `Route ${req.originalUrl} not found` });
 });
 
-// Global error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   
