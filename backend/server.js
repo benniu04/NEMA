@@ -14,6 +14,9 @@ import {ENV_VARS} from './config/envVars.js';
 const app = express();
 const PORT = ENV_VARS.PORT;
 
+// CRITICAL: Trust Render's proxy for proper IP detection
+app.set('trust proxy', 1);
+
 // Security headers with Helmet
 app.use(helmet({
   contentSecurityPolicy: {
