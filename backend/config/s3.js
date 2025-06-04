@@ -29,14 +29,22 @@ export const upload = multer({
     cacheControl: 'max-age=31536000'
   }),
   limits: {
-    fileSize: 1024 * 1024 * 500 // 500MB limit for video files
+    fileSize: 1024 * 1024 * 500, // 500MB limit
+    files: 1 // Only 1 file per request
   },
   fileFilter: (req, file, cb) => {
-    // Accept video files and images
-    if (file.mimetype.startsWith('video/') || file.mimetype.startsWith('image/')) {
+    // Enhanced file validation
+    const allowedVideoTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo'];
+    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    
+    if (allowedVideoTypes.includes(file.mimetype) || allowedImageTypes.includes(file.mimetype)) {
+      // Additional filename validation
+      if (!/^[a-zA-Z0-9._-]+$/.test(file.originalname)) {
+        return cb(new Error('Invalid filename. Only alphanumeric characters, dots, hyphens, and underscores allowed.'));
+      }
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only videos and images are allowed.'));
+      cb(new Error('Invalid file type. Only MP4, MOV, AVI videos and JPEG, PNG, WebP images allowed.'));
     }
   }
 });
