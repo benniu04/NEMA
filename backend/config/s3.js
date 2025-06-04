@@ -13,7 +13,6 @@ const s3Client = new S3Client({
   }
 });
 
-// Configure multer for file uploads
 export const upload = multer({
   storage: multerS3({
     s3: s3Client,
@@ -30,15 +29,13 @@ export const upload = multer({
   }),
   limits: {
     fileSize: 1024 * 1024 * 500, // 500MB limit
-    files: 1 // Only 1 file per request
+    files: 1
   },
   fileFilter: (req, file, cb) => {
-    // Enhanced file validation
     const allowedVideoTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo'];
     const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
     
     if (allowedVideoTypes.includes(file.mimetype) || allowedImageTypes.includes(file.mimetype)) {
-      // Additional filename validation
       if (!/^[a-zA-Z0-9._-]+$/.test(file.originalname)) {
         return cb(new Error('Invalid filename. Only alphanumeric characters, dots, hyphens, and underscores allowed.'));
       }
