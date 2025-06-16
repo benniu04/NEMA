@@ -298,11 +298,13 @@ const AdminDashboard = () => {
       if (type === 'video') {
         setFormData(prev => ({
           ...prev,
-          videoUrls: { ...prev.videoUrls, [quality]: data.fileUrl }
+          videoUrls: { ...prev.videoUrls, [quality]: data.key }
         }));
       } else {
+        const keyField = type === 'thumbnail' ? 'thumbnailKey' : 'posterKey';
         setFormData(prev => ({
           ...prev,
+          [keyField]: data.key,
           [type === 'thumbnail' ? 'thumbnailUrl' : 'posterUrl']: data.fileUrl
         }));
       }

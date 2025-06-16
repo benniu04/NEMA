@@ -29,8 +29,8 @@ uploadRoutes.post('/video',
   }
 );
 
-// Upload thumbnail/poster
-uploadRoutes.post('/image',
+// Upload image file
+uploadRoutes.post('/image', 
   [authMiddleware, adminMiddleware],
   upload.single('image'),
   async (req, res) => {
@@ -39,10 +39,13 @@ uploadRoutes.post('/image',
         return res.status(400).json({ message: 'No file uploaded' });
       }
       
+      const imageType = req.body.type || 'poster'; // 'poster' or 'thumbnail'
+      
       res.status(200).json({
         message: 'Image uploaded successfully',
-        fileUrl: req.file.location,
-        key: req.file.key
+        fileUrl: req.file.location, // Keep for backward compatibility
+        key: req.file.key,          // Store this in database
+        type: imageType
       });
     } catch (error) {
       console.error('Error uploading image:', error);
