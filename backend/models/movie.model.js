@@ -26,6 +26,7 @@ const movieSchema = new mongoose.Schema({
   },
   director: {
     type: String,
+    required: true,
   },
   cast: {
     type: [String],
@@ -35,15 +36,13 @@ const movieSchema = new mongoose.Schema({
     default: "English",
   },
   videoUrls: {
-    type: Map,
-    of: String, // e.g. { "720p": "...", "1080p": "..." }
+    '720p': String,  // "videos/1234567890-movie.mp4"
+    '1080p': String  // "videos/1234567890-movie-hd.mp4"
   },
-  thumbnailUrl: {
-    type: String,
-  },
-  posterUrl: {
-    type: String,
-  },
+  posterKey: String,     // "posters/1234567890-poster.jpg"
+  thumbnailKey: String,  // "thumbnails/1234567890-thumb.jpg"
+  posterUrl: String,
+  thumbnailUrl: String,
   views: {
     type: Number,
     default: 0,
@@ -54,6 +53,14 @@ const movieSchema = new mongoose.Schema({
   },
   tags: {
     type: [String],
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
   },
 }, { timestamps: true });
 

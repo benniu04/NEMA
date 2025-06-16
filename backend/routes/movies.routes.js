@@ -1,8 +1,50 @@
 import express from 'express';
 import { Movie } from '../models/movie.model.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.middleware.js';
+import { generatePresignedUrl } from '../config/s3.js';
 
 const moviesRoutes = express.Router();
+
+// Helper function to generate fresh URLs for both videos and images
+const generateFreshUrls = async (movie) => {
+  const freshData = {};
+  
+  // Generate fresh video URLs from S3 keys
+  if (movie.videoUrls) {
+    freshData.videoUrls = {};
+    for (const [quality, s3Key] of Object.entries(movie.videoUrls)) {
+      if (s3Key && s3Key.trim() !== '') {
+        try {
+          freshData.videoUrls[quality] = await generatePresignedUrl(s3Key);
+        } catch (error) {
+          console.error(`Error generating video URL for ${quality}:`, error);
+          freshData.videoUrls[quality] = null;
+        }
+      }
+    }
+  }
+  
+  // Generate fresh image URLs from S3 keys
+  if (movie.posterKey) {
+    try {
+      freshData.posterUrl = await generatePresignedUrl(movie.posterKey);
+    } catch (error) {
+      console.error('Error generating poster URL:', error);
+      freshData.posterUrl = null;
+    }
+  }
+  
+  if (movie.thumbnailKey) {
+    try {
+      freshData.thumbnailUrl = await generatePresignedUrl(movie.thumbnailKey);
+    } catch (error) {
+      console.error('Error generating thumbnail URL:', error);
+      freshData.thumbnailUrl = null;
+    }
+  }
+  
+  return freshData;
+};
 
 // Public routes
 moviesRoutes.get('/', async (req, res) => {

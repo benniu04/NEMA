@@ -61,7 +61,23 @@ const AdminLogin = () => {
         body: JSON.stringify(formData)
       });
 
-      const data = await response.json();
+      // Debug: Log the response details
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      // Get the raw response text first
+      const responseText = await response.text();
+      console.log('Raw response:', responseText);
+      
+      // Try to parse as JSON
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        console.error('Response text:', responseText);
+        throw new Error(`Server returned invalid JSON: ${responseText.substring(0, 100)}`);
+      }
 
       if (!response.ok) {
         throw new Error(data.message || 'Login failed');
@@ -74,6 +90,7 @@ const AdminLogin = () => {
       // Redirect to admin upload page
       navigate('/admin/upload');
     } catch (err) {
+      console.error('Login error:', err);
       setError(err.message);
     } finally {
       setIsLoading(false);
