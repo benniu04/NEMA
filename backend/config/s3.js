@@ -21,34 +21,42 @@ export const upload = multer({
       cb(null, { fieldName: file.fieldname });
     },
     key: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      cb(null, `${file.fieldname}/${uniqueSuffix}-${file.originalname}`);
+      const timestamp = Date.now();
+      
+      let ext = '.bin';
+      if (file.mimetype === 'video/mp4') ext = '.mp4';
+      else if (file.mimetype === 'video/quicktime') ext = '.mov';
+      else if (file.mimetype === 'video/x-msvideo') ext = '.avi';
+      else if (file.mimetype === 'image/jpeg') ext = '.jpg';
+      else if (file.mimetype === 'image/png') ext = '.png';
+      else if (file.mimetype === 'image/webp') ext = '.webp';
+      
+      const key = `${file.fieldname}/${timestamp}${ext}`;
+      
+      cb(null, key);
     },
-    contentType: multerS3.AUTO_CONTENT_TYPE,
-    cacheControl: 'max-age=31536000'
+    contentType: multerS3.AUTO_CONTENT_TYPE
   }),
   limits: {
-    fileSize: 1024 * 1024 * 500, // 500MB limit
+    fileSize: 1024 * 1024 * 1000, 
     files: 1
   },
   fileFilter: (req, file, cb) => {
-    const allowedVideoTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo'];
-    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    
-    if (allowedVideoTypes.includes(file.mimetype) || allowedImageTypes.includes(file.mimetype)) {
-      // Only check file type, not filename
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only MP4, MOV, AVI videos and JPEG, PNG, WebP images allowed.'));
-    }
+    console.log('🔍 File filter check:', file.mimetype, 'Size:', file.size);
+    cb(null, true);
   }
 });
 
 export const generatePresignedUrl = async (key) => {
-  const command = new GetObjectCommand({
-    Bucket: ENV_VARS.AWS_BUCKET_NAME,
-    Key: key
-  });
-  
-  return await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // URL expires in 1 hour
+  try {
+    const command = new GetObjectCommand({
+      Bucket: ENV_VARS.AWS_BUCKET_NAME,
+      Key: key
+    });
+    
+    return await getSignedUrl(s3Client, command, { expiresIn: 86400 });
+  } catch (error) {
+    console.error('Error generating presigned URL for key:', key, error);
+    throw error;
+  }
 };

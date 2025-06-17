@@ -234,40 +234,62 @@ const AdminDashboard = () => {
     setError('');
     setSuccess('');
 
+    // Validation
+    const hasVideo = formData.videoUrls['720p'] || formData.videoUrls['1080p'];
+    if (!hasVideo) {
+      setError('Please upload at least one video file (720p or 1080p) before submitting.');
+      return;
+    }
+
+    if (!formData.posterKey) {
+      setError('Please upload a poster image before submitting.');
+      return;
+    }
+
+    if (!formData.thumbnailKey) {
+      setError('Please upload a thumbnail image before submitting.');
+      return;
+    }
+
+    setLoading(true);
+
     try {
-      const processedData = {
-        ...formData,
-        genre: formData.genre.split(',').map(g => g.trim()),
-        cast: formData.cast.split(',').map(c => c.trim()),
-        tags: formData.tags.split(',').map(t => t.trim())
-      };
-
-      const url = editingMovie 
-        ? `${API_BASE_URL}/api/movies/${editingMovie._id}`
-        : `${API_BASE_URL}/api/movies`;
+      const { createdAt, updatedAt, ...cleanFormData } = formData;
       
-      const method = editingMovie ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
+      const response = await fetch(`${API_BASE_URL}/api/movies`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         credentials: 'include',
-        body: JSON.stringify(processedData)
+        body: JSON.stringify(cleanFormData)
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Failed to save movie');
+      const responseText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        throw new Error(`Server returned invalid response: ${responseText}`);
       }
 
-      setSuccess(editingMovie ? 'Movie updated successfully!' : 'Movie uploaded successfully!');
-      resetForm();
-      fetchMovies();
-      setActiveTab('manage');
+      if (!response.ok) {
+        throw new Error(data.message || `Server error: ${response.status}`);
+      }
+
+      setSuccess('Movie uploaded successfully! Redirecting...');
+      
+      setTimeout(() => {
+        resetForm();
+        fetchMovies();
+        setActiveTab('manage');
+        setSuccess('');
+      }, 1500);
+
     } catch (err) {
-      setError(err.message);
+      setError(`Failed to add movie: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -297,13 +319,11 @@ const AdminDashboard = () => {
       if (!response.ok) throw new Error(data.message || 'Upload failed');
       
       if (type === 'video') {
-        // Store the S3 key
         setFormData(prev => ({
           ...prev,
           videoUrls: { ...prev.videoUrls, [quality]: data.key }
         }));
       } else {
-        // Store the S3 key for images
         const keyField = type === 'thumbnail' ? 'thumbnailKey' : 'posterKey';
         setFormData(prev => ({
           ...prev,
@@ -613,41 +633,29 @@ const AdminDashboard = () => {
                   {/* File Upload Section */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-amber-100/60 mb-2">720p Video File</label>
+                      <label className="block text-sm font-medium text-amber-100/60 mb-2">
+                        720p Video File {formData.videoUrls['720p'] && <span className="text-green-400">✓</span>}
+                      </label>
                       <input
                         type="file"
                         accept="video/*"
                         onChange={(e) => handleFileUpload(e.target.files[0], 'video', '720p')}
                         className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 focus:outline-none focus:border-amber-500 transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-amber-500/20 file:text-amber-100"
                       />
-                      {uploadProgress['video-720p'] > 0 && uploadProgress['video-720p'] < 100 && (
-                        <div className="mt-2">
-                          <div className="w-full bg-gray-700 rounded-full h-2">
-                            <div className="bg-amber-500 h-2 rounded-full transition-all" style={{ width: `${uploadProgress['video-720p']}%` }}></div>
-                          </div>
-                          <p className="text-xs text-amber-100/60 mt-1">Uploading 720p video...</p>
-                        </div>
-                      )}
-                      {formData.videoUrls['720p'] && <p className="text-xs text-green-400 mt-1">✓ 720p video uploaded</p>}
+                      {formData.videoUrls['720p'] && <p className="text-xs text-green-400 mt-1">✓ 720p video ready</p>}
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-amber-100/60 mb-2">1080p Video File</label>
+                      <label className="block text-sm font-medium text-amber-100/60 mb-2">
+                        1080p Video File {formData.videoUrls['1080p'] && <span className="text-green-400">✓</span>}
+                      </label>
                       <input
                         type="file"
                         accept="video/*"
                         onChange={(e) => handleFileUpload(e.target.files[0], 'video', '1080p')}
                         className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 focus:outline-none focus:border-amber-500 transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-amber-500/20 file:text-amber-100"
                       />
-                      {uploadProgress['video-1080p'] > 0 && uploadProgress['video-1080p'] < 100 && (
-                        <div className="mt-2">
-                          <div className="w-full bg-gray-700 rounded-full h-2">
-                            <div className="bg-amber-500 h-2 rounded-full transition-all" style={{ width: `${uploadProgress['video-1080p']}%` }}></div>
-                          </div>
-                          <p className="text-xs text-amber-100/60 mt-1">Uploading 1080p video...</p>
-                        </div>
-                      )}
-                      {formData.videoUrls['1080p'] && <p className="text-xs text-green-400 mt-1">✓ 1080p video uploaded</p>}
+                      {formData.videoUrls['1080p'] && <p className="text-xs text-green-400 mt-1">✓ 1080p video ready</p>}
                     </div>
 
                     <div>
@@ -710,10 +718,14 @@ const AdminDashboard = () => {
                     </button>
                     <button
                       type="submit"
-                      disabled={uploading}
-                      className="px-6 py-3 bg-amber-500 text-black rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50"
+                      disabled={loading || uploading || (!formData.videoUrls['720p'] && !formData.videoUrls['1080p'])}
+                      className={`w-full py-3 px-6 rounded-lg font-medium transition-colors ${
+                        loading || uploading || (!formData.videoUrls['720p'] && !formData.videoUrls['1080p'])
+                          ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                          : 'bg-amber-500 text-black hover:bg-amber-400'
+                      }`}
                     >
-                      {editingMovie ? 'Update Movie' : 'Upload Movie'}
+                      {loading ? 'Saving Movie...' : uploading ? 'Uploading Files...' : 'Add Movie'}
                     </button>
                   </div>
                 </form>

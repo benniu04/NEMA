@@ -28,18 +28,20 @@ const VideoPlayerPage = () => {
   useEffect(() => {
     const fetchMovieAndRelated = async () => {
       try {
-        // Fetch the main movie
         const movieResponse = await fetch(`${API_BASE_URL}/api/movies/${id}`);
         if (!movieResponse.ok) {
           throw new Error('Failed to fetch movie');
         }
         const movieData = await movieResponse.json();
+        
         setMovie(movieData);
 
         // Set the first available quality as default
-        const availableQualities = Object.entries(movieData.videoUrls).filter(([quality, url]) => url && url.trim() !== '');
+        const availableQualities = Object.entries(movieData.videoUrls || {}).filter(([quality, url]) => url && url.trim() !== '');
+        
         if (availableQualities.length > 0) {
-          setSelectedQuality(availableQualities[0][0]);
+          const firstQuality = availableQualities[0][0];
+          setSelectedQuality(firstQuality);
         }
 
         // Fetch related movies (excluding current movie)

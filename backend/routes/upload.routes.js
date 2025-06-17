@@ -18,8 +18,7 @@ uploadRoutes.post('/video',
       
       res.status(200).json({
         message: 'File uploaded successfully',
-        fileUrl: req.file.location, // Keep for backward compatibility
-        key: req.file.key,          // Store this in database
+        key: req.file.key,
         quality: quality
       });
     } catch (error) {
@@ -43,8 +42,7 @@ uploadRoutes.post('/image',
       
       res.status(200).json({
         message: 'Image uploaded successfully',
-        fileUrl: req.file.location, // Keep for backward compatibility
-        key: req.file.key,          // Store this in database
+        key: req.file.key,
         type: imageType
       });
     } catch (error) {
