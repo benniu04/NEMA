@@ -14,12 +14,12 @@ uploadRoutes.post('/video',
         return res.status(400).json({ message: 'No file uploaded' });
       }
       
-      const quality = req.body.quality || '720p'; // Default to 720p if not specified
+      const quality = req.body.quality || '720p';
       
       res.status(200).json({
         message: 'File uploaded successfully',
-        fileUrl: req.file.location,
-        key: req.file.key,
+        fileUrl: req.file.location, // Keep for backward compatibility
+        key: req.file.key,          // Store this in database
         quality: quality
       });
     } catch (error) {
@@ -39,7 +39,7 @@ uploadRoutes.post('/image',
         return res.status(400).json({ message: 'No file uploaded' });
       }
       
-      const imageType = req.body.type || 'poster'; // 'poster' or 'thumbnail'
+      const imageType = req.body.type || 'poster';
       
       res.status(200).json({
         message: 'Image uploaded successfully',

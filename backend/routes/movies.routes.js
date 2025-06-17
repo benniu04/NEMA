@@ -5,7 +5,7 @@ import { generatePresignedUrl } from '../config/s3.js';
 
 const moviesRoutes = express.Router();
 
-// Helper function to generate fresh URLs for both videos and images
+// Helper function to generate fresh URLs from S3 keys
 const generateFreshUrls = async (movie) => {
   const freshData = {};
   
@@ -15,7 +15,8 @@ const generateFreshUrls = async (movie) => {
     for (const [quality, s3Key] of Object.entries(movie.videoUrls)) {
       if (s3Key && s3Key.trim() !== '') {
         try {
-          freshData.videoUrls[quality] = await generatePresignedUrl(s3Key);
+          const presignedUrl = await generatePresignedUrl(s3Key);
+          freshData.videoUrls[quality] = presignedUrl;
         } catch (error) {
           console.error(`Error generating video URL for ${quality}:`, error);
           freshData.videoUrls[quality] = null;
@@ -67,7 +68,17 @@ moviesRoutes.get('/', async (req, res) => {
 
     // Execute the query
     const movies = await moviesQuery;
-    res.status(200).json(movies);
+    
+    // Generate fresh URLs for each movie
+    const moviesWithFreshUrls = await Promise.all(
+      movies.map(async (movie) => {
+        const movieObj = movie.toObject();
+        const freshUrls = await generateFreshUrls(movie);
+        return { ...movieObj, ...freshUrls };
+      })
+    );
+
+    res.status(200).json(moviesWithFreshUrls);
   } catch (error) {
     console.error('Error fetching movies:', error);
     res.status(500).json({ message: "Failed to fetch movies", error: error.message });
@@ -80,7 +91,12 @@ moviesRoutes.get('/:id', async (req, res) => {
     if (!movie) {
       return res.status(404).json({ message: "Movie not found" });
     }
-    res.status(200).json(movie);
+    
+    // Generate fresh URLs for this movie
+    const movieObj = movie.toObject();
+    const freshUrls = await generateFreshUrls(movie);
+    
+    res.status(200).json({ ...movieObj, ...freshUrls });
   } catch (error) {
     console.error('Error fetching movie:', error);
     res.status(500).json({ message: "Failed to fetch movie", error: error.message });
