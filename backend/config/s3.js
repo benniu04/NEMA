@@ -36,9 +36,7 @@ export const upload = multer({
     const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
     
     if (allowedVideoTypes.includes(file.mimetype) || allowedImageTypes.includes(file.mimetype)) {
-      if (!/^[a-zA-Z0-9._-]+$/.test(file.originalname)) {
-        return cb(new Error('Invalid filename. Only alphanumeric characters, dots, hyphens, and underscores allowed.'));
-      }
+      // Only check file type, not filename
       cb(null, true);
     } else {
       cb(new Error('Invalid file type. Only MP4, MOV, AVI videos and JPEG, PNG, WebP images allowed.'));
