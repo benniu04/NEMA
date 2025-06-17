@@ -23,8 +23,8 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:", "blob:"],
-      mediaSrc: ["'self'", "https:", "blob:"],
+      imgSrc: ["'self'", "data:", "https:", "blob:", "https://*.amazonaws.com"],
+      mediaSrc: ["'self'", "https:", "blob:", "https://*.amazonaws.com"],
       scriptSrc: ["'self'"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: [],
@@ -48,14 +48,32 @@ app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 
 const customSanitize = (req, res, next) => {
-  const sanitizeObject = (obj) => {
+  const sanitizeObject = (obj, parentKey = '') => {
     if (obj && typeof obj === 'object') {
       Object.keys(obj).forEach(key => {
+        const fullPath = parentKey ? `${parentKey}.${key}` : key;
+        
         if (key.includes('$') || key.includes('.')) {
           delete obj[key];
         } else if (typeof obj[key] === 'object') {
-          sanitizeObject(obj[key]);
+          sanitizeObject(obj[key], fullPath);
         } else if (typeof obj[key] === 'string') {
+          // Don't sanitize S3 keys, URLs, or file-related fields
+          const isFileOrUrl = 
+            key.includes('Url') ||           // posterUrl, thumbnailUrl, etc.
+            key.includes('Key') ||           // posterKey, thumbnailKey, etc.  
+            key === 'key' ||                 // S3 key field
+            fullPath.includes('videoUrls') || // video URLs object
+            obj[key].startsWith('http') ||   // Any HTTP URLs
+            obj[key].startsWith('image/') || // S3 image keys
+            obj[key].startsWith('video/');   // S3 video keys
+          
+          if (isFileOrUrl) {
+            // Skip sanitization for file/URL fields
+            return;
+          }
+          
+          // Apply sanitization to other string fields
           obj[key] = obj[key].replace(/[\$\.]/g, '');
         }
       });
