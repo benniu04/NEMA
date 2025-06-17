@@ -36,11 +36,11 @@ const movieSchema = new mongoose.Schema({
     default: "English",
   },
   videoUrls: {
-    '720p': String,  // "videos/1234567890-movie.mp4"
-    '1080p': String  // "videos/1234567890-movie-hd.mp4"
+    '720p': String,
+    '1080p': String 
   },
-  posterKey: String,     // "posters/1234567890-poster.jpg"
-  thumbnailKey: String,  // "thumbnails/1234567890-thumb.jpg"
+  posterKey: String,     
+  thumbnailKey: String,  
   posterUrl: String,
   thumbnailUrl: String,
   views: {

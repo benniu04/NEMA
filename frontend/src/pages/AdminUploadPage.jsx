@@ -283,6 +283,7 @@ const AdminDashboard = () => {
       const endpoint = type === 'video' ? 'video' : 'image';
       formData.append(type === 'video' ? 'video' : 'image', file);
       if (type === 'video') formData.append('quality', quality);
+      if (type === 'image') formData.append('type', type === 'thumbnail' ? 'thumbnail' : 'poster');
 
       const response = await fetch(`${API_BASE_URL}/api/upload/${endpoint}`, {
         method: 'POST',
@@ -296,16 +297,17 @@ const AdminDashboard = () => {
       if (!response.ok) throw new Error(data.message || 'Upload failed');
       
       if (type === 'video') {
+        // Store the S3 key
         setFormData(prev => ({
           ...prev,
           videoUrls: { ...prev.videoUrls, [quality]: data.key }
         }));
       } else {
+        // Store the S3 key for images
         const keyField = type === 'thumbnail' ? 'thumbnailKey' : 'posterKey';
         setFormData(prev => ({
           ...prev,
-          [keyField]: data.key,
-          [type === 'thumbnail' ? 'thumbnailUrl' : 'posterUrl']: data.fileUrl
+          [keyField]: data.key
         }));
       }
 
