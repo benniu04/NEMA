@@ -60,16 +60,7 @@ const AdminLogin = () => {
         credentials: 'include',
         body: JSON.stringify(formData)
       });
-
-      // Debug: Log the response details
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
       
-      // Get the raw response text first
-      const responseText = await response.text();
-      console.log('Raw response:', responseText);
-      
-      // Try to parse as JSON
       let data;
       try {
         data = JSON.parse(responseText);
