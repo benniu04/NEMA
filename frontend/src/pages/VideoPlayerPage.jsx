@@ -126,7 +126,7 @@ const VideoPlayerPage = () => {
     return () => {
       sections.forEach(section => observer.unobserve(section));
     };
-  }, [loading, relatedMovies.length]);   // <— re-attach when content appears
+  }, [loading, relatedMovies.length]); 
 
   // Prevent video download and right-click
   const handleContextMenu = (e) => {
@@ -136,10 +136,68 @@ const VideoPlayerPage = () => {
 
   // Disable keyboard shortcuts that could be used to download
   const handleKeyDown = (e) => {
-    // Prevent Ctrl+S, Ctrl+U, F12, etc.
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (['input', 'textarea', 'select'].includes(tag)) return; 
+
+    // block download shortcuts you already had
     if ((e.ctrlKey && (e.key === 's' || e.key === 'u')) || e.key === 'F12') {
       e.preventDefault();
-      return false;
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    switch (e.key.toLowerCase()) {
+      /* play / pause */
+      case ' ':
+      case 'k':
+        e.preventDefault();
+        handlePlayPause();
+        break;
+
+      /* seek */
+      case 'j':
+        video.currentTime = Math.max(0, video.currentTime - 10);
+        break;
+      case 'l':
+        video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+        break;
+      case 'arrowleft':
+        e.preventDefault();                      
+        video.currentTime = Math.max(0, video.currentTime - 5); // ⬅ rewind
+        break;
+      case 'arrowright':
+        e.preventDefault();
+        video.currentTime = Math.min(video.duration || 0, video.currentTime + 5);
+        break;
+
+      /* volume & mute */
+      case 'arrowdown':
+        e.preventDefault();
+        handleVolumeChange(video.volume - 0.1);
+        break;
+      case 'arrowup':
+        e.preventDefault();
+        handleVolumeChange(video.volume + 0.1);
+        break;
+      case 'm':
+        handleMute();
+        break;
+
+      /* fullscreen */
+      case 'f':
+        toggleFullscreen();
+        break;
+
+      /* digit keys – jump by percentage */
+      case '0': video.currentTime = 0; break;
+      case '1': case '2': case '3': case '4':
+      case '5': case '6': case '7': case '8': case '9':
+        video.currentTime = (parseInt(e.key, 10) / 10) * duration;
+        break;
+      default:
+        break;
     }
   };
 
@@ -213,10 +271,10 @@ const VideoPlayerPage = () => {
     const video = videoRef.current;
     if (!video) return;
     
-    const newVolume = parseFloat(e.target.value);
-    video.volume = newVolume;
-    setVolume(newVolume);
-    setIsMuted(newVolume === 0);
+    const newVolume = typeof e === 'number' ? e : parseFloat(e.target.value);
+    video.volume = Math.max(0, Math.min(1, newVolume));
+    setVolume(video.volume);
+    setIsMuted(video.volume === 0);
   };
 
   const handleMute = () => {
