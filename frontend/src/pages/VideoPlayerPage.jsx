@@ -255,12 +255,24 @@ const VideoPlayerPage = () => {
   };
 
   const toggleFullscreen = () => {
-    const videoContainer = document.querySelector('.video-container');
-    if (!document.fullscreenElement) {
-      videoContainer.requestFullscreen();
-    } else {
-      document.exitFullscreen();
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Already in FS ⇒ exit
+    if (document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.msFullscreenElement) {
+      if (document.exitFullscreen)        document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      else if (document.msExitFullscreen)     document.msExitFullscreen();
+      return;
     }
+
+    // Enter FS (mobile-safe)
+    if (video.requestFullscreen)               video.requestFullscreen();
+    else if (video.webkitRequestFullscreen)    video.webkitRequestFullscreen();   // Android Chrome
+    else if (video.webkitEnterFullscreen)      video.webkitEnterFullscreen();     // iOS Safari
+    else if (video.msRequestFullscreen)        video.msRequestFullscreen();
   };
 
   const formatTime = (time) => {
