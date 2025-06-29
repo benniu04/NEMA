@@ -7,6 +7,8 @@ import cors from 'cors';
 import uploadRoutes from './routes/upload.routes.js';
 import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
+import commentsRouter from './routes/comments.routes.js';
+import reviewsRouter from './routes/reviews.routes.js';
 
 import {connectDB} from './config/db.js';
 import {ENV_VARS} from './config/envVars.js';
@@ -127,6 +129,8 @@ app.use('/api/auth/', speedLimiter);
 app.use('/api/movies', moviesRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/comments', commentsRouter);
+app.use('/api/reviews', reviewsRouter);
 
 app.use((req, res, next) => {
   res.status(404).json({ message: `Route ${req.originalUrl} not found` });
