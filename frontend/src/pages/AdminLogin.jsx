@@ -63,11 +63,12 @@ const AdminLogin = () => {
       
       let data;
       try {
-        data = JSON.parse(responseText);
+        data = await response.json();
       } catch (parseError) {
+        const raw = await response.text();
         console.error('JSON parse error:', parseError);
-        console.error('Response text:', responseText);
-        throw new Error(`Server returned invalid JSON: ${responseText.substring(0, 100)}`);
+        console.error('Response text:', raw);
+        throw new Error(`Server returned invalid JSON: ${raw.substring(0, 100)}`);
       }
 
       if (!response.ok) {

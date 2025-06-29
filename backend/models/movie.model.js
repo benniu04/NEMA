@@ -39,6 +39,11 @@ const movieSchema = new mongoose.Schema({
     '720p': String,
     '1080p': String 
   },
+  subtitleUrls: {
+    en: String,   // English
+    es: String,   // Spanish
+    fr: String    // …etc
+  },
   posterKey: String,     
   thumbnailKey: String,  
   posterUrl: String,

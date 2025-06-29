@@ -345,7 +345,21 @@ const VideoPlayerPage = () => {
                   disablePictureInPicture
                   playsInline
                   preload="metadata"
-                />
+                >
+                  {/* ─── Subtitle tracks ─── */}
+                  {movie.subtitleUrls && Object.entries(movie.subtitleUrls).map(
+                    ([lang, url], idx) => url && (
+                      <track
+                        key={idx}
+                        src={url}
+                        kind="subtitles"
+                        srcLang={lang}
+                        label={lang.toUpperCase()}
+                        default={lang === 'en'}   // first/default track
+                      />
+                    )
+                  )}
+                </video>
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gray-900">
                   <p className="text-white/60">No video available</p>
