@@ -555,21 +555,6 @@ const AdminDashboard = () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-amber-100/60 mb-2">Rating (0-10) *</label>
-                      <input
-                        type="number"
-                        name="rating"
-                        value={formData.rating}
-                        onChange={handleChange}
-                        min="0"
-                        max="10"
-                        step="0.1"
-                        required
-                        className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 focus:outline-none focus:border-amber-500 transition-colors"
-                      />
-                    </div>
-
-                    <div>
                       <label className="block text-sm font-medium text-amber-100/60 mb-2">Genre (comma-separated) *</label>
                       <input
                         type="text"
