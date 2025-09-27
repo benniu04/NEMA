@@ -38,7 +38,7 @@ export const upload = multer({
     contentType: multerS3.AUTO_CONTENT_TYPE
   }),
   limits: {
-    fileSize: 1024 * 1024 * 1000, 
+    fileSize: 3 * 1024 * 1024 * 1024, 
     files: 1
   },
   fileFilter: (req, file, cb) => {
