@@ -204,6 +204,19 @@ const ContactPage = () => {
                   <a href="https://www.instagram.com/nemaarchives/" className="text-amber-100/60 hover:text-amber-100 transition-colors tracking-wide">Instagram</a>
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => window.open('https://forms.gle/T5LT1u6NZ6Yc3T44A', '_blank', 'noopener,noreferrer')}
+                disabled={isSubmitting}
+                className={`w-full border-2 border-amber-100/30 px-10 py-4 rounded-none transition-all duration-300 text-amber-100/90 tracking-wider text-lg uppercase ${
+                  isSubmitting 
+                    ? 'opacity-50 cursor-not-allowed' 
+                    : 'hover:bg-amber-100/10'
+                }`}
+              >
+                Submit Film
+              </button>
             </div>
           </section>
         </div>
