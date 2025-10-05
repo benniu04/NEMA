@@ -23,35 +23,13 @@ const testimonials = [
   }
 ];
 
-const categories = [
-  {
-    name: 'Documentary',
-    image: 'documentary-wallpaper.jpg',
-    description: 'True stories that challenge perspectives'
-  },
-  {
-    name: 'Drama',
-    image: 'drama-wallpaper.jpg',
-    description: 'Emotional narratives that reflect human experience'
-  },
-  {
-    name: 'Experimental',
-    image: 'experimental-wallpaper.png',
-    description: 'Breaking conventions of traditional filmmaking'
-  },
-  {
-    name: 'Animation',
-    image: 'animation-wallpaper.jpg',
-    description: 'Imaginative worlds brought to life'
-  }
-];
-
 const HomePage = () => {
   const [scrollPosition, setScrollPosition] = useState(0);
   const [visibleSections, setVisibleSections] = useState({});
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
-  const [featuredMovies, setFeaturedMovies] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [featuredMovies, setFeaturedMovies] = useState([])
+  const [allMovies, setAllMovies] = useState([])
+  const [loading, setLoading] = useState(true)
   const heroVideoRef = useRef(null);
   const heroRef = useRef(null);
   const featuredFilmsRef = useRef(null);
@@ -66,23 +44,32 @@ const HomePage = () => {
   }, []);
 
   useEffect(() => {
-    const fetchFeaturedMovies = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/movies?limit=3`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch featured movies');
-        }
-        const data = await response.json();
-        setFeaturedMovies(data);
-      } catch (err) {
-        console.error('Error fetching featured movies:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+        const [featuredRes, allRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/movies?limit=3`),
+          fetch(`${API_BASE_URL}/api/movies`)
+        ])
 
-    fetchFeaturedMovies();
-  }, []);
+        if (!featuredRes.ok) throw new Error('Failed to fetch featured movies')
+        if (!allRes.ok) throw new Error('Failed to fetch movies')
+
+        const [featuredData, allData] = await Promise.all([
+          featuredRes.json(),
+          allRes.json()
+        ])
+
+        setFeaturedMovies(Array.isArray(featuredData) ? featuredData : [])
+        setAllMovies(Array.isArray(allData) ? allData : [])
+      } catch (err) {
+        console.error('Fetch error:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
 
   const scrollToFeatured = () => {
     featuredFilmsRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -241,99 +228,85 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Featured Films Section */}
+      {/* Highlights (grid) */}
       <section 
         ref={featuredFilmsRef}
         id="featured" 
-        className={`relative py-32 px-6 flex items-center overflow-hidden transition-opacity duration-1000 ${
+        className={`relative py-24 px-6 transition-opacity duration-1000 ${
           visibleSections['featured'] ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        {/* Dynamic Background with Parallax */}
-        <div 
-          className="absolute inset-0 featured-bg bg-cover bg-fixed bg-center opacity-20"
-          style={{ transform: `translateY(${scrollPosition * 0.1}px)` }}
-        ></div>
-        
-        {/* Cinematic Light Rays */}
-        <div className="absolute top-0 left-0 right-0 h-[30vh] bg-gradient-to-b from-amber-900/10 to-transparent"></div>
-        
-        {/* Content Container */}
         <div className="relative z-20 max-w-7xl mx-auto w-full">
-          {/* Section Title with Film-Style Marker */}
-          <div className="flex flex-col items-center mb-20">
-            <div className="mb-4">
+          <div className="flex flex-col items-center mb-10">
+            <div className="mb-2">
               <span className="text-amber-100/80 tracking-[0.3em] uppercase text-sm font-extralight">Curator's Selection</span>
             </div>
-            <h2 className="text-4xl font-extralight tracking-wide mb-4">Featured Films</h2>
-            <div className="w-16 h-[1px] bg-amber-100/30"></div>
+            <h2 className="text-4xl font-extralight tracking-wide">Featured</h2>
+            <div className="w-16 h-[1px] bg-amber-100/30 mt-4"></div>
           </div>
-          
-          {/* Film Reel Layout */}
-          <div className="featured-films-container">
-            <div className="flex gap-8 overflow-x-auto pb-12 md:pb-6 featured-scrollbar snap-x snap-mandatory">
-              {loading ? (
-                <div className="text-amber-100/60">Loading featured films...</div>
-              ) : (
-                featuredMovies.map((movie) => (
-                  <Link 
-                    key={movie._id} 
-                    to={`/video/${movie._id}`}
-                    className="group relative w-[400px] md:w-[500px] h-[225px] md:h-[280px] flex-shrink-0 overflow-hidden cursor-pointer transform transition-all duration-700 hover:scale-[1.02] snap-center"
-                  >
-                    {/* Image with proper aspect ratio */}
-                    <img 
-                      src={movie.thumbnailUrl} 
-                      alt={movie.title}
-                      className="w-full h-full object-cover"
-                    />
-                    
-                    {/* Film Frame Border */}
-                    <div className="absolute inset-0 border border-white/10 opacity-70 group-hover:opacity-0 transition-opacity duration-500"></div>
-                    
-                    {/* Film Information Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700">
-                      <div className="absolute bottom-0 p-6">
-                        <div className="mb-2 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-100">
-                          <div className="flex flex-wrap gap-2">
-                            {movie.genre.map((g, index) => (
-                              <span 
-                                key={index}
-                                className="px-2 py-1 text-xs bg-amber-100/10 text-amber-100/80 rounded-sm"
-                              >
-                                {g}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <h3 className="text-xl md:text-2xl font-extralight mb-2 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-200">{movie.title}</h3>
-                        <p className="text-sm text-white/70 mb-4 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-300">
-                          {movie.director} • {new Date(movie.releaseDate).getFullYear()}
-                        </p>
-                        <p className="text-xs text-white/50 mb-4 line-clamp-2 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-400">
-                          {movie.description}
-                        </p>
-                        
-                        {/* Watch Button */}
-                        <div className="inline-flex items-center gap-2 text-amber-100/80 group-hover:text-amber-100 transition-colors transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 duration-500 delay-500">
-                          <span className="uppercase tracking-widest text-xs font-light">Watch Film</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Play Icon */}
-                    <div className="absolute inset-0 flex items-center justify-center z-10">
-                      <div className="w-16 h-16 flex items-center justify-center border border-white/30 rounded-full bg-black/20 opacity-0 group-hover:opacity-100 transition-all duration-700 transform translate-y-4 group-hover:translate-y-0 group-hover:scale-110">
-                        <Play className="w-6 h-6 text-white/90 ml-1" />
-                      </div>
-                    </div>
-                  </Link>
-                ))
-              )}
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {(loading ? [] : featuredMovies).map((movie) => (
+              <Link 
+                key={movie._id} 
+                to={`/video/${movie._id}`}
+                className="group relative aspect-[16/9] overflow-hidden border border-white/10 bg-black/40"
+                style={{ backgroundImage: `url(${movie.thumbnailUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute bottom-0 p-4">
+                  <h3 className="text-xl font-light text-white/95 line-clamp-1">{movie.title}</h3>
+                  <p className="text-white/70 text-sm">{movie.director} • {new Date(movie.releaseDate).getFullYear()}</p>
+                </div>
+              </Link>
+            ))}
           </div>
         </div>
+      </section>
+
+      {/* Vertical Sections */}
+      <section className="px-6 py-4">
+        {allMovies && allMovies.length > 0 && (
+          <>
+            {(() => {
+              const newReleases = [...allMovies]
+                .filter(m => m.releaseDate)
+                .sort((a, b) => new Date(b.releaseDate) - new Date(a.releaseDate))
+                .slice(0, 9)
+              const topRated = [...allMovies]
+                .filter(m => typeof m.rating === 'number')
+                .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+                .slice(0, 9)
+
+              const Section = ({ title, items }) => (
+                <div className="max-w-7xl mx-auto mb-10">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-2xl font-light tracking-wide">{title}</h3>
+                    <Link to="/catalog" className="text-amber-100/70 text-sm hover:text-amber-100 transition">See all</Link>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {items.map((movie) => (
+                      <Link key={movie._id} to={`/video/${movie._id}`} className="group relative aspect-[16/9] overflow-hidden border border-white/10 bg-black/40">
+                        <img src={movie.thumbnailUrl} alt={movie.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition duration-500" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                        <div className="absolute bottom-0 p-4">
+                          <h4 className="text-lg font-light text-white/95 line-clamp-1">{movie.title}</h4>
+                          <p className="text-white/70 text-sm">{movie.director} • {new Date(movie.releaseDate).getFullYear()}</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )
+
+              return (
+                <>
+                  <Section title="New Releases" items={newReleases} />
+                  <Section title="Top Rated" items={topRated} />
+                </>
+              )
+            })()}
+          </>
+        )}
       </section>
 
       {/* Testimonials Section */}
@@ -392,60 +365,6 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Categories Section */}
-      <section 
-        id="categories" 
-        className={`relative py-32 px-6 flex items-center overflow-hidden transition-opacity duration-1000 ${
-          visibleSections['categories'] ? 'opacity-100' : 'opacity-0'
-        }`}
-      >
-        {/* Dynamic Background with Parallax */}
-        <div 
-          className="absolute inset-0 categories-bg bg-cover bg-fixed bg-center opacity-15"
-          style={{ transform: `translateY(${scrollPosition * 0.05}px)` }}
-        ></div>
-        
-        {/* Content Container */}
-        <div className="relative z-20 max-w-7xl mx-auto w-full">
-          {/* Section Title */}
-          <div className="flex flex-col items-center mb-20">
-            <div className="mb-4">
-              <span className="text-amber-100/80 tracking-[0.3em] uppercase text-sm font-extralight">Discover</span>
-            </div>
-            <h2 className="text-4xl font-extralight tracking-wide mb-4">Film Categories</h2>
-            <div className="w-16 h-[1px] bg-amber-100/30"></div>
-          </div>
-          
-          {/* Categories Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
-            {categories.map((category) => (
-              <div 
-                key={category.name} 
-                className="relative aspect-[5/6] bg-cover bg-center overflow-hidden cursor-pointer group transform transition-all duration-700 hover:z-10 hover:scale-[1.03]"
-                style={{ 
-                  backgroundImage: `url(${category.image})`
-                }}
-              >
-                {/* Overlay with Film Texture */}
-                <div className="absolute inset-0 bg-black/60 mix-blend-multiply group-hover:bg-black/40 transition-colors duration-700"></div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
-                
-                {/* Category Content */}
-                <div className="absolute inset-0 flex flex-col justify-end p-8">
-                  <h3 className="text-2xl font-extralight mb-2 group-hover:text-amber-100/90 transition-colors duration-500">
-                    {category.name}
-                  </h3>
-                  <p className="text-white/70 text-sm mb-4 max-w-[90%] opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-700 delay-100">
-                    {category.description}
-                  </p>
-                  <div className="w-10 h-[1px] bg-amber-100/50 group-hover:w-16 transition-all duration-700 delay-200"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* CTA Section */}
       <section 
         id="cta" 
@@ -453,11 +372,6 @@ const HomePage = () => {
           visibleSections['cta'] ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        {/* Background with Parallax Effect */}
-        <div 
-          className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&q=80')] bg-cover bg-fixed bg-center opacity-15"
-        ></div>
-        
         {/* Cinematic Vignette */}
         <div className="absolute inset-0 bg-radial-at-center from-transparent via-black/30 to-black"></div>
         

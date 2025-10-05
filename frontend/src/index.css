@@ -76,3 +76,12 @@
 .poster-container:hover {
   transform: scale(1.02);
 }
+
+/* Hide scrollbars for horizontal carousels */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}

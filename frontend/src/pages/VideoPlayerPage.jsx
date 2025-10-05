@@ -4,6 +4,8 @@ import NavBar from '../components/NavBar'
 import API_BASE_URL from '../../config/api.js'
 import CommentSection from '../components/CommentSection'
 import ReviewSection from '../components/ReviewSection'
+import CarouselRow from '../components/CarouselRow'
+import Footer from '../components/Footer'
 
 const VideoPlayerPage = () => {
   const { id } = useParams();
@@ -653,54 +655,8 @@ const VideoPlayerPage = () => {
             </div>
           </section>
 
-          <section 
-            id="related-videos" 
-            className={`mt-16 bg-gradient-to-br from-white/5 to-white/2 backdrop-blur-sm border border-amber-100/10 rounded-lg p-8 transition-opacity duration-1000 ${
-              visibleSections['related-videos'] ? 'opacity-100' : 'opacity-0'
-            }`}
-          >
-            <h2 className="text-2xl font-light mb-8 text-amber-100/90">Related Films</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {!relatedMovies || relatedMovies.length === 0 ? (
-                <div className="text-amber-100/60">No related films available</div>
-              ) : (
-                relatedMovies.map((movie) => (
-                  <Link 
-                    key={movie._id}
-                    to={`/video/${movie._id}`}
-                    className="group relative aspect-video rounded-lg overflow-hidden cursor-pointer border border-amber-100/20 transition-all duration-300 hover:border-amber-100/40"
-                    style={{
-                      backgroundImage: `url(${movie.thumbnailUrl || movie.posterUrl || '/placeholder-thumb.jpg'})`
-                    }}
-                    onContextMenu={handleContextMenu}
-                  >
-                    <img
-                      src={movie.thumbnailUrl || movie.posterUrl || '/placeholder-thumb.jpg'}
-                      alt={movie.title}
-                      className="absolute inset-0 w-full h-full object-cover"
-                      onError={(e) => { e.currentTarget.src = '/placeholder-thumb.jpg'; }}
-                    />
-                    
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <div className="absolute bottom-0 p-4">
-                        <h3 className="text-xl font-light mb-1">{movie.title}</h3>
-                        <p className="text-amber-100/60 text-sm">{movie.director} • {new Date(movie.releaseDate).getFullYear()}</p>
-                        <p className="text-amber-100/60 text-sm">{movie.genre.join(', ')}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-14 h-14 flex items-center justify-center border-2 border-white/50 rounded-full bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                    </div>
-                  </Link>
-                ))
-              )}
-            </div>
+          <section id="related-videos" className="mt-16">
+            <CarouselRow title="Related Films" movies={relatedMovies} />
           </section>
           <section 
             id="comments" 
@@ -724,6 +680,7 @@ const VideoPlayerPage = () => {
           transform: scale(1.02);
         }
       `}</style>
+      <Footer />
     </div>
   )
 }
