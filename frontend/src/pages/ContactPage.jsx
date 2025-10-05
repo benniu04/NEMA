@@ -107,7 +107,7 @@ const ContactPage = () => {
         <section id="contact-header" className={`relative h-[40vh] md:h-[50vh] flex items-center justify-center overflow-hidden transition-opacity duration-1000 ${
           visibleSections['contact-header'] ? 'opacity-100' : 'opacity-0'
         }`}>
-          <div className="absolute inset-0 bg-[url('/wallpaper-1.jpg')] bg-cover bg-center opacity-40"></div>
+          <div className="absolute inset-0 bg-[url('/hero-1.jpeg')] bg-cover bg-center opacity-40"></div>
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black"></div>
           <div className="relative z-10 text-center px-6 max-w-3xl mx-auto">
             <div className="mb-3">

@@ -38,7 +38,7 @@ const AboutPage = () => {
         <section id="about-hero" className={`relative h-[60vh] md:h-[70vh] flex items-center justify-center overflow-hidden transition-opacity duration-1000 ${
           visibleSections['about-hero'] ? 'opacity-100' : 'opacity-0'
         }`}>
-          <div className="absolute inset-0 bg-[url('/wallpaper-2.jpg')] bg-cover bg-center opacity-40"></div>
+          <div className="absolute inset-0 bg-[url('/hero-2.jpeg')] bg-cover bg-center opacity-40"></div>
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black"></div>
           <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">
             <div className="mb-4">
