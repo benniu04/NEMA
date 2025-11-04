@@ -1,33 +1,46 @@
-import HomePage from './pages/HomePage'
-import AboutPage from './pages/AboutPage'
-import ContactPage from './pages/ContactPage'
-import CatalogPage from './pages/CatalogPage'
-import VideoPlayerPage from './pages/VideoPlayerPage'
-import AdminUploadPage from './pages/AdminUploadPage'
-import AdminLogin from './pages/AdminLogin'
+import React, { Suspense, lazy } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
 
+// Lazy load all page components for code splitting
+const HomePage = lazy(() => import('./pages/HomePage'))
+const AboutPage = lazy(() => import('./pages/AboutPage'))
+const ContactPage = lazy(() => import('./pages/ContactPage'))
+const CatalogPage = lazy(() => import('./pages/CatalogPage'))
+const VideoPlayerPage = lazy(() => import('./pages/VideoPlayerPage'))
+const AdminUploadPage = lazy(() => import('./pages/AdminUploadPage'))
+const AdminLogin = lazy(() => import('./pages/AdminLogin'))
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <div className="min-h-screen bg-black flex items-center justify-center">
+    <div className="text-center">
+      <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500 mb-4"></div>
+      <p className="text-amber-100/60 text-sm">Loading...</p>
+    </div>
+  </div>
+)
 
 function App() {
-
   return (
-    <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/about" element={<AboutPage />} />
-      <Route path="/catalog" element={<CatalogPage />} />
-      <Route path="/contact" element={<ContactPage />} />
-      <Route path="/video/:id" element={<VideoPlayerPage />} />
-      <Route path="/admin/login" element={<AdminLogin />} />
-      <Route 
-        path="/admin/upload" 
-        element={
-          <ProtectedRoute>
-            <AdminUploadPage />
-          </ProtectedRoute>
-        } 
-      />
-    </Routes>
+    <Suspense fallback={<LoadingFallback />}>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/catalog" element={<CatalogPage />} />
+        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/video/:id" element={<VideoPlayerPage />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route 
+          path="/admin/upload" 
+          element={
+            <ProtectedRoute>
+              <AdminUploadPage />
+            </ProtectedRoute>
+          } 
+        />
+      </Routes>
+    </Suspense>
   )
 }
 

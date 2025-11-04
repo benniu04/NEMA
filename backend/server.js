@@ -1,6 +1,7 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import compression from 'compression';
 import moviesRoutes from './routes/movies.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import cors from 'cors';
@@ -48,6 +49,7 @@ app.use(cors({
 // Body parsing and cookie parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
+app.use(compression());
 
 const customSanitize = (req, res, next) => {
   const sanitizeObject = (obj, parentKey = '') => {

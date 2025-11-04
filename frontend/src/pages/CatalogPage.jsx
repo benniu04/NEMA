@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import Footer from '../components/Footer'
+import LazyImage from '../components/LazyImage'
 import API_BASE_URL from '../../config/api.js'
 
 const CatalogPage = () => {
@@ -13,6 +14,8 @@ const CatalogPage = () => {
   const [selectedLanguage, setSelectedLanguage] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
+  const [displayedCount, setDisplayedCount] = useState(12); // Show 12 movies initially
+  const loadMoreRef = useRef(null);
 
   // Fetch movies from backend
   useEffect(() => {
@@ -50,23 +53,54 @@ const CatalogPage = () => {
   const years = ["All", ...new Set(movies.map(movie => new Date(movie.releaseDate).getFullYear().toString()))];
   const languages = ["All", ...new Set(movies.map(movie => movie.language))];
 
-  // Filter and sort movies
-  const filteredMovies = movies.filter(movie => {
-    const matchesCategory = selectedCategory === "All" || movie.genre.includes(selectedCategory);
-    const matchesYear = selectedYear === "All" || new Date(movie.releaseDate).getFullYear().toString() === selectedYear;
-    const matchesLanguage = selectedLanguage === "All" || movie.language === selectedLanguage;
-    const matchesSearch = movie.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         movie.director.toLowerCase().includes(searchQuery.toLowerCase());
+  // Filter and sort movies using useMemo for performance
+  const filteredMovies = useMemo(() => {
+    return movies.filter(movie => {
+      const matchesCategory = selectedCategory === "All" || movie.genre.includes(selectedCategory);
+      const matchesYear = selectedYear === "All" || new Date(movie.releaseDate).getFullYear().toString() === selectedYear;
+      const matchesLanguage = selectedLanguage === "All" || movie.language === selectedLanguage;
+      const matchesSearch = movie.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           movie.director.toLowerCase().includes(searchQuery.toLowerCase());
 
-    return matchesCategory && matchesYear && matchesLanguage && matchesSearch;
-  });
+      return matchesCategory && matchesYear && matchesLanguage && matchesSearch;
+    });
+  }, [movies, selectedCategory, selectedYear, selectedLanguage, searchQuery]);
 
-  const sortedMovies = [...filteredMovies].sort((a, b) => {
-    if (sortBy === "newest") return new Date(b.releaseDate) - new Date(a.releaseDate);
-    if (sortBy === "oldest") return new Date(a.releaseDate) - new Date(b.releaseDate);
-    if (sortBy === "title") return a.title.localeCompare(b.title);
-    return 0;
-  });
+  const sortedMovies = useMemo(() => {
+    return [...filteredMovies].sort((a, b) => {
+      if (sortBy === "newest") return new Date(b.releaseDate) - new Date(a.releaseDate);
+      if (sortBy === "oldest") return new Date(a.releaseDate) - new Date(b.releaseDate);
+      if (sortBy === "title") return a.title.localeCompare(b.title);
+      return 0;
+    });
+  }, [filteredMovies, sortBy]);
+
+  // Reset displayed count when filters change
+  useEffect(() => {
+    setDisplayedCount(12);
+  }, [selectedCategory, selectedYear, selectedLanguage, searchQuery, sortBy]);
+
+  // Infinite scroll with Intersection Observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && displayedCount < sortedMovies.length) {
+          setDisplayedCount(prev => Math.min(prev + 12, sortedMovies.length));
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (loadMoreRef.current) {
+        observer.unobserve(loadMoreRef.current);
+      }
+    };
+  }, [displayedCount, sortedMovies.length]);
 
   // Clear all filters
   const clearFilters = () => {
@@ -322,17 +356,17 @@ const CatalogPage = () => {
               {/* Movies Grid */}
               <section id="movies-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {sortedMovies && sortedMovies.length > 1 ? (
-                  sortedMovies.slice(1).map((movie) => (
+                  sortedMovies.slice(1, displayedCount).map((movie) => (
                     <div key={movie._id} className="group relative">
                       <Link 
                         to={`/video/${movie._id}`}
                         className="block relative aspect-[16/9] bg-black/40 border border-white/10 rounded-none overflow-hidden cursor-pointer transform transition-all duration-500 hover:scale-[1.02] hover:border-amber-100/30"
-                        style={{ 
-                          backgroundImage: `url(${movie.thumbnailUrl})`,
-                          backgroundSize: 'cover',
-                          backgroundPosition: 'center'
-                        }}
                       >
+                        <LazyImage
+                          src={movie.thumbnailUrl}
+                          alt={movie.title}
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="w-16 h-16 flex items-center justify-center border-2 border-white/70 rounded-full bg-black/40 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-75 group-hover:scale-100">
@@ -358,6 +392,23 @@ const CatalogPage = () => {
                   </div>
                 )}
               </section>
+
+              {/* Load more trigger + indicator */}
+              {displayedCount < sortedMovies.length && (
+                <div ref={loadMoreRef} className="mt-12 text-center">
+                  <div className="inline-flex items-center gap-2 text-amber-100/60">
+                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-amber-500"></div>
+                    <span className="text-sm">Loading more films...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Show total count */}
+              {displayedCount >= sortedMovies.length && sortedMovies.length > 12 && (
+                <div className="mt-12 text-center text-amber-100/50 text-sm">
+                  Showing all {sortedMovies.length} films
+                </div>
+              )}
             </div>
           </div>
         </div>

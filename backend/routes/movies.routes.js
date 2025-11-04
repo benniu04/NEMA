@@ -2,8 +2,29 @@ import express from 'express';
 import { Movie } from '../models/movie.model.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.middleware.js';
 import { generateCloudfrontSignedUrl } from '../config/s3.js';
+import { LRUCache } from 'lru-cache';
 
 const moviesRoutes = express.Router();
+
+// LRU Cache with automatic memory management
+const cache = new LRUCache({
+  max: 500,              // Max 500 cache entries
+  maxSize: 100 * 1024 * 1024,  // Max 100MB total cache size
+  sizeCalculation: (value) => {
+    // Calculate size of each cached item
+    return JSON.stringify(value).length;
+  },
+  ttl: 1000 * 60 * 10,  
+  allowStale: false,    
+  updateAgeOnGet: false, 
+  updateAgeOnHas: false,
+});
+
+// Helper function for cache invalidation
+const clearCache = () => {
+  cache.clear();
+  console.log('🗑️  Cache cleared');
+};
 
 // Helper function to generate fresh signed URLs from S3 keys via CloudFront
 const generateFreshSignedUrls = async (movie) => {
@@ -52,6 +73,14 @@ const generateFreshSignedUrls = async (movie) => {
 // Public routes
 moviesRoutes.get('/', async (req, res) => {
   try {
+    const cacheKey = req.originalUrl;
+
+    // Check cache
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      res.set('Cache-Control', 'public, max-age=180');
+      return res.json(cached);
+    }
     const { limit, exclude } = req.query;
     let query = {};
 
@@ -76,6 +105,10 @@ moviesRoutes.get('/', async (req, res) => {
       })
     );
 
+    // Cache for 5 minutes
+    cache.set(cacheKey, moviesWithFreshUrls, { ttl: 1000 * 60 * 5 });
+    res.set('Cache-Control', 'public, max-age=180');
+    res.set('X-Cache', 'MISS');
     res.status(200).json(moviesWithFreshUrls);
   } catch (error) {
     console.error('Error fetching movies:', error);
@@ -85,6 +118,16 @@ moviesRoutes.get('/', async (req, res) => {
 
 moviesRoutes.get('/:id', async (req, res) => {
   try {
+    const cacheKey = req.originalUrl;
+
+    // Check cache
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      res.set('Cache-Control', 'public, max-age=300');
+      res.set('X-Cache', 'HIT');
+      return res.json(cached);
+    }
+
     const movie = await Movie.findById(req.params.id);
     if (!movie) {
       return res.status(404).json({ message: "Movie not found" });
@@ -92,9 +135,12 @@ moviesRoutes.get('/:id', async (req, res) => {
     
     const movieObj = movie.toObject();
     const freshUrls = await generateFreshSignedUrls(movie);
-    
     const responseData = { ...movieObj, ...freshUrls };
     
+    // Cache for 10 minutes
+    cache.set(cacheKey, responseData, { ttl: 1000 * 60 * 10 });
+    res.set('Cache-Control', 'public, max-age=300');
+    res.set('X-Cache', 'MISS');
     res.status(200).json(responseData);
   } catch (error) {
     console.error('Error fetching movie:', error);
@@ -107,6 +153,7 @@ moviesRoutes.post('/', [authMiddleware, adminMiddleware], async (req, res) => {
   try {
     const movie = new Movie(req.body);
     await movie.save();
+    clearCache();
     res.status(201).json(movie);
   } catch (error) {
     console.error('Error creating movie:', error);
@@ -126,6 +173,7 @@ moviesRoutes.put('/:id', [authMiddleware, adminMiddleware], async (req, res) => 
       return res.status(404).json({ message: "Movie not found" });
     }
     
+    clearCache();
     res.status(200).json(movie);
   } catch (error) {
     console.error('Error updating movie:', error);
@@ -141,6 +189,7 @@ moviesRoutes.delete('/:id', [authMiddleware, adminMiddleware], async (req, res) 
       return res.status(404).json({ message: "Movie not found" });
     }
     
+    clearCache();
     res.status(200).json({ message: "Movie deleted successfully" });
   } catch (error) {
     console.error('Error deleting movie:', error);

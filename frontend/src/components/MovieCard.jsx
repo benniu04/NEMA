@@ -1,5 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import LazyImage from './LazyImage'
 
 const MovieCard = ({ movie }) => {
   if (!movie) return null;
@@ -11,7 +12,7 @@ const MovieCard = ({ movie }) => {
       to={`/video/${movie._id}`}
       className="group relative w-[260px] sm:w-[300px] aspect-[16/9] flex-shrink-0 overflow-hidden rounded-none border border-white/10 bg-black/40 cursor-pointer"
     >
-      <img
+      <LazyImage
         src={movie.thumbnailUrl}
         alt={movie.title}
         className="absolute inset-0 w-full h-full object-cover transition duration-500 group-hover:scale-[1.04]"
