@@ -3,7 +3,8 @@ import multer from 'multer';
 import multerS3 from 'multer-s3';
 import { ENV_VARS } from './envVars.js';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { getSignedUrl as getS3SignedUrl } from '@aws-sdk/s3-request-presigner';
+import { getSignedUrl as getCloudfrontSignedUrl } from '@aws-sdk/cloudfront-signer';
 
 const s3Client = new S3Client({
   region: ENV_VARS.AWS_REGION,
@@ -47,6 +48,32 @@ export const upload = multer({
   }
 });
 
+export const generateCloudfrontSignedUrl = async (key) => {
+  const cloudFrontDomain = ENV_VARS.CLOUDFRONT_DOMAIN;
+
+  if (!cloudFrontDomain) {
+    console.warn('CLOUDFRONT_DOMAIN is not set, using S3 signed URL instead');
+    return generatePresignedUrl(key);
+  }
+
+  const url = `https://${cloudFrontDomain}/${key}`;
+
+  if (ENV_VARS.CLOUDFRONT_KEY_PAIR_ID && ENV_VARS.CLOUDFRONT_PRIVATE_KEY) {
+    const privateKey = ENV_VARS.CLOUDFRONT_PRIVATE_KEY.replace(/\\n/g, '\n');
+    const dateLessThan = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    
+    return getCloudfrontSignedUrl({
+      url,
+      keyPairId: ENV_VARS.CLOUDFRONT_KEY_PAIR_ID,
+      privateKey,
+      dateLessThan: dateLessThan.toISOString(),
+    });
+  }
+  
+  return url;
+};
+
+
 export const generatePresignedUrl = async (key) => {
   try {
     const command = new GetObjectCommand({
@@ -54,7 +81,7 @@ export const generatePresignedUrl = async (key) => {
       Key: key
     });
     
-    return await getSignedUrl(s3Client, command, { expiresIn: 86400 });
+    return await getS3SignedUrl(s3Client, command, { expiresIn: 86400 });
   } catch (error) {
     console.error('Error generating presigned URL for key:', key, error);
     throw error;

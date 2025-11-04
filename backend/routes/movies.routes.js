@@ -1,24 +1,24 @@
 import express from 'express';
 import { Movie } from '../models/movie.model.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.middleware.js';
-import { generatePresignedUrl } from '../config/s3.js';
+import { generateCloudfrontSignedUrl } from '../config/s3.js';
 
 const moviesRoutes = express.Router();
 
-// Helper function to generate fresh signed URLs from S3 keys
+// Helper function to generate fresh signed URLs from S3 keys via CloudFront
 const generateFreshSignedUrls = async (movie) => {
   const freshData = {};
   
-  // Generate fresh video URLs from S3 keys
+  // Generate fresh video URLs from S3 keys via CloudFront
   if (movie.videoUrls) {
     freshData.videoUrls = {};
     for (const [quality, s3Key] of Object.entries(movie.videoUrls)) {
       if (s3Key && s3Key.trim() !== '') {
         try {
-          const signedUrl = await generatePresignedUrl(s3Key);
+          const signedUrl = await generateCloudfrontSignedUrl(s3Key);
           freshData.videoUrls[quality] = signedUrl;
         } catch (error) {
-          console.error(`Error generating signed URL for ${quality}:`, error);
+          console.error(`Error generating CloudFront URL for ${quality}:`, error);
           freshData.videoUrls[quality] = null;
         }
       } else {
@@ -27,21 +27,21 @@ const generateFreshSignedUrls = async (movie) => {
     }
   }
   
-  // Generate fresh image URLs from S3 keys
+  // Generate fresh image URLs from S3 keys via CloudFront
   if (movie.posterKey) {
     try {
-      freshData.posterUrl = await generatePresignedUrl(movie.posterKey);
+      freshData.posterUrl = await generateCloudfrontSignedUrl(movie.posterKey);
     } catch (error) {
-      console.error('Error generating signed poster URL:', error);
+      console.error('Error generating CloudFront URL for poster:', error);
       freshData.posterUrl = null;
     }
   }
   
   if (movie.thumbnailKey) {
     try {
-      freshData.thumbnailUrl = await generatePresignedUrl(movie.thumbnailKey);
+      freshData.thumbnailUrl = await generateCloudfrontSignedUrl(movie.thumbnailKey);
     } catch (error) {
-      console.error('Error generating signed thumbnail URL:', error);
+      console.error('Error generating CloudFront URL for thumbnail:', error);
       freshData.thumbnailUrl = null;
     }
   }

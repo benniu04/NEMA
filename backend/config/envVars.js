@@ -6,7 +6,14 @@ const requiredEnvVars = [
   'MONGO_URL', 'JWT_SECRET', 'AWS_ACCESS_KEY_ID', 
   'AWS_SECRET_ACCESS_KEY', 'AWS_BUCKET_NAME',
   'ADMIN_USERNAME',
-  'ADMIN_PASSWORD_HASH'
+  'ADMIN_PASSWORD_HASH',
+];
+
+// Optional CloudFront variables (will fallback to S3 if not provided)
+const optionalEnvVars = [
+  'CLOUDFRONT_DOMAIN',
+  'CLOUDFRONT_KEY_PAIR_ID',
+  'CLOUDFRONT_PRIVATE_KEY',
 ];
 
 requiredEnvVars.forEach(envVar => {
@@ -15,6 +22,11 @@ requiredEnvVars.forEach(envVar => {
     process.exit(1);
   }
 });
+
+// Warn about missing optional CloudFront variables
+if (!process.env.CLOUDFRONT_DOMAIN) {
+  console.warn('⚠️  CLOUDFRONT_DOMAIN not set. Using S3 direct URLs (slower performance).');
+}
 
 // Validate JWT secret strength
 if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
@@ -41,4 +53,7 @@ export const ENV_VARS = {
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME,
+    CLOUDFRONT_DOMAIN: process.env.CLOUDFRONT_DOMAIN,
+    CLOUDFRONT_KEY_PAIR_ID: process.env.CLOUDFRONT_KEY_PAIR_ID,
+    CLOUDFRONT_PRIVATE_KEY: process.env.CLOUDFRONT_PRIVATE_KEY,
 }
