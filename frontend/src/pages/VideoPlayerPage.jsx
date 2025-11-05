@@ -315,8 +315,8 @@ const VideoPlayerPage = () => {
   };
 
   const toggleFullscreen = () => {
-    const video = videoRef.current;
-    if (!video) return;
+    const videoContainer = document.querySelector('.video-container');
+    if (!videoContainer) return;
 
     // Already in FS ⇒ exit
     if (document.fullscreenElement ||
@@ -328,11 +328,10 @@ const VideoPlayerPage = () => {
       return;
     }
 
-    // Enter FS (mobile-safe)
-    if (video.requestFullscreen)               video.requestFullscreen();
-    else if (video.webkitRequestFullscreen)    video.webkitRequestFullscreen();   // Android Chrome
-    else if (video.webkitEnterFullscreen)      video.webkitEnterFullscreen();     // iOS Safari
-    else if (video.msRequestFullscreen)        video.msRequestFullscreen();
+    // Enter FS on the container (so controls come with it)
+    if (videoContainer.requestFullscreen)               videoContainer.requestFullscreen();
+    else if (videoContainer.webkitRequestFullscreen)    videoContainer.webkitRequestFullscreen();
+    else if (videoContainer.msRequestFullscreen)        videoContainer.msRequestFullscreen();
   };
 
   const formatTime = (time) => {
@@ -388,7 +387,7 @@ const VideoPlayerPage = () => {
 
         <div className="relative max-w-7xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
           <section className="mb-16">
-            <div className="video-container relative aspect-video bg-black rounded-none overflow-hidden">
+            <div className={`video-container relative aspect-video bg-black rounded-none overflow-hidden ${!showControls ? 'cursor-none' : 'cursor-default'}`}>
               {movie && selectedQuality && movie.videoUrls[selectedQuality] ? (
                 <video
                   ref={videoRef}
@@ -556,7 +555,7 @@ const VideoPlayerPage = () => {
                   <div className="pl-8">
                     <h2 className="text-xl font-medium text-amber-100/90 mb-4 tracking-wide">Synopsis</h2>
                     <div className="prose prose-lg max-w-none">
-                      <p className="text-gray-200 leading-relaxed text-lg font-light tracking-wide leading-8">
+                      <p className="text-gray-200 text-lg font-light tracking-wide leading-8">
                         {movie.description}
                       </p>
                     </div>
@@ -678,6 +677,56 @@ const VideoPlayerPage = () => {
         }
         .poster-container:hover {
           transform: scale(1.02);
+        }
+        /* Fullscreen video styling */
+        .video-container:fullscreen {
+          width: 100vw;
+          height: 100vh;
+          background: black;
+        }
+        .video-container:fullscreen video {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+        }
+        .video-container:fullscreen.cursor-none {
+          cursor: none;
+        }
+        .video-container:fullscreen.cursor-none * {
+          cursor: none;
+        }
+        /* Webkit browsers (Safari, older Chrome) */
+        .video-container:-webkit-full-screen {
+          width: 100vw;
+          height: 100vh;
+          background: black;
+        }
+        .video-container:-webkit-full-screen video {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+        }
+        /* Firefox */
+        .video-container:-moz-full-screen {
+          width: 100vw;
+          height: 100vh;
+          background: black;
+        }
+        .video-container:-moz-full-screen video {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+        }
+        /* Microsoft Edge */
+        .video-container:-ms-fullscreen {
+          width: 100vw;
+          height: 100vh;
+          background: black;
+        }
+        .video-container:-ms-fullscreen video {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
         }
       `}</style>
       <Footer />
