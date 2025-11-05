@@ -159,10 +159,6 @@ const HomePage = () => {
           <source src="/hero-background.mp4" type="video/mp4" />
         </video> */}
         
-        {/* Cinematic Letterbox Bars */}
-        <div className="absolute top-0 left-0 right-0 h-[4vh] bg-black z-40"></div>
-        <div className="absolute bottom-0 left-0 right-0 h-[4vh] bg-black z-40"></div>
-        
         {/* Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black z-10"></div>
         
@@ -171,7 +167,7 @@ const HomePage = () => {
         
         {/* Parallax Background */}
         <div 
-          className="absolute inset-0 bg-[url('/hero-bg.jpg')] bg-cover bg-center opacity-60 parallax"
+          className="absolute z-0 inset-0 bg-[url('/hero-image.png')] bg-cover bg-center opacity-60 parallax"
         ></div>
         
         {/* Content */}
@@ -249,10 +245,61 @@ const HomePage = () => {
               <Link 
                 key={movie._id} 
                 to={`/video/${movie._id}`}
-                className="group relative aspect-[16/9] overflow-hidden border border-white/10 bg-black/40"
+                className="group relative aspect-[16/9] overflow-visible bg-black/40 transform transition-all duration-500 hover:scale-[1.02]"
                 style={{ backgroundImage: `url(${movie.thumbnailUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
               >
+                {/* Animated corner borders */}
+                <div className="absolute inset-0 pointer-events-none">
+                  {/* Top-left corner */}
+                  <div className="absolute top-0 left-0 w-8 h-8 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                    <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-amber-400 to-transparent group-hover:w-full transition-all duration-500"></div>
+                    <div className="absolute top-0 left-0 w-0.5 h-full bg-gradient-to-b from-amber-400 to-transparent group-hover:h-full transition-all duration-500"></div>
+                  </div>
+                  {/* Top-right corner */}
+                  <div className="absolute top-0 right-0 w-8 h-8 opacity-0 group-hover:opacity-100 transition-all duration-300" style={{ transitionDelay: '50ms' }}>
+                    <div className="absolute top-0 right-0 w-full h-0.5 bg-gradient-to-l from-amber-400 to-transparent group-hover:w-full transition-all duration-500"></div>
+                    <div className="absolute top-0 right-0 w-0.5 h-full bg-gradient-to-b from-amber-400 to-transparent group-hover:h-full transition-all duration-500"></div>
+                  </div>
+                  {/* Bottom-left corner */}
+                  <div className="absolute bottom-0 left-0 w-8 h-8 opacity-0 group-hover:opacity-100 transition-all duration-300" style={{ transitionDelay: '100ms' }}>
+                    <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-amber-400 to-transparent group-hover:w-full transition-all duration-500"></div>
+                    <div className="absolute bottom-0 left-0 w-0.5 h-full bg-gradient-to-t from-amber-400 to-transparent group-hover:h-full transition-all duration-500"></div>
+                  </div>
+                  {/* Bottom-right corner */}
+                  <div className="absolute bottom-0 right-0 w-8 h-8 opacity-0 group-hover:opacity-100 transition-all duration-300" style={{ transitionDelay: '150ms' }}>
+                    <div className="absolute bottom-0 right-0 w-full h-0.5 bg-gradient-to-l from-amber-400 to-transparent group-hover:w-full transition-all duration-500"></div>
+                    <div className="absolute bottom-0 right-0 w-0.5 h-full bg-gradient-to-t from-amber-400 to-transparent group-hover:h-full transition-all duration-500"></div>
+                  </div>
+                </div>
+
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                
+                {/* Hover gradient overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                
+                {/* Static play button with cool design */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="relative opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    {/* Hexagonal outer frame */}
+                    <div className="absolute inset-0 w-20 h-20 -ml-2 -mt-2 flex items-center justify-center">
+                      <svg className="w-20 h-20 text-amber-400/40" viewBox="0 0 100 100">
+                        <polygon points="50,5 90,30 90,70 50,95 10,70 10,30" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+                      </svg>
+                    </div>
+                    
+                    {/* Main circular button */}
+                    <div className="relative w-16 h-16 flex items-center justify-center rounded-full bg-black/80 backdrop-blur-sm border-2 border-white/90 shadow-[0_0_20px_rgba(251,191,36,0.3)]">
+                      {/* Inner gradient accent */}
+                      <div className="absolute inset-1 rounded-full bg-gradient-to-br from-amber-500/10 to-transparent"></div>
+                      
+                      {/* Play icon */}
+                      <svg className="w-7 h-7 text-white ml-0.5 relative z-10" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                
                 <div className="absolute bottom-0 p-4">
                   <h3 className="text-xl font-light text-white/95 line-clamp-1">{movie.title}</h3>
                   <p className="text-white/70 text-sm">{movie.director} • {new Date(movie.releaseDate).getFullYear()}</p>
@@ -268,10 +315,19 @@ const HomePage = () => {
         {allMovies && allMovies.length > 0 && (
           <>
             {(() => {
+              // Calculate date one week ago
+              const oneWeekAgo = new Date();
+              oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+              
               const newReleases = [...allMovies]
-                .filter(m => m.releaseDate)
-                .sort((a, b) => new Date(b.releaseDate) - new Date(a.releaseDate))
+                .filter(m => {
+                  if (!m.createdAt) return false;
+                  const uploadDate = new Date(m.createdAt);
+                  return uploadDate >= oneWeekAgo; // Only show films uploaded in last 7 days
+                })
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
                 .slice(0, 9)
+              
               const topRated = [...allMovies]
                 .filter(m => typeof m.rating === 'number')
                 .sort((a, b) => (b.rating || 0) - (a.rating || 0))
@@ -285,9 +341,64 @@ const HomePage = () => {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {items.map((movie) => (
-                      <Link key={movie._id} to={`/video/${movie._id}`} className="group relative aspect-[16/9] overflow-hidden border border-white/10 bg-black/40">
-                        <img src={movie.thumbnailUrl} alt={movie.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition duration-500" />
+                      <Link 
+                        key={movie._id} 
+                        to={`/video/${movie._id}`} 
+                        className="group relative aspect-[16/9] overflow-visible bg-black/40 transform transition-all duration-500 hover:scale-[1.02]"
+                      >
+                        {/* Animated corner borders */}
+                        <div className="absolute inset-0 pointer-events-none">
+                          {/* Top-left corner */}
+                          <div className="absolute top-0 left-0 w-8 h-8 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                            <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-amber-400 to-transparent group-hover:w-full transition-all duration-500"></div>
+                            <div className="absolute top-0 left-0 w-0.5 h-full bg-gradient-to-b from-amber-400 to-transparent group-hover:h-full transition-all duration-500"></div>
+                          </div>
+                          {/* Top-right corner */}
+                          <div className="absolute top-0 right-0 w-8 h-8 opacity-0 group-hover:opacity-100 transition-all duration-300" style={{ transitionDelay: '50ms' }}>
+                            <div className="absolute top-0 right-0 w-full h-0.5 bg-gradient-to-l from-amber-400 to-transparent group-hover:w-full transition-all duration-500"></div>
+                            <div className="absolute top-0 right-0 w-0.5 h-full bg-gradient-to-b from-amber-400 to-transparent group-hover:h-full transition-all duration-500"></div>
+                          </div>
+                          {/* Bottom-left corner */}
+                          <div className="absolute bottom-0 left-0 w-8 h-8 opacity-0 group-hover:opacity-100 transition-all duration-300" style={{ transitionDelay: '100ms' }}>
+                            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-amber-400 to-transparent group-hover:w-full transition-all duration-500"></div>
+                            <div className="absolute bottom-0 left-0 w-0.5 h-full bg-gradient-to-t from-amber-400 to-transparent group-hover:h-full transition-all duration-500"></div>
+                          </div>
+                          {/* Bottom-right corner */}
+                          <div className="absolute bottom-0 right-0 w-8 h-8 opacity-0 group-hover:opacity-100 transition-all duration-300" style={{ transitionDelay: '150ms' }}>
+                            <div className="absolute bottom-0 right-0 w-full h-0.5 bg-gradient-to-l from-amber-400 to-transparent group-hover:w-full transition-all duration-500"></div>
+                            <div className="absolute bottom-0 right-0 w-0.5 h-full bg-gradient-to-t from-amber-400 to-transparent group-hover:h-full transition-all duration-500"></div>
+                          </div>
+                        </div>
+
+                        <img src={movie.thumbnailUrl} alt={movie.title} className="absolute inset-0 w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                        
+                        {/* Hover gradient overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        
+                        {/* Static play button with cool design */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="relative opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            {/* Hexagonal outer frame */}
+                            <div className="absolute inset-0 w-20 h-20 -ml-2 -mt-2 flex items-center justify-center">
+                              <svg className="w-20 h-20 text-amber-400/40" viewBox="0 0 100 100">
+                                <polygon points="50,5 90,30 90,70 50,95 10,70 10,30" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+                              </svg>
+                            </div>
+                            
+                            {/* Main circular button */}
+                            <div className="relative w-16 h-16 flex items-center justify-center rounded-full bg-black/80 backdrop-blur-sm border-2 border-white/90 shadow-[0_0_20px_rgba(251,191,36,0.3)]">
+                              {/* Inner gradient accent */}
+                              <div className="absolute inset-1 rounded-full bg-gradient-to-br from-amber-500/10 to-transparent"></div>
+                              
+                              {/* Play icon */}
+                              <svg className="w-7 h-7 text-white ml-0.5 relative z-10" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z" />
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                        
                         <div className="absolute bottom-0 p-4">
                           <h4 className="text-lg font-light text-white/95 line-clamp-1">{movie.title}</h4>
                           <p className="text-white/70 text-sm">{movie.director} • {new Date(movie.releaseDate).getFullYear()}</p>
@@ -300,7 +411,9 @@ const HomePage = () => {
 
               return (
                 <>
-                  <Section title="New Releases" items={newReleases} />
+                  {newReleases.length > 0 && (
+                    <Section title="New Releases" items={newReleases} />
+                  )}
                   <Section title="Top Rated" items={topRated} />
                 </>
               )

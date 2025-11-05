@@ -360,20 +360,59 @@ const CatalogPage = () => {
                     <div key={movie._id} className="group relative">
                       <Link 
                         to={`/video/${movie._id}`}
-                        className="block relative aspect-[16/9] bg-black/40 border border-white/10 rounded-none overflow-hidden cursor-pointer transform transition-all duration-500 hover:scale-[1.02] hover:border-amber-100/30"
+                        className="block relative aspect-[16/9] bg-black/40 rounded-none overflow-visible cursor-pointer transform transition-all duration-500 hover:scale-[1.02]"
                       >
+                        {/* Animated corner borders */}
+                        <div className="absolute inset-0 pointer-events-none z-10">
+                          {/* Top-left corner */}
+                          <div className="absolute top-0 left-0 w-8 h-8 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                            <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-amber-400 to-transparent group-hover:w-full transition-all duration-500"></div>
+                            <div className="absolute top-0 left-0 w-0.5 h-full bg-gradient-to-b from-amber-400 to-transparent group-hover:h-full transition-all duration-500"></div>
+                          </div>
+                          {/* Top-right corner */}
+                          <div className="absolute top-0 right-0 w-8 h-8 opacity-0 group-hover:opacity-100 transition-all duration-300" style={{ transitionDelay: '50ms' }}>
+                            <div className="absolute top-0 right-0 w-full h-0.5 bg-gradient-to-l from-amber-400 to-transparent group-hover:w-full transition-all duration-500"></div>
+                            <div className="absolute top-0 right-0 w-0.5 h-full bg-gradient-to-b from-amber-400 to-transparent group-hover:h-full transition-all duration-500"></div>
+                          </div>
+                          {/* Bottom-left corner */}
+                          <div className="absolute bottom-0 left-0 w-8 h-8 opacity-0 group-hover:opacity-100 transition-all duration-300" style={{ transitionDelay: '100ms' }}>
+                            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-amber-400 to-transparent group-hover:w-full transition-all duration-500"></div>
+                            <div className="absolute bottom-0 left-0 w-0.5 h-full bg-gradient-to-t from-amber-400 to-transparent group-hover:h-full transition-all duration-500"></div>
+                          </div>
+                          {/* Bottom-right corner */}
+                          <div className="absolute bottom-0 right-0 w-8 h-8 opacity-0 group-hover:opacity-100 transition-all duration-300" style={{ transitionDelay: '150ms' }}>
+                            <div className="absolute bottom-0 right-0 w-full h-0.5 bg-gradient-to-l from-amber-400 to-transparent group-hover:w-full transition-all duration-500"></div>
+                            <div className="absolute bottom-0 right-0 w-0.5 h-full bg-gradient-to-t from-amber-400 to-transparent group-hover:h-full transition-all duration-500"></div>
+                          </div>
+                        </div>
+
                         <LazyImage
                           src={movie.thumbnailUrl}
                           alt={movie.title}
                           className="absolute inset-0 w-full h-full object-cover"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        
+                        {/* Static play button with cool design */}
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="w-16 h-16 flex items-center justify-center border-2 border-white/70 rounded-full bg-black/40 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-75 group-hover:scale-100">
-                            <svg className="w-7 h-7 text-white ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                          <div className="relative opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            {/* Hexagonal outer frame */}
+                            <div className="absolute inset-0 w-20 h-20 -ml-2 -mt-2 flex items-center justify-center">
+                              <svg className="w-20 h-20 text-amber-400/40" viewBox="0 0 100 100">
+                                <polygon points="50,5 90,30 90,70 50,95 10,70 10,30" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+                              </svg>
+                            </div>
+                            
+                            {/* Main circular button */}
+                            <div className="relative w-16 h-16 flex items-center justify-center rounded-full bg-black/80 backdrop-blur-sm border-2 border-white/90 shadow-[0_0_20px_rgba(251,191,36,0.3)]">
+                              {/* Inner gradient accent */}
+                              <div className="absolute inset-1 rounded-full bg-gradient-to-br from-amber-500/10 to-transparent"></div>
+                              
+                              {/* Play icon */}
+                              <svg className="w-7 h-7 text-white ml-0.5 relative z-10" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z" />
+                              </svg>
+                            </div>
                           </div>
                         </div>
                       </Link>
