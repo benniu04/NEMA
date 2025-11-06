@@ -8,4 +8,35 @@ const reviewSchema = new mongoose.Schema({
   comment:   { type: String, default: '' },
 }, { timestamps: true });
 
+// ============================================
+// INDEXES FOR PERFORMANCE
+// ============================================
+
+// 1. Get all reviews for a movie
+// Query: Review.find({ movieId: movieId })
+// CRITICAL: This is queried on every movie page load
+reviewSchema.index({ movieId: 1 });
+
+// 2. Get reviews sorted by rating (highest first)
+// Query: Review.find({ movieId: movieId }).sort({ rating: -1 })
+reviewSchema.index({ movieId: 1, rating: -1 });
+
+// 3. Find reviews by device (for user's own reviews)
+// Query: Review.find({ deviceId: 'device-123' })
+reviewSchema.index({ deviceId: 1 });
+
+// 4. Recent reviews (for a "latest reviews" feature)
+// Query: Review.find().sort({ createdAt: -1 })
+reviewSchema.index({ createdAt: -1 });
+
+// 5. High-rated reviews (for filtering)
+// Query: Review.find({ rating: { $gte: 8 } })
+reviewSchema.index({ rating: -1, createdAt: -1 });
+
+// Note: Compound indexes are used left-to-right
+// { movieId: 1, rating: -1 } works for:
+//   - { movieId: 1 }
+//   - { movieId: 1, rating: -1 }
+// But NOT for just { rating: -1 } alone
+
 export const Review = mongoose.model('Review', reviewSchema);

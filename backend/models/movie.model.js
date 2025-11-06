@@ -69,4 +69,38 @@ const movieSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
+// ============================================
+// INDEXES FOR PERFORMANCE
+// ============================================
+
+// 1. Genre queries (filtering by genre)
+// Query: Movie.find({ genre: 'Action' })
+movieSchema.index({ genre: 1 });
+
+// 2. Featured movies sorted by creation date
+// Query: Movie.find({ isFeatured: true }).sort({ createdAt: -1 })
+movieSchema.index({ isFeatured: 1, createdAt: -1 });
+
+// 3. Title search (case-insensitive partial match)
+// Query: Movie.find({ title: /search term/i })
+movieSchema.index({ title: 'text', description: 'text' });
+
+// 4. Rating-based queries (top rated movies)
+// Query: Movie.find().sort({ rating: -1 })
+movieSchema.index({ rating: -1 });
+
+// 5. Recent movies query
+// Query: Movie.find().sort({ releaseDate: -1 })
+movieSchema.index({ releaseDate: -1 });
+
+// 6. Director lookup
+// Query: Movie.find({ director: 'Director Name' })
+movieSchema.index({ director: 1 });
+
+// Note: _id is automatically indexed by MongoDB
+// Note: Compound indexes can be used for queries on prefix fields
+// Example: { isFeatured: 1, createdAt: -1 } can be used for:
+//   - { isFeatured: 1 } 
+//   - { isFeatured: 1, createdAt: -1 }
+
 export const Movie = mongoose.model('Movie', movieSchema);

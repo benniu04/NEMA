@@ -9,7 +9,9 @@
     "test": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "test:coverage": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
-    "test:verbose": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose"
+    "test:verbose": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose",
+    "db:indexes": "node backend/scripts/createIndexes.js",
+    "db:analyze": "node backend/scripts/analyzeIndexUsage.js"
   },
   "keywords": [],
   "author": "",
