@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import API_BASE_URL from '../config/api.js';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
+import { analytics } from '../config/analytics';
 
 const Star = ({ filled }) => (
   <svg className={`w-6 h-6 ${filled ? 'text-amber-400' : 'text-gray-500'}`} fill="currentColor" viewBox="0 0 20 20">
@@ -13,7 +14,7 @@ const Star = ({ filled }) => (
   </svg>
 );
 
-const ReviewSection = ({ movieId }) => {
+const ReviewSection = ({ movieId, movieTitle }) => {
   const [deviceId, setDeviceId] = useState('');
   const [nickname, setNickname] = useState('');
   const [reviews, setReviews] = useState([]);
@@ -59,6 +60,10 @@ const ReviewSection = ({ movieId }) => {
         rating: stars, comment
       }
     );
+    // Track review submission
+    if (movieTitle) {
+      analytics.submitReview(movieTitle, stars);
+    }
     setStars(0); setComment('');
     fetchReviews();
   };
@@ -72,6 +77,10 @@ const ReviewSection = ({ movieId }) => {
         `${API_BASE_URL}/api/reviews/${reviewId}`,
         { data: { deviceId } }
       );
+      // Track review deletion
+      if (movieTitle) {
+        analytics.deleteReview(movieTitle);
+      }
       setStars(0);
       setComment('');
       fetchReviews();

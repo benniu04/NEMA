@@ -6,6 +6,7 @@ import CommentSection from '../components/CommentSection'
 import ReviewSection from '../components/ReviewSection'
 import CarouselRow from '../components/CarouselRow'
 import Footer from '../components/Footer'
+import { analytics } from '../config/analytics'
 
 const VideoPlayerPage = () => {
   const { id } = useParams();
@@ -217,6 +218,10 @@ const VideoPlayerPage = () => {
     if (video.paused) {
       video.play();
       setIsPlaying(true);
+      // Track video play event
+      if (movie?.title) {
+        analytics.playVideo(movie.title);
+      }
     } else {
       video.pause();
       setIsPlaying(false);
@@ -564,7 +569,7 @@ const VideoPlayerPage = () => {
               </div>
               
               {/* Review block */}
-              <ReviewSection movieId={id} />
+              <ReviewSection movieId={id} movieTitle={movie?.title} />
 
               {/* Movie Details Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-gradient-to-br from-white/5 to-white/2 backdrop-blur-sm border border-amber-100/10 rounded-lg p-8">

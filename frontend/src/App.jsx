@@ -1,6 +1,7 @@
-import React, { Suspense, lazy } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import React, { Suspense, lazy, useEffect } from 'react'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
+import { trackPageView } from './config/analytics'
 
 // Lazy load all page components for code splitting
 const HomePage = lazy(() => import('./pages/HomePage'))
@@ -22,6 +23,13 @@ const LoadingFallback = () => (
 )
 
 function App() {
+  const location = useLocation()
+
+  // Track page views on route changes
+  useEffect(() => {
+    trackPageView(location.pathname + location.search)
+  }, [location])
+
   return (
     <Suspense fallback={<LoadingFallback />}>
       <Routes>
