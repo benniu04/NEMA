@@ -63,6 +63,24 @@ const ReviewSection = ({ movieId }) => {
     fetchReviews();
   };
 
+  /* delete review */
+  const handleDelete = async (reviewId) => {
+    if (!window.confirm('Are you sure you want to delete your review?')) return;
+    
+    try {
+      await axios.delete(
+        `${API_BASE_URL}/api/reviews/${reviewId}`,
+        { data: { deviceId } }
+      );
+      setStars(0);
+      setComment('');
+      fetchReviews();
+    } catch (error) {
+      console.error('Error deleting review:', error);
+      alert('Failed to delete review. Please try again.');
+    }
+  };
+
   const avg = reviews.length
     ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length).toFixed(1)
     : 0;
@@ -126,8 +144,26 @@ const ReviewSection = ({ movieId }) => {
           {reviews.map(r => (
             <div key={r._id} className="border-b border-amber-100/10 pb-6 last:border-0">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-amber-100/80 font-medium">{r.nickname}</span>
-                <span className="text-amber-100/60 text-sm">{new Date(r.createdAt).toLocaleDateString()}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-amber-100/80 font-medium">{r.nickname}</span>
+                  {r.deviceId === deviceId && (
+                    <span className="text-xs px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded">You</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-amber-100/60 text-sm">{new Date(r.createdAt).toLocaleDateString()}</span>
+                  {r.deviceId === deviceId && (
+                    <button
+                      onClick={() => handleDelete(r._id)}
+                      className="text-red-400 hover:text-red-300 text-sm transition-colors"
+                      title="Delete your review"
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="flex items-center mb-1">
                 {[...Array(10)].map((_, i) => <Star key={i} filled={i < r.rating} />)}

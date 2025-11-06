@@ -1,8 +1,10 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import { Review } from '../models/review.model.js';
 import { Movie }  from '../models/movie.model.js';
 import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
+import { clearCache } from '../config/cache.js';
 
 const reviewRouter = express.Router();
 
@@ -49,12 +51,22 @@ const reviewDeleteSlow = slowDown({
 
 /* helper to recompute avg rating */
 async function recomputeAvg(movieId) {
-  const agg = await Review.aggregate([
-    { $match: { movieId: movieId } },
-    { $group: { _id: '$movieId', avg: { $avg: '$rating' } } }
-  ]);
-  const avg = agg[0]?.avg ?? 0;
-  await Movie.findByIdAndUpdate(movieId, { rating: avg });
+  try {
+    // Convert to ObjectId if it's a string
+    const movieObjectId = typeof movieId === 'string' 
+      ? new mongoose.Types.ObjectId(movieId) 
+      : movieId;
+    
+    const agg = await Review.aggregate([
+      { $match: { movieId: movieObjectId } },
+      { $group: { _id: '$movieId', avg: { $avg: '$rating' } } }
+    ]);
+    
+    const avg = agg[0]?.avg ?? 0;
+    await Movie.findByIdAndUpdate(movieId, { rating: avg });
+  } catch (error) {
+    console.error('Error recomputing average rating:', error);
+  }
 }
 
 /* list reviews for a movie */
@@ -78,19 +90,27 @@ reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, async (req, res) => {
   );
 
   await recomputeAvg(movieId);
+  clearCache(); // Clear movie cache so ratings update immediately
   res.status(201).json(review);
 });
 
 /* delete (only same device) */
 reviewRouter.delete('/:id', reviewDeleteLimiter, reviewDeleteSlow, async (req, res) => {
-  const { deviceId } = req.body;
-  const review = await Review.findById(req.params.id);
-  if (!review) return res.sendStatus(404);
-  if (review.deviceId !== deviceId) return res.sendStatus(403);
+  try {
+    const { deviceId } = req.body;
+    const review = await Review.findById(req.params.id);
+    if (!review) return res.sendStatus(404);
+    if (review.deviceId !== deviceId) return res.sendStatus(403);
 
-  await review.remove();
-  await recomputeAvg(review.movieId);
-  res.json({ message: 'Deleted' });
+    const movieId = review.movieId; // Save movieId before deletion
+    await Review.findByIdAndDelete(req.params.id); // Use findByIdAndDelete instead of remove()
+    await recomputeAvg(movieId);
+    clearCache(); // Clear movie cache so ratings update immediately
+    res.json({ message: 'Deleted' });
+  } catch (error) {
+    console.error('Error deleting review:', error);
+    res.status(500).json({ message: 'Failed to delete review', error: error.message });
+  }
 });
 
 export default reviewRouter;

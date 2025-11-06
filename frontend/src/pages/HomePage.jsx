@@ -330,8 +330,12 @@ const HomePage = () => {
               
               const topRated = [...allMovies]
                 .filter(m => typeof m.rating === 'number')
-                .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-                .slice(0, 9)
+                .sort((a, b) => {
+                  const ratingA = Number(a.rating) || 0;
+                  const ratingB = Number(b.rating) || 0;
+                  return ratingB - ratingA;
+                })
+                .slice(0, 6)
 
               const Section = ({ title, items }) => (
                 <div className="max-w-7xl mx-auto mb-10">

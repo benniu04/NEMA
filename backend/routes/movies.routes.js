@@ -2,29 +2,9 @@ import express from 'express';
 import { Movie } from '../models/movie.model.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.middleware.js';
 import { generateCloudfrontSignedUrl } from '../config/s3.js';
-import { LRUCache } from 'lru-cache';
+import { cache, clearCache } from '../config/cache.js';
 
 const moviesRoutes = express.Router();
-
-// LRU Cache with automatic memory management
-const cache = new LRUCache({
-  max: 500,              // Max 500 cache entries
-  maxSize: 100 * 1024 * 1024,  // Max 100MB total cache size
-  sizeCalculation: (value) => {
-    // Calculate size of each cached item
-    return JSON.stringify(value).length;
-  },
-  ttl: 1000 * 60 * 10,  
-  allowStale: false,    
-  updateAgeOnGet: false, 
-  updateAgeOnHas: false,
-});
-
-// Helper function for cache invalidation
-const clearCache = () => {
-  cache.clear();
-  console.log('🗑️  Cache cleared');
-};
 
 // Helper function to generate fresh signed URLs from S3 keys via CloudFront
 const generateFreshSignedUrls = async (movie) => {
