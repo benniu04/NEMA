@@ -31,6 +31,30 @@ const VideoPlayerPage = () => {
 
   // Fetch movie data and related movies
   useEffect(() => {
+    // Reset video player state when movie changes
+    setLoading(true);
+    setError('');
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setShowControls(true);
+    
+    // Exit fullscreen if currently in fullscreen when navigating away
+    if (document.fullscreenElement || 
+        document.webkitFullscreenElement || 
+        document.mozFullScreenElement || 
+        document.msFullscreenElement) {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.mozCancelFullScreen) {
+        document.mozCancelFullScreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
+    }
+    
     const fetchMovieAndRelated = async () => {
       try {
         const movieResponse = await fetch(`${API_BASE_URL}/api/movies/${id}`);
@@ -339,11 +363,19 @@ const VideoPlayerPage = () => {
     video.addEventListener('loadeddata', handleLoadedData);
   };
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = async () => {
     const videoContainer = document.querySelector('.video-container');
     const video = videoRef.current;
     
-    if (!videoContainer) return;
+    if (!videoContainer) {
+      console.warn('Video container not found');
+      return;
+    }
+    
+    if (!video) {
+      console.warn('Video element not found');
+      return;
+    }
 
     // Check if already in fullscreen (check all vendor prefixes)
     const isCurrentlyFullscreen = !!(
@@ -355,34 +387,61 @@ const VideoPlayerPage = () => {
 
     if (isCurrentlyFullscreen) {
       // Exit fullscreen
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-      } else if (document.mozCancelFullScreen) {
-        document.mozCancelFullScreen();
-      } else if (document.msExitFullscreen) {
-        document.msExitFullscreen();
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+          document.mozCancelFullScreen();
+        } else if (document.msExitFullscreen) {
+          document.msExitFullscreen();
+        }
+      } catch (err) {
+        console.error('Exit fullscreen failed:', err);
       }
       return;
     }
 
-    // Enter fullscreen
-    // Try container first (brings controls with it)
-    if (videoContainer.requestFullscreen) {
-      videoContainer.requestFullscreen().catch(err => {
-        console.error('Fullscreen request failed:', err);
+    // Ensure video is loaded before entering fullscreen
+    if (video.readyState < 2) {
+      console.warn('Video not ready yet, waiting...');
+      // Wait for video to be ready
+      await new Promise((resolve) => {
+        const onReady = () => {
+          video.removeEventListener('loadeddata', onReady);
+          resolve();
+        };
+        video.addEventListener('loadeddata', onReady);
+        // Timeout after 3 seconds
+        setTimeout(resolve, 3000);
       });
-    } else if (videoContainer.webkitRequestFullscreen) {
-      // iOS Safari needs webkitRequestFullscreen
-      videoContainer.webkitRequestFullscreen();
-    } else if (videoContainer.mozRequestFullScreen) {
-      videoContainer.mozRequestFullScreen();
-    } else if (videoContainer.msRequestFullscreen) {
-      videoContainer.msRequestFullscreen();
-    } else if (video && video.webkitEnterFullscreen) {
-      // Fallback for older iOS: use native video fullscreen
-      video.webkitEnterFullscreen();
+    }
+
+    // Enter fullscreen
+    try {
+      // Try container first (brings controls with it)
+      if (videoContainer.requestFullscreen) {
+        await videoContainer.requestFullscreen();
+      } else if (videoContainer.webkitRequestFullscreen) {
+        // iOS Safari needs webkitRequestFullscreen
+        videoContainer.webkitRequestFullscreen();
+      } else if (videoContainer.mozRequestFullScreen) {
+        videoContainer.mozRequestFullScreen();
+      } else if (videoContainer.msRequestFullscreen) {
+        videoContainer.msRequestFullscreen();
+      } else if (video.webkitEnterFullscreen) {
+        // Fallback for older iOS: use native video fullscreen
+        video.webkitEnterFullscreen();
+      } else {
+        console.error('Fullscreen API not supported on this device');
+      }
+    } catch (err) {
+      console.error('Fullscreen request failed:', err);
+      // On mobile, user gesture might be required - show a helpful message
+      if (err.name === 'NotAllowedError') {
+        console.warn('Fullscreen requires user interaction on mobile');
+      }
     }
   };
 
