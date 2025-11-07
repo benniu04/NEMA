@@ -190,7 +190,13 @@ const AdminDashboard = () => {
       genre: Array.isArray(movie.genre) ? movie.genre.join(', ') : movie.genre,
       cast: Array.isArray(movie.cast) ? movie.cast.join(', ') : movie.cast,
       tags: Array.isArray(movie.tags) ? movie.tags.join(', ') : movie.tags,
-      releaseDate: new Date(movie.releaseDate).toISOString().split('T')[0]
+      releaseDate: new Date(movie.releaseDate).toISOString().split('T')[0],
+      // Preserve existing URLs
+      videoUrls: movie.videoUrls || { '720p': '', '1080p': '' },
+      thumbnailUrl: movie.thumbnailUrl || '',
+      posterUrl: movie.posterUrl || '',
+      thumbnailKey: movie.thumbnailKey || '',
+      posterKey: movie.posterKey || ''
     });
     setActiveTab('upload');
   };
@@ -241,12 +247,12 @@ const AdminDashboard = () => {
       return;
     }
 
-    if (!formData.posterKey) {
+    if (!formData.posterKey && !formData.posterUrl) {
       setError('Please upload a poster image before submitting.');
       return;
     }
 
-    if (!formData.thumbnailKey) {
+    if (!formData.thumbnailKey && !formData.thumbnailUrl) {
       setError('Please upload a thumbnail image before submitting.');
       return;
     }
@@ -254,10 +260,17 @@ const AdminDashboard = () => {
     setLoading(true);
 
     try {
-      const { createdAt, updatedAt, ...cleanFormData } = formData;
+      const { createdAt, updatedAt, _id, __v, ...cleanFormData } = formData;
       
-      const response = await fetch(`${API_BASE_URL}/api/movies`, {
-        method: 'POST',
+      // Determine if we're editing or creating
+      const url = editingMovie 
+        ? `${API_BASE_URL}/api/movies/${editingMovie._id}`
+        : `${API_BASE_URL}/api/movies`;
+      
+      const method = editingMovie ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json'
         },
@@ -277,7 +290,7 @@ const AdminDashboard = () => {
         throw new Error(data.message || `Server error: ${response.status}`);
       }
 
-      setSuccess('Movie uploaded successfully! Redirecting...');
+      setSuccess(editingMovie ? 'Movie updated successfully! Redirecting...' : 'Movie uploaded successfully! Redirecting...');
       
       setTimeout(() => {
         resetForm();
@@ -287,7 +300,7 @@ const AdminDashboard = () => {
       }, 1500);
 
     } catch (err) {
-      setError(`Failed to add movie: ${err.message}`);
+      setError(`Failed to ${editingMovie ? 'update' : 'add'} movie: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -710,7 +723,12 @@ const AdminDashboard = () => {
                           : 'bg-amber-500 text-black hover:bg-amber-400'
                       }`}
                     >
-                      {loading ? 'Saving Movie...' : uploading ? 'Uploading Files...' : 'Add Movie'}
+                      {loading 
+                        ? (editingMovie ? 'Updating Movie...' : 'Saving Movie...') 
+                        : uploading 
+                          ? 'Uploading Files...' 
+                          : (editingMovie ? 'Save Changes' : 'Add Movie')
+                      }
                     </button>
                   </div>
                 </form>
