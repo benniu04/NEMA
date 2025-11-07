@@ -14,14 +14,15 @@ export const initGA = () => {
   try {
     ReactGA.initialize(measurementId, {
       gaOptions: {
-        // Automatically detect cookie domain for Netlify
-        cookieDomain: 'auto',
-        // Use secure cookies
-        cookieFlags: 'SameSite=None;Secure',
+        // Explicitly set cookie domain for Netlify
+        cookieDomain: window.location.hostname,
+        // Use secure cookies for HTTPS
+        cookieFlags: 'SameSite=Lax;Secure',
       },
-      // Enable in production only
       gtagOptions: {
         send_page_view: false, // We handle this manually
+        cookie_domain: window.location.hostname,
+        cookie_flags: 'SameSite=Lax;Secure',
       },
     });
     console.log('📊 Google Analytics initialized successfully');
