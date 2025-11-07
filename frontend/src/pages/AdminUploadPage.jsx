@@ -66,12 +66,21 @@ const AdminDashboard = () => {
     checkAuth();
   }, [navigate]);
 
-  const fetchMovies = async () => {
+  const fetchMovies = async (bustCache = false) => {
     try {
       setLoading(true);
-      console.log('Fetching movies from:', `${API_BASE_URL}/api/movies`);
       
-      const response = await fetch(`${API_BASE_URL}/api/movies`);
+      // Add cache-busting parameter to force fresh data after updates
+      const url = bustCache 
+        ? `${API_BASE_URL}/api/movies?_t=${Date.now()}`
+        : `${API_BASE_URL}/api/movies`;
+      
+      console.log('Fetching movies from:', url);
+      
+      const response = await fetch(url, {
+        // Force no-cache for admin to always get fresh data
+        cache: 'no-cache'
+      });
       console.log('Response status:', response.status);
       
       if (!response.ok) {
@@ -213,7 +222,7 @@ const AdminDashboard = () => {
       if (!response.ok) throw new Error('Failed to delete movie');
       
       setSuccess('Movie deleted successfully');
-      fetchMovies();
+      fetchMovies(true); // Bust cache to get fresh data
     } catch (err) {
       setError('Failed to delete movie');
     }
@@ -294,7 +303,7 @@ const AdminDashboard = () => {
       
       setTimeout(() => {
         resetForm();
-        fetchMovies();
+        fetchMovies(true); // Bust cache to get fresh data
         setActiveTab('manage');
         setSuccess('');
       }, 1500);

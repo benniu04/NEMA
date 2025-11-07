@@ -58,7 +58,8 @@ moviesRoutes.get('/', async (req, res) => {
     // Check cache
     const cached = cache.get(cacheKey);
     if (cached) {
-      res.set('Cache-Control', 'public, max-age=180');
+      // Use shorter browser cache with must-revalidate for editable content
+      res.set('Cache-Control', 'public, max-age=30, must-revalidate');
       return res.json(cached);
     }
     const { limit, exclude } = req.query;
@@ -85,9 +86,10 @@ moviesRoutes.get('/', async (req, res) => {
       })
     );
 
-    // Cache for 5 minutes
+    // Cache for 5 minutes on server
     cache.set(cacheKey, moviesWithFreshUrls, { ttl: 1000 * 60 * 5 });
-    res.set('Cache-Control', 'public, max-age=180');
+    // But only 30 seconds in browser with must-revalidate
+    res.set('Cache-Control', 'public, max-age=30, must-revalidate');
     res.set('X-Cache', 'MISS');
     res.status(200).json(moviesWithFreshUrls);
   } catch (error) {
@@ -103,7 +105,7 @@ moviesRoutes.get('/:id', async (req, res) => {
     // Check cache
     const cached = cache.get(cacheKey);
     if (cached) {
-      res.set('Cache-Control', 'public, max-age=300');
+      res.set('Cache-Control', 'public, max-age=30, must-revalidate');
       res.set('X-Cache', 'HIT');
       return res.json(cached);
     }
@@ -117,9 +119,10 @@ moviesRoutes.get('/:id', async (req, res) => {
     const freshUrls = await generateFreshSignedUrls(movie);
     const responseData = { ...movieObj, ...freshUrls };
     
-    // Cache for 10 minutes
+    // Cache for 10 minutes on server
     cache.set(cacheKey, responseData, { ttl: 1000 * 60 * 10 });
-    res.set('Cache-Control', 'public, max-age=300');
+    // But only 30 seconds in browser with must-revalidate
+    res.set('Cache-Control', 'public, max-age=30, must-revalidate');
     res.set('X-Cache', 'MISS');
     res.status(200).json(responseData);
   } catch (error) {
