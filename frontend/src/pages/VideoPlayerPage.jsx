@@ -68,9 +68,9 @@ const VideoPlayerPage = () => {
     fetchMovieAndRelated();
   }, [id]);
 
-  // Handle video player controls visibility
+  // Handle video player controls visibility (mouse and touch support)
   useEffect(() => {
-    const handleMouseMove = () => {
+    const handleInteraction = () => {
       setShowControls(true);
       if (controlsTimeoutRef.current) {
         clearTimeout(controlsTimeoutRef.current);
@@ -82,24 +82,44 @@ const VideoPlayerPage = () => {
       }, 3000);
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
+    // Listen for both mouse and touch events for mobile support
+    document.addEventListener('mousemove', handleInteraction);
+    document.addEventListener('touchstart', handleInteraction);
+    document.addEventListener('touchmove', handleInteraction);
+    
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mousemove', handleInteraction);
+      document.removeEventListener('touchstart', handleInteraction);
+      document.removeEventListener('touchmove', handleInteraction);
       if (controlsTimeoutRef.current) {
         clearTimeout(controlsTimeoutRef.current);
       }
     };
   }, [isPlaying, isSeeking]);
 
-  // Handle fullscreen changes
+  // Handle fullscreen changes (with mobile support)
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(document.fullscreenElement !== null);
+      const isInFullscreen = !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement
+      );
+      setIsFullscreen(isInFullscreen);
     };
 
+    // Listen to all vendor-prefixed fullscreen change events for mobile compatibility
     document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+    
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
     };
   }, []);
 
@@ -321,22 +341,49 @@ const VideoPlayerPage = () => {
 
   const toggleFullscreen = () => {
     const videoContainer = document.querySelector('.video-container');
+    const video = videoRef.current;
+    
     if (!videoContainer) return;
 
-    // Already in FS ⇒ exit
-    if (document.fullscreenElement ||
-        document.webkitFullscreenElement ||
-        document.msFullscreenElement) {
-      if (document.exitFullscreen)        document.exitFullscreen();
-      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-      else if (document.msExitFullscreen)     document.msExitFullscreen();
+    // Check if already in fullscreen (check all vendor prefixes)
+    const isCurrentlyFullscreen = !!(
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement
+    );
+
+    if (isCurrentlyFullscreen) {
+      // Exit fullscreen
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.mozCancelFullScreen) {
+        document.mozCancelFullScreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
       return;
     }
 
-    // Enter FS on the container (so controls come with it)
-    if (videoContainer.requestFullscreen)               videoContainer.requestFullscreen();
-    else if (videoContainer.webkitRequestFullscreen)    videoContainer.webkitRequestFullscreen();
-    else if (videoContainer.msRequestFullscreen)        videoContainer.msRequestFullscreen();
+    // Enter fullscreen
+    // Try container first (brings controls with it)
+    if (videoContainer.requestFullscreen) {
+      videoContainer.requestFullscreen().catch(err => {
+        console.error('Fullscreen request failed:', err);
+      });
+    } else if (videoContainer.webkitRequestFullscreen) {
+      // iOS Safari needs webkitRequestFullscreen
+      videoContainer.webkitRequestFullscreen();
+    } else if (videoContainer.mozRequestFullScreen) {
+      videoContainer.mozRequestFullScreen();
+    } else if (videoContainer.msRequestFullscreen) {
+      videoContainer.msRequestFullscreen();
+    } else if (video && video.webkitEnterFullscreen) {
+      // Fallback for older iOS: use native video fullscreen
+      video.webkitEnterFullscreen();
+    }
   };
 
   const formatTime = (time) => {
