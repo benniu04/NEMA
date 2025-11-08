@@ -11,8 +11,10 @@ import slowDown from 'express-slow-down';
 import commentsRouter from './routes/comments.routes.js';
 import reviewsRouter from './routes/reviews.routes.js';
 
-import {connectDB} from './config/db.js';
-import {ENV_VARS} from './config/envVars.js';
+import { connectDB } from './config/db.js';
+import { ENV_VARS } from './config/envVars.js';
+import logger from './config/logger.js';
+import { setupGracefulShutdown } from './utils/gracefulShutdown.js';
 
 const app = express();
 const PORT = ENV_VARS.PORT;
@@ -139,7 +141,12 @@ app.use((req, res, next) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.error('Express error handler:', {
+    error: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method
+  });
   
   // Don't leak error details in production
   if (process.env.NODE_ENV === 'production') {
@@ -155,7 +162,11 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+const server = app.listen(PORT, () => {
+    logger.info(`Server starting on port ${PORT}`);
+    logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
     connectDB();
 });
+
+// Setup graceful shutdown handlers
+setupGracefulShutdown(server);

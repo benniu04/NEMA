@@ -8,9 +8,6 @@ const reviewSchema = new mongoose.Schema({
   comment:   { type: String, default: '' },
 }, { timestamps: true });
 
-// ============================================
-// INDEXES FOR PERFORMANCE
-// ============================================
 
 // 1. Get all reviews for a movie
 // Query: Review.find({ movieId: movieId })

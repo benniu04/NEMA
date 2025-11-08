@@ -35,6 +35,9 @@ yarn-error.log*
 # OS
 Thumbs.db
 
+# Documentation
+*.md
+
 # MongoDB Memory Server
 .mongodb-memory-server/
 globalConfig.json

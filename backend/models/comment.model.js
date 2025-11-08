@@ -23,10 +23,6 @@ const commentSchema = new mongoose.Schema({
   }
 });
 
-// ============================================
-// INDEXES FOR PERFORMANCE
-// ============================================
-
 // 1. Get comments for a movie, sorted by most recent first
 // Query: Comment.find({ movieId: '123' }).sort({ createdAt: -1 })
 // This is the MOST IMPORTANT index - used on every video page load

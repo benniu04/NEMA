@@ -1,6 +1,5 @@
 import { LRUCache } from 'lru-cache';
 
-// Shared LRU Cache with automatic memory management
 export const cache = new LRUCache({
   max: 500,              // Max 500 cache entries
   maxSize: 100 * 1024 * 1024,  // Max 100MB total cache size
