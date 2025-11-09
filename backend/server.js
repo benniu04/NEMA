@@ -42,6 +42,7 @@ app.use(helmet({
 app.use(cors({
   origin: [
     'https://nemaa.netlify.app',
+    'https://nema-nc78.onrender.com',
     'http://localhost:5173',
     'http://localhost:3000'  
   ],
@@ -128,6 +129,23 @@ const speedLimiter = slowDown({
 app.use('/api/', generalLimiter);
 app.use('/api/auth/', authLimiter);
 app.use('/api/auth/', speedLimiter);
+
+// Root route (health check)
+app.get('/', (req, res) => {
+  res.json({
+    message: 'NEMA API Server',
+    status: 'running',
+    version: '1.0.0',
+    pm2: 'cluster mode with 8 instances',
+    endpoints: {
+      movies: '/api/movies',
+      auth: '/api/auth',
+      upload: '/api/upload',
+      comments: '/api/comments',
+      reviews: '/api/reviews'
+    }
+  });
+});
 
 // Routes
 app.use('/api/movies', moviesRoutes);
