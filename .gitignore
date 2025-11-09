@@ -37,6 +37,7 @@ Thumbs.db
 
 # Documentation
 *.md
+*.sh
 
 # MongoDB Memory Server
 .mongodb-memory-server/
