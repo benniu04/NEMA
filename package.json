@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon --watch backend --watch .env backend/server.js",
     "start": "node backend/server.js",
-    "start:pm2": "pm2 start ecosystem.config.cjs --env production",
+    "start:pm2": "pm2 start ecosystem.config.cjs --env production --no-daemon",
     "start:pm2:dev": "pm2 start ecosystem.config.cjs --env development",
     "stop:pm2": "pm2 stop nema-backend",
     "restart:pm2": "pm2 restart nema-backend",
@@ -52,7 +52,8 @@
     "multer-s3": "^3.0.1",
     "nodemailer": "^7.0.3",
     "nodemon": "^3.1.10",
-    "winston": "^3.18.3"
+    "winston": "^3.18.3",
+    "pm2": "^5.3.0"
   },
   "devDependencies": {
     "@jest/globals": "^30.2.0",
