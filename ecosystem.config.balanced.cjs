@@ -6,6 +6,9 @@
  * ✅ Reliability (fault tolerance)
  * ✅ Memory efficiency (fits in 512MB)
  * 
+ * Usage: npm run start:balanced
+ * Uses pm2-runtime (designed for containerized/PaaS environments)
+ * 
  * Memory usage: ~400-450MB (safe for 512MB limit)
  */
 
@@ -53,11 +56,11 @@ module.exports = {
       exp_backoff_restart_delay: 100, // Exponential backoff starting at 100ms
 
       // ============================================
-      // GRACEFUL SHUTDOWN
+      // GRACEFUL SHUTDOWN (Optimized for Render)
       // ============================================
-      kill_timeout: 8000,          // 8s to gracefully shutdown
-      wait_ready: true,            // Wait for app to signal ready
-      listen_timeout: 10000,       // 10s timeout for ready signal
+      kill_timeout: 5000,          // 5s to gracefully shutdown
+      wait_ready: false,           // Don't wait for ready signal (simpler)
+      listen_timeout: 8000,        // 8s timeout for startup
       
       // ============================================
       // ZERO-DOWNTIME RELOAD
