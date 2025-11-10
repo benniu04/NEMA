@@ -8,45 +8,67 @@ import logger from '../config/logger.js';
 const moviesRoutes = express.Router();
 
 // Helper function to generate fresh signed URLs from S3 keys via CloudFront
+// OPTIMIZED: Generate all URLs in parallel for significant speed improvement
 const generateFreshSignedUrls = async (movie) => {
   const freshData = {};
+  const urlPromises = [];
   
-  // Generate fresh video URLs from S3 keys via CloudFront
+  // Collect all URL generation promises to run in parallel
   if (movie.videoUrls) {
     freshData.videoUrls = {};
-    for (const [quality, s3Key] of Object.entries(movie.videoUrls)) {
+    const videoPromises = Object.entries(movie.videoUrls).map(async ([quality, s3Key]) => {
       if (s3Key && s3Key.trim() !== '') {
         try {
           const signedUrl = await generateCloudfrontSignedUrl(s3Key);
-          freshData.videoUrls[quality] = signedUrl;
+          return { type: 'video', quality, url: signedUrl };
         } catch (error) {
           logger.error(`Error generating CloudFront URL for ${quality}:`, { error: error.message, s3Key });
-          freshData.videoUrls[quality] = null;
+          return { type: 'video', quality, url: null };
         }
-      } else {
-        freshData.videoUrls[quality] = '';
       }
-    }
+      return { type: 'video', quality, url: '' };
+    });
+    urlPromises.push(...videoPromises);
   }
   
-  // Generate fresh image URLs from S3 keys via CloudFront
+  // Add poster URL promise
   if (movie.posterKey) {
-    try {
-      freshData.posterUrl = await generateCloudfrontSignedUrl(movie.posterKey);
-    } catch (error) {
-      logger.error('Error generating CloudFront URL for poster:', { error: error.message, posterKey: movie.posterKey });
-      freshData.posterUrl = null;
-    }
+    urlPromises.push(
+      generateCloudfrontSignedUrl(movie.posterKey)
+        .then(url => ({ type: 'poster', url }))
+        .catch(error => {
+          logger.error('Error generating CloudFront URL for poster:', { error: error.message, posterKey: movie.posterKey });
+          return { type: 'poster', url: null };
+        })
+    );
   }
   
+  // Add thumbnail URL promise
   if (movie.thumbnailKey) {
-    try {
-      freshData.thumbnailUrl = await generateCloudfrontSignedUrl(movie.thumbnailKey);
-    } catch (error) {
-      logger.error('Error generating CloudFront URL for thumbnail:', { error: error.message, thumbnailKey: movie.thumbnailKey });
-      freshData.thumbnailUrl = null;
-    }
+    urlPromises.push(
+      generateCloudfrontSignedUrl(movie.thumbnailKey)
+        .then(url => ({ type: 'thumbnail', url }))
+        .catch(error => {
+          logger.error('Error generating CloudFront URL for thumbnail:', { error: error.message, thumbnailKey: movie.thumbnailKey });
+          return { type: 'thumbnail', url: null };
+        })
+    );
   }
+  
+  // Generate ALL URLs in parallel - MUCH faster!
+  const results = await Promise.all(urlPromises);
+  
+  // Map results back to freshData
+  results.forEach(result => {
+    if (result.type === 'video') {
+      if (!freshData.videoUrls) freshData.videoUrls = {};
+      freshData.videoUrls[result.quality] = result.url;
+    } else if (result.type === 'poster') {
+      freshData.posterUrl = result.url;
+    } else if (result.type === 'thumbnail') {
+      freshData.thumbnailUrl = result.url;
+    }
+  });
   
   return freshData;
 };
@@ -59,8 +81,8 @@ moviesRoutes.get('/', async (req, res) => {
     // Check cache
     const cached = cache.get(cacheKey);
     if (cached) {
-      // Use shorter browser cache with must-revalidate for editable content
-      res.set('Cache-Control', 'public, max-age=30, must-revalidate');
+      res.set('Cache-Control', 'public, max-age=300, must-revalidate');
+      res.set('X-Cache', 'HIT');
       return res.json(cached);
     }
     const { limit, exclude } = req.query;
@@ -87,10 +109,10 @@ moviesRoutes.get('/', async (req, res) => {
       })
     );
 
-    // Cache for 5 minutes on server
-    cache.set(cacheKey, moviesWithFreshUrls, { ttl: 1000 * 60 * 5 });
-    // But only 30 seconds in browser with must-revalidate
-    res.set('Cache-Control', 'public, max-age=30, must-revalidate');
+    // Cache for 30 minutes on server
+    cache.set(cacheKey, moviesWithFreshUrls, { ttl: 1000 * 60 * 30 });
+    // Cache for 5 minutes in browser
+    res.set('Cache-Control', 'public, max-age=300, must-revalidate');
     res.set('X-Cache', 'MISS');
     res.status(200).json(moviesWithFreshUrls);
   } catch (error) {
@@ -120,10 +142,10 @@ moviesRoutes.get('/:id', async (req, res) => {
     const freshUrls = await generateFreshSignedUrls(movie);
     const responseData = { ...movieObj, ...freshUrls };
     
-    // Cache for 10 minutes on server
-    cache.set(cacheKey, responseData, { ttl: 1000 * 60 * 10 });
-    // But only 30 seconds in browser with must-revalidate
-    res.set('Cache-Control', 'public, max-age=30, must-revalidate');
+    // Cache for 1 hour on server (signed URLs valid for 24h)
+    cache.set(cacheKey, responseData, { ttl: 1000 * 60 * 60 });
+    // Cache for 5 minutes in browser (balance between freshness and performance)
+    res.set('Cache-Control', 'public, max-age=300, must-revalidate');
     res.set('X-Cache', 'MISS');
     res.status(200).json(responseData);
   } catch (error) {

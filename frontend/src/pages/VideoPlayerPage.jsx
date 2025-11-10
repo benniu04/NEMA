@@ -57,7 +57,12 @@ const VideoPlayerPage = () => {
     
     const fetchMovieAndRelated = async () => {
       try {
-        const movieResponse = await fetch(`${API_BASE_URL}/api/movies/${id}`);
+        // OPTIMIZED: Fetch movie and related movies in PARALLEL
+        const [movieResponse, relatedResponse] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/movies/${id}`),
+          fetch(`${API_BASE_URL}/api/movies?limit=3&exclude=${id}`)
+        ]);
+        
         if (!movieResponse.ok) {
           throw new Error('Failed to fetch movie');
         }
@@ -73,14 +78,11 @@ const VideoPlayerPage = () => {
           setSelectedQuality(firstQuality);
         }
 
-        // Fetch related movies (excluding current movie)
-        const relatedResponse = await fetch(`${API_BASE_URL}/api/movies?limit=3&exclude=${id}`);
-        if (!relatedResponse.ok) {
-          throw new Error('Failed to fetch related movies');
+        // Process related movies response
+        if (relatedResponse.ok) {
+          const relatedData = await relatedResponse.json();
+          setRelatedMovies(relatedData);
         }
-        const relatedData = await relatedResponse.json();
-        console.log('Related movies:', relatedData);
-        setRelatedMovies(relatedData);
       } catch (err) {
         console.error('Error fetching movie data:', err);
         setError('Failed to load movie. Please try again later.');
@@ -514,7 +516,7 @@ const VideoPlayerPage = () => {
                   controlsList="nodownload nofullscreen noremoteplayback"
                   disablePictureInPicture
                   playsInline
-                  preload="metadata"
+                  preload="auto"
                 >
                   {/* ─── Subtitle tracks ─── */}
                   {movie.subtitleUrls && Object.entries(movie.subtitleUrls).map(

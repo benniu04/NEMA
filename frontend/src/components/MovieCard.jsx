@@ -1,15 +1,34 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import LazyImage from './LazyImage'
+import API_BASE_URL from '../../config/api.js'
 
 const MovieCard = ({ movie }) => {
+  const [prefetched, setPrefetched] = useState(false);
+
   if (!movie) return null;
 
   const year = movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : '';
 
+  // Prefetch movie data on hover for instant loading
+  const handleMouseEnter = () => {
+    if (!prefetched && movie._id) {
+      // Start prefetching movie data
+      fetch(`${API_BASE_URL}/api/movies/${movie._id}`, {
+        method: 'GET',
+        credentials: 'include'
+      }).then(() => {
+        setPrefetched(true);
+      }).catch(err => {
+        console.debug('Prefetch failed:', err);
+      });
+    }
+  };
+
   return (
     <Link
       to={`/video/${movie._id}`}
+      onMouseEnter={handleMouseEnter}
       className="group relative w-[260px] sm:w-[300px] aspect-[16/9] flex-shrink-0 overflow-hidden rounded-none border border-white/10 bg-black/40 cursor-pointer"
     >
       <LazyImage
