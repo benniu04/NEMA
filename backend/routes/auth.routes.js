@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 import { ENV_VARS } from '../config/envVars.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { validateAuth } from '../middleware/validation.middleware.js';
+import logger from '../config/logger.js';
 
 const authRoutes = express.Router();
 
@@ -16,7 +17,7 @@ const securityLogger = (event, details, req) => {
     userAgent: req.get('User-Agent'),
     ...details
   };
-  console.log(`[SECURITY] ${event}:`, JSON.stringify(logEntry));
+  logger.info(`[SECURITY] ${event}`, logEntry);
 };
 
 // Login admin with password hashing and validation
@@ -71,7 +72,7 @@ authRoutes.post('/login', validateAuth, async (req, res) => {
     });
   } catch (error) {
     securityLogger('LOGIN_ERROR', { error: error.message }, req);
-    console.error('Login error:', error);
+    logger.error('Login error:', { error: error.message, stack: error.stack });
     res.status(400).json({ message: "Login failed" });
   }
 });
@@ -90,7 +91,7 @@ authRoutes.get('/me', authMiddleware, async (req, res) => {
       res.status(404).json({ message: "User not found" });
     }
   } catch (error) {
-    console.error('Get user error:', error);
+    logger.error('Get user error:', { error: error.message, stack: error.stack });
     res.status(500).json({ message: "Failed to get user" });
   }
 });
@@ -108,7 +109,7 @@ authRoutes.post('/logout', async (req, res) => {
     
     res.json({ message: 'Logged out successfully' });
   } catch (error) {
-    console.error('Logout error:', error);
+    logger.error('Logout error:', { error: error.message, stack: error.stack });
     res.status(500).json({ message: 'Logout failed' });
   }
 });

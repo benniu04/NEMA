@@ -5,6 +5,8 @@ import { Movie }  from '../models/movie.model.js';
 import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
 import { clearCache } from '../config/cache.js';
+import { validateReview, validateReviewDelete } from '../middleware/validation.middleware.js';
+import logger from '../config/logger.js';
 
 const reviewRouter = express.Router();
 
@@ -65,51 +67,67 @@ async function recomputeAvg(movieId) {
     const avg = agg[0]?.avg ?? 0;
     await Movie.findByIdAndUpdate(movieId, { rating: avg });
   } catch (error) {
-    console.error('Error recomputing average rating:', error);
+    logger.error('Error recomputing average rating:', { error: error.message, movieId });
   }
 }
 
 /* list reviews for a movie */
 reviewRouter.get('/movie/:movieId', async (req, res) => {
-  const reviews = await Review.find({ movieId: req.params.movieId })
-                              .sort({ createdAt: -1 });
-  res.json(reviews);
+  try {
+    const reviews = await Review.find({ movieId: req.params.movieId })
+                                .sort({ createdAt: -1 });
+    res.json(reviews);
+  } catch (error) {
+    logger.error('Error fetching reviews:', { error: error.message, movieId: req.params.movieId });
+    res.status(500).json({ message: 'Failed to fetch reviews' });
+  }
 });
 
 /* create or update the single review for this device */
-reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, async (req, res) => {
-  const { movieId, deviceId, nickname, rating, comment } = req.body;
-  if (!rating || rating < 1 || rating > 10) {
-    return res.status(400).json({ message: 'Rating must be 1-10' });
+reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, validateReview, async (req, res) => {
+  try {
+    const { movieId, deviceId, nickname, rating, comment } = req.body;
+
+    let review = await Review.findOneAndUpdate(
+      { movieId, deviceId },
+      { nickname, rating, comment },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    await recomputeAvg(movieId);
+    clearCache(); // Clear movie cache so ratings update immediately
+    logger.info('Review created/updated', { reviewId: review._id, movieId, rating });
+    res.status(201).json(review);
+  } catch (error) {
+    logger.error('Error creating/updating review:', { error: error.message, movieId: req.body.movieId });
+    res.status(400).json({ message: 'Failed to create review' });
   }
-
-  let review = await Review.findOneAndUpdate(
-    { movieId, deviceId },
-    { nickname, rating, comment },
-    { new: true, upsert: true, setDefaultsOnInsert: true }
-  );
-
-  await recomputeAvg(movieId);
-  clearCache(); // Clear movie cache so ratings update immediately
-  res.status(201).json(review);
 });
 
 /* delete (only same device) */
-reviewRouter.delete('/:id', reviewDeleteLimiter, reviewDeleteSlow, async (req, res) => {
+reviewRouter.delete('/:id', reviewDeleteLimiter, reviewDeleteSlow, validateReviewDelete, async (req, res) => {
   try {
     const { deviceId } = req.body;
     const review = await Review.findById(req.params.id);
-    if (!review) return res.sendStatus(404);
-    if (review.deviceId !== deviceId) return res.sendStatus(403);
+    
+    if (!review) {
+      return res.status(404).json({ message: 'Review not found' });
+    }
+    
+    if (review.deviceId !== deviceId) {
+      logger.warn('Unauthorized review deletion attempt', { reviewId: req.params.id, deviceId });
+      return res.status(403).json({ message: 'Not authorized to delete this review' });
+    }
 
     const movieId = review.movieId; // Save movieId before deletion
-    await Review.findByIdAndDelete(req.params.id); // Use findByIdAndDelete instead of remove()
+    await Review.findByIdAndDelete(req.params.id);
     await recomputeAvg(movieId);
     clearCache(); // Clear movie cache so ratings update immediately
-    res.json({ message: 'Deleted' });
+    logger.info('Review deleted', { reviewId: req.params.id, movieId });
+    res.json({ message: 'Review deleted successfully' });
   } catch (error) {
-    console.error('Error deleting review:', error);
-    res.status(500).json({ message: 'Failed to delete review', error: error.message });
+    logger.error('Error deleting review:', { error: error.message, reviewId: req.params.id });
+    res.status(500).json({ message: 'Failed to delete review' });
   }
 });
 

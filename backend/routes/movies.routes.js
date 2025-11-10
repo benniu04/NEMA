@@ -3,6 +3,7 @@ import { Movie } from '../models/movie.model.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.middleware.js';
 import { generateCloudfrontSignedUrl } from '../config/s3.js';
 import { cache, clearCache } from '../config/cache.js';
+import logger from '../config/logger.js';
 
 const moviesRoutes = express.Router();
 
@@ -19,7 +20,7 @@ const generateFreshSignedUrls = async (movie) => {
           const signedUrl = await generateCloudfrontSignedUrl(s3Key);
           freshData.videoUrls[quality] = signedUrl;
         } catch (error) {
-          console.error(`Error generating CloudFront URL for ${quality}:`, error);
+          logger.error(`Error generating CloudFront URL for ${quality}:`, { error: error.message, s3Key });
           freshData.videoUrls[quality] = null;
         }
       } else {
@@ -33,7 +34,7 @@ const generateFreshSignedUrls = async (movie) => {
     try {
       freshData.posterUrl = await generateCloudfrontSignedUrl(movie.posterKey);
     } catch (error) {
-      console.error('Error generating CloudFront URL for poster:', error);
+      logger.error('Error generating CloudFront URL for poster:', { error: error.message, posterKey: movie.posterKey });
       freshData.posterUrl = null;
     }
   }
@@ -42,7 +43,7 @@ const generateFreshSignedUrls = async (movie) => {
     try {
       freshData.thumbnailUrl = await generateCloudfrontSignedUrl(movie.thumbnailKey);
     } catch (error) {
-      console.error('Error generating CloudFront URL for thumbnail:', error);
+      logger.error('Error generating CloudFront URL for thumbnail:', { error: error.message, thumbnailKey: movie.thumbnailKey });
       freshData.thumbnailUrl = null;
     }
   }
@@ -93,8 +94,8 @@ moviesRoutes.get('/', async (req, res) => {
     res.set('X-Cache', 'MISS');
     res.status(200).json(moviesWithFreshUrls);
   } catch (error) {
-    console.error('Error fetching movies:', error);
-    res.status(500).json({ message: "Failed to fetch movies", error: error.message });
+    logger.error('Error fetching movies:', { error: error.message, stack: error.stack });
+    res.status(500).json({ message: "Failed to fetch movies" });
   }
 });
 
@@ -126,8 +127,8 @@ moviesRoutes.get('/:id', async (req, res) => {
     res.set('X-Cache', 'MISS');
     res.status(200).json(responseData);
   } catch (error) {
-    console.error('Error fetching movie:', error);
-    res.status(500).json({ message: "Failed to fetch movie", error: error.message });
+    logger.error('Error fetching movie:', { error: error.message, movieId: req.params.id, stack: error.stack });
+    res.status(500).json({ message: "Failed to fetch movie" });
   }
 });
 
@@ -139,8 +140,8 @@ moviesRoutes.post('/', [authMiddleware, adminMiddleware], async (req, res) => {
     clearCache();
     res.status(201).json(movie);
   } catch (error) {
-    console.error('Error creating movie:', error);
-    res.status(400).json({ message: "Failed to add movie", error: error.message });
+    logger.error('Error creating movie:', { error: error.message, stack: error.stack });
+    res.status(400).json({ message: "Failed to add movie" });
   }
 });
 
@@ -159,8 +160,8 @@ moviesRoutes.put('/:id', [authMiddleware, adminMiddleware], async (req, res) => 
     clearCache();
     res.status(200).json(movie);
   } catch (error) {
-    console.error('Error updating movie:', error);
-    res.status(400).json({ message: "Failed to update movie", error: error.message });
+    logger.error('Error updating movie:', { error: error.message, movieId: req.params.id, stack: error.stack });
+    res.status(400).json({ message: "Failed to update movie" });
   }
 });
 
@@ -175,8 +176,8 @@ moviesRoutes.delete('/:id', [authMiddleware, adminMiddleware], async (req, res) 
     clearCache();
     res.status(200).json({ message: "Movie deleted successfully" });
   } catch (error) {
-    console.error('Error deleting movie:', error);
-    res.status(500).json({ message: "Failed to delete movie", error: error.message });
+    logger.error('Error deleting movie:', { error: error.message, movieId: req.params.id, stack: error.stack });
+    res.status(500).json({ message: "Failed to delete movie" });
   }
 });
 
@@ -268,8 +269,8 @@ moviesRoutes.post('/fix-keys/:id', [authMiddleware, adminMiddleware], async (req
     });
 
   } catch (error) {
-    console.error('Error fixing keys:', error);
-    res.status(500).json({ message: "Failed to fix keys", error: error.message });
+    logger.error('Error fixing keys:', { error: error.message, movieId: req.params.id, stack: error.stack });
+    res.status(500).json({ message: "Failed to fix keys" });
   }
 });
 

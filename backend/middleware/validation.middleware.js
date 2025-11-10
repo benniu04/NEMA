@@ -38,4 +38,112 @@ export const validateAuth = [
     }
     next();
   }
+];
+
+export const validateComment = [
+  body('movieId')
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .escape()
+    .withMessage('Movie ID is required'),
+  body('content')
+    .trim()
+    .isLength({ min: 1, max: 500 })
+    .withMessage('Comment must be 1-500 characters')
+    .escape(),
+  body('nickname')
+    .optional()
+    .trim()
+    .isLength({ max: 50 })
+    .escape()
+    .withMessage('Nickname must be less than 50 characters'),
+  body('deviceId')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .escape(),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        message: 'Invalid comment data',
+        errors: errors.array()
+      });
+    }
+    next();
+  }
+];
+
+export const validateCommentDelete = [
+  body('deviceId')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .escape(),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        message: 'Invalid delete request',
+        errors: errors.array()
+      });
+    }
+    next();
+  }
+];
+
+export const validateReview = [
+  body('movieId')
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .escape()
+    .withMessage('Movie ID is required'),
+  body('rating')
+    .isInt({ min: 1, max: 10 })
+    .withMessage('Rating must be between 1 and 10'),
+  body('comment')
+    .optional()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('Review comment must be less than 1000 characters')
+    .escape(),
+  body('nickname')
+    .optional()
+    .trim()
+    .isLength({ max: 50 })
+    .escape()
+    .withMessage('Nickname must be less than 50 characters'),
+  body('deviceId')
+    .trim()
+    .isLength({ min: 1, max: 200 })
+    .escape()
+    .withMessage('Device ID is required'),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        message: 'Invalid review data',
+        errors: errors.array()
+      });
+    }
+    next();
+  }
+];
+
+export const validateReviewDelete = [
+  body('deviceId')
+    .trim()
+    .isLength({ min: 1, max: 200 })
+    .escape()
+    .withMessage('Device ID is required'),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        message: 'Invalid delete request',
+        errors: errors.array()
+      });
+    }
+    next();
+  }
 ]; 

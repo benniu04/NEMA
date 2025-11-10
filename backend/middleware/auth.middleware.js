@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { ENV_VARS } from '../config/envVars.js';
+import logger from '../config/logger.js';
 
 export const authMiddleware = async (req, res, next) => {
   try {
@@ -14,7 +15,7 @@ export const authMiddleware = async (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
+    logger.warn('Auth middleware error', { error: error.message, path: req.path });
     res.status(401).json({ message: "Invalid token" });
   }
 };
@@ -22,11 +23,12 @@ export const authMiddleware = async (req, res, next) => {
 export const adminMiddleware = async (req, res, next) => {
   try {
     if (!req.user || !req.user.isAdmin) {
+      logger.warn('Unauthorized admin access attempt', { user: req.user?.username, path: req.path });
       return res.status(403).json({ message: "Unauthorized: Admin access required" });
     }
     next();
   } catch (error) {
-    console.error('Admin middleware error:', error);
+    logger.error('Admin middleware error', { error: error.message, path: req.path });
     res.status(403).json({ message: "Admin access required" });
   }
 }; 

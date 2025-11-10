@@ -1,6 +1,7 @@
 import express from 'express';
 import { upload } from '../config/s3.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.middleware.js';
+import logger from '../config/logger.js';
 
 const uploadRoutes = express.Router();
 
@@ -16,14 +17,15 @@ uploadRoutes.post('/video',
       
       const quality = req.body.quality || '720p';
       
+      logger.info('Video uploaded successfully', { key: req.file.key, quality });
       res.status(200).json({
         message: 'File uploaded successfully',
         key: req.file.key,
         quality: quality
       });
     } catch (error) {
-      console.error('Error uploading file:', error);
-      res.status(500).json({ message: 'Error uploading file', error: error.message });
+      logger.error('Error uploading video:', { error: error.message, stack: error.stack });
+      res.status(500).json({ message: 'Error uploading file' });
     }
   }
 );
@@ -40,14 +42,15 @@ uploadRoutes.post('/image',
       
       const imageType = req.body.type || 'poster';
       
+      logger.info('Image uploaded successfully', { key: req.file.key, type: imageType });
       res.status(200).json({
         message: 'Image uploaded successfully',
         key: req.file.key,
         type: imageType
       });
     } catch (error) {
-      console.error('Error uploading image:', error);
-      res.status(500).json({ message: 'Error uploading image', error: error.message });
+      logger.error('Error uploading image:', { error: error.message, stack: error.stack });
+      res.status(500).json({ message: 'Error uploading image' });
     }
   }
 );

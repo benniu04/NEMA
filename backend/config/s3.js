@@ -5,6 +5,7 @@ import { ENV_VARS } from './envVars.js';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl as getS3SignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getSignedUrl as getCloudfrontSignedUrl } from '@aws-sdk/cloudfront-signer';
+import logger from './logger.js';
 
 const s3Client = new S3Client({
   region: ENV_VARS.AWS_REGION,
@@ -43,7 +44,7 @@ export const upload = multer({
     files: 1
   },
   fileFilter: (req, file, cb) => {
-    console.log('🔍 File filter check:', file.mimetype, 'Size:', file.size);
+    logger.debug('File filter check', { mimetype: file.mimetype, size: file.size, filename: file.originalname });
     cb(null, true);
   }
 });
@@ -52,7 +53,7 @@ export const generateCloudfrontSignedUrl = async (key) => {
   const cloudFrontDomain = ENV_VARS.CLOUDFRONT_DOMAIN;
 
   if (!cloudFrontDomain) {
-    console.warn('CLOUDFRONT_DOMAIN is not set, using S3 signed URL instead');
+    logger.warn('CLOUDFRONT_DOMAIN is not set, using S3 signed URL instead', { key });
     return generatePresignedUrl(key);
   }
 
@@ -83,7 +84,7 @@ export const generatePresignedUrl = async (key) => {
     
     return await getS3SignedUrl(s3Client, command, { expiresIn: 86400 });
   } catch (error) {
-    console.error('Error generating presigned URL for key:', key, error);
+    logger.error('Error generating presigned URL', { error: error.message, key, stack: error.stack });
     throw error;
   }
 };
