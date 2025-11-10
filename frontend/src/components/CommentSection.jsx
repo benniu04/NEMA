@@ -73,8 +73,11 @@ const CommentSection = ({ videoId }) => {
         {
           movieId: videoId,
           content: newComment,
-          deviceId,
           nickname: nickname || 'Anonymous'
+          // Note: deviceId determined server-side by IP address
+        },
+        {
+          withCredentials: true
         }
       );
 
@@ -91,15 +94,26 @@ const CommentSection = ({ videoId }) => {
 
   // Delete comment
   const handleDelete = async (commentId) => {
+    if (!window.confirm('Are you sure you want to delete this comment?')) {
+      return;
+    }
+
     try {
+      // Backend uses server-side IP for authorization (no need to send deviceId)
       await axios.delete(`${API_BASE_URL}/api/comments/${commentId}`, {
-        data: { deviceId }
+        withCredentials: true
       });
       setComments(prevComments => prevComments.filter(comment => comment._id !== commentId));
       setError(null);
     } catch (error) {
       console.error('Error deleting comment:', error);
-      setError('Failed to delete comment');
+      if (error.response?.status === 403) {
+        setError('You can only delete your own comments');
+      } else if (error.response?.status === 429) {
+        setError('Too many delete attempts. Please try again later.');
+      } else {
+        setError('Failed to delete comment');
+      }
     }
   };
 
@@ -167,15 +181,17 @@ const CommentSection = ({ videoId }) => {
               </div>
               <p className="text-gray-200 leading-relaxed">{comment.content}</p>
               
-              {/* Delete button (only shown for user's own comments) */}
-              {comment.deviceId === deviceId && (
-                <button
-                  onClick={() => handleDelete(comment._id)}
-                  className="mt-2 text-amber-100/40 text-sm hover:text-amber-100/60 transition-colors"
-                >
-                  Delete
-                </button>
-              )}
+              {/* Delete button - backend checks IP-based ownership */}
+              <button
+                onClick={() => handleDelete(comment._id)}
+                className="mt-2 text-red-400/60 text-sm hover:text-red-400 transition-colors flex items-center gap-1"
+                title="Delete this comment (only works if it's yours)"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete
+              </button>
             </div>
           ))
         )}
