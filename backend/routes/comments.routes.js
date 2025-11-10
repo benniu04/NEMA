@@ -7,11 +7,21 @@ import logger from '../config/logger.js';
 
 const router = express.Router();
 
-// Key helpers
-const getClientIp = (req) => req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-const getDeviceId = (req) => (req.body && req.body.deviceId) ? req.body.deviceId : getClientIp(req);
-const commentPostKey = (req) => `${getDeviceId(req)}:${req.body?.movieId || ''}`;
-const commentDeleteKey = (req) => getDeviceId(req);
+// Helper to extract client IP (always server-side, never from client input)
+const getClientIp = (req) => {
+  // Check x-forwarded-for header (when behind proxy/load balancer)
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (forwardedFor) {
+    // x-forwarded-for can be a comma-separated list, take the first IP
+    return forwardedFor.split(',')[0].trim();
+  }
+  // Fallback to direct connection IP
+  return req.socket.remoteAddress || req.connection.remoteAddress || 'unknown';
+};
+
+// Rate limiting keys (always use server-detected IP)
+const commentPostKey = (req) => `${getClientIp(req)}:${req.body?.movieId || ''}`;
+const commentDeleteKey = (req) => getClientIp(req);
 
 // Per-route rate limiters
 const commentPostLimiter = rateLimit({
@@ -62,22 +72,29 @@ router.get('/movie/:movieId', async (req, res) => {
 
 // Add a new comment
 router.post('/', commentPostLimiter, commentPostSlow, validateComment, async (req, res) => {
-  // Get IP address as fallback (server-side for security)
-  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  // ALWAYS use server-side IP (never trust client-provided deviceId)
+  const deviceId = getClientIp(req);
   
   const comment = new Comment({
     movieId: req.body.movieId,
-    deviceId: req.body.deviceId || ip,
+    deviceId: deviceId, // Server-determined IP only
     nickname: req.body.nickname || 'Anonymous',
     content: req.body.content
   });
 
   try {
     const newComment = await comment.save();
-    logger.info('Comment created', { commentId: newComment._id, movieId: req.body.movieId });
+    logger.info('Comment created', { 
+      commentId: newComment._id, 
+      movieId: req.body.movieId, 
+      deviceId 
+    });
     res.status(201).json(newComment);
   } catch (error) {
-    logger.error('Error creating comment:', { error: error.message, movieId: req.body.movieId });
+    logger.error('Error creating comment:', { 
+      error: error.message, 
+      movieId: req.body.movieId 
+    });
     res.status(400).json({ message: 'Failed to create comment' });
   }
 });
@@ -85,24 +102,35 @@ router.post('/', commentPostLimiter, commentPostSlow, validateComment, async (re
 // Delete a comment (only allowed for the same device/IP)
 router.delete('/:id', commentDeleteLimiter, commentDeleteSlow, validateCommentDelete, async (req, res) => {
   try {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    // ALWAYS use server-side IP (never trust client input)
+    const deviceId = getClientIp(req);
     const comment = await Comment.findById(req.params.id);
     
     if (!comment) {
       return res.status(404).json({ message: 'Comment not found' });
     }
     
-    // Authorization check - compare with both provided deviceId and server-side IP
-    if (comment.deviceId === req.body.deviceId || comment.deviceId === ip) {
+    // Authorization check - only allow deletion from same IP that created it
+    if (comment.deviceId === deviceId) {
       await Comment.findByIdAndDelete(req.params.id);
-      logger.info('Comment deleted', { commentId: req.params.id });
+      logger.info('Comment deleted', { 
+        commentId: req.params.id, 
+        deviceId 
+      });
       res.json({ message: 'Comment deleted' });
     } else {
-      logger.warn('Unauthorized comment deletion attempt', { commentId: req.params.id, ip });
+      logger.warn('Unauthorized comment deletion attempt', { 
+        commentId: req.params.id, 
+        attemptedFrom: deviceId,
+        commentOwner: comment.deviceId 
+      });
       res.status(403).json({ message: 'Not authorized to delete this comment' });
     }
   } catch (error) {
-    logger.error('Error deleting comment:', { error: error.message, commentId: req.params.id });
+    logger.error('Error deleting comment:', { 
+      error: error.message, 
+      commentId: req.params.id 
+    });
     res.status(500).json({ message: 'Failed to delete comment' });
   }
 });

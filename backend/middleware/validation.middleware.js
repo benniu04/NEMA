@@ -57,11 +57,7 @@ export const validateComment = [
     .isLength({ max: 50 })
     .escape()
     .withMessage('Nickname must be less than 50 characters'),
-  body('deviceId')
-    .optional()
-    .trim()
-    .isLength({ max: 200 })
-    .escape(),
+  // Note: deviceId is NOT accepted from client - always uses server-side IP
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -75,11 +71,7 @@ export const validateComment = [
 ];
 
 export const validateCommentDelete = [
-  body('deviceId')
-    .optional()
-    .trim()
-    .isLength({ max: 200 })
-    .escape(),
+  // Note: deviceId is NOT accepted from client - always uses server-side IP
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -113,11 +105,7 @@ export const validateReview = [
     .isLength({ max: 50 })
     .escape()
     .withMessage('Nickname must be less than 50 characters'),
-  body('deviceId')
-    .trim()
-    .isLength({ min: 1, max: 200 })
-    .escape()
-    .withMessage('Device ID is required'),
+  // Note: deviceId is NOT accepted from client - always uses server-side IP
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -131,11 +119,7 @@ export const validateReview = [
 ];
 
 export const validateReviewDelete = [
-  body('deviceId')
-    .trim()
-    .isLength({ min: 1, max: 200 })
-    .escape()
-    .withMessage('Device ID is required'),
+  // Note: deviceId is NOT accepted from client - always uses server-side IP
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {

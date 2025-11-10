@@ -5,9 +5,11 @@
   "main": "backend/server.js",
   "scripts": {
     "dev": "nodemon --watch backend --watch .env backend/server.js",
-    "start": "node backend/server.js",
+    "start": "node --max-old-space-size=384 backend/server.js",
     "start:pm2": "pm2 start ecosystem.config.cjs --env production --no-daemon",
     "start:pm2:dev": "pm2 start ecosystem.config.cjs --env development",
+    "start:render": "pm2 start ecosystem.config.render.cjs --env production --no-daemon",
+    "start:render-lite": "node --max-old-space-size=384 backend/server.js",
     "stop:pm2": "pm2 stop nema-backend",
     "restart:pm2": "pm2 restart nema-backend",
     "reload:pm2": "pm2 reload nema-backend",

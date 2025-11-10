@@ -10,11 +10,21 @@ import logger from '../config/logger.js';
 
 const reviewRouter = express.Router();
 
-// Key helpers
-const getClientIp = (req) => req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-const getDeviceId = (req) => (req.body && req.body.deviceId) ? req.body.deviceId : getClientIp(req);
-const reviewPostKey = (req) => `${getDeviceId(req)}:${req.body?.movieId || ''}`;
-const reviewDeleteKey = (req) => getDeviceId(req);
+// Helper to extract client IP (always server-side, never from client input)
+const getClientIp = (req) => {
+  // Check x-forwarded-for header (when behind proxy/load balancer)
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (forwardedFor) {
+    // x-forwarded-for can be a comma-separated list, take the first IP
+    return forwardedFor.split(',')[0].trim();
+  }
+  // Fallback to direct connection IP
+  return req.socket.remoteAddress || req.connection.remoteAddress || 'unknown';
+};
+
+// Rate limiting keys (always use server-detected IP)
+const reviewPostKey = (req) => `${getClientIp(req)}:${req.body?.movieId || ''}`;
+const reviewDeleteKey = (req) => getClientIp(req);
 
 // Per-route rate limiters
 const reviewPostLimiter = rateLimit({
@@ -86,7 +96,9 @@ reviewRouter.get('/movie/:movieId', async (req, res) => {
 /* create or update the single review for this device */
 reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, validateReview, async (req, res) => {
   try {
-    const { movieId, deviceId, nickname, rating, comment } = req.body;
+    // ALWAYS use server-side IP (never trust client-provided deviceId)
+    const deviceId = getClientIp(req);
+    const { movieId, nickname, rating, comment } = req.body;
 
     let review = await Review.findOneAndUpdate(
       { movieId, deviceId },
@@ -96,10 +108,18 @@ reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, validateReview, async 
 
     await recomputeAvg(movieId);
     clearCache(); // Clear movie cache so ratings update immediately
-    logger.info('Review created/updated', { reviewId: review._id, movieId, rating });
+    logger.info('Review created/updated', { 
+      reviewId: review._id, 
+      movieId, 
+      rating,
+      deviceId 
+    });
     res.status(201).json(review);
   } catch (error) {
-    logger.error('Error creating/updating review:', { error: error.message, movieId: req.body.movieId });
+    logger.error('Error creating/updating review:', { 
+      error: error.message, 
+      movieId: req.body.movieId 
+    });
     res.status(400).json({ message: 'Failed to create review' });
   }
 });
@@ -107,15 +127,21 @@ reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, validateReview, async 
 /* delete (only same device) */
 reviewRouter.delete('/:id', reviewDeleteLimiter, reviewDeleteSlow, validateReviewDelete, async (req, res) => {
   try {
-    const { deviceId } = req.body;
+    // ALWAYS use server-side IP (never trust client input)
+    const deviceId = getClientIp(req);
     const review = await Review.findById(req.params.id);
     
     if (!review) {
       return res.status(404).json({ message: 'Review not found' });
     }
     
+    // Authorization check - only allow deletion from same IP that created it
     if (review.deviceId !== deviceId) {
-      logger.warn('Unauthorized review deletion attempt', { reviewId: req.params.id, deviceId });
+      logger.warn('Unauthorized review deletion attempt', { 
+        reviewId: req.params.id, 
+        attemptedFrom: deviceId,
+        reviewOwner: review.deviceId 
+      });
       return res.status(403).json({ message: 'Not authorized to delete this review' });
     }
 
@@ -123,10 +149,17 @@ reviewRouter.delete('/:id', reviewDeleteLimiter, reviewDeleteSlow, validateRevie
     await Review.findByIdAndDelete(req.params.id);
     await recomputeAvg(movieId);
     clearCache(); // Clear movie cache so ratings update immediately
-    logger.info('Review deleted', { reviewId: req.params.id, movieId });
+    logger.info('Review deleted', { 
+      reviewId: req.params.id, 
+      movieId,
+      deviceId 
+    });
     res.json({ message: 'Review deleted successfully' });
   } catch (error) {
-    logger.error('Error deleting review:', { error: error.message, reviewId: req.params.id });
+    logger.error('Error deleting review:', { 
+      error: error.message, 
+      reviewId: req.params.id 
+    });
     res.status(500).json({ message: 'Failed to delete review' });
   }
 });
