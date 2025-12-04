@@ -77,5 +77,15 @@ export const analytics = {
   filterCatalog: (filterType, filterValue) => {
     trackEvent('Catalog', 'Filter', `${filterType}: ${filterValue}`);
   },
+  
+  // Track watch time milestones
+  trackWatchMilestone: (movieTitle, percentage) => {
+    trackEvent('Video', 'Watch Milestone', `${movieTitle} - ${percentage}%`);
+  },
+  
+  // Track video completion
+  trackVideoComplete: (movieTitle) => {
+    trackEvent('Video', 'Complete', movieTitle);
+  },
 };
 

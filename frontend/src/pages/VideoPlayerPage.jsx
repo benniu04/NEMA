@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
+import { v4 as uuidv4 } from 'uuid'
 import NavBar from '../components/NavBar'
 import API_BASE_URL from '../../config/api.js'
 import CommentSection from '../components/CommentSection'
@@ -28,6 +29,20 @@ const VideoPlayerPage = () => {
   const [visibleSections, setVisibleSections] = useState({});
   const videoRef = useRef(null);
   const progressBarRef = useRef(null);
+  
+  // Watch time tracking state
+  const [sessionId] = useState(() => {
+    // Generate or retrieve session ID from localStorage
+    const stored = localStorage.getItem(`watchSession_${id}`);
+    if (stored) return stored;
+    const newSessionId = uuidv4();
+    localStorage.setItem(`watchSession_${id}`, newSessionId);
+    return newSessionId;
+  });
+  const [lastTrackedTime, setLastTrackedTime] = useState(0);
+  const [hasTrackedStart, setHasTrackedStart] = useState(false);
+  const [hasTrackedCompletion, setHasTrackedCompletion] = useState(false);
+  const watchTimeIntervalRef = useRef(null);
 
   // Fetch movie data and related movies
   useEffect(() => {
@@ -38,6 +53,15 @@ const VideoPlayerPage = () => {
     setCurrentTime(0);
     setDuration(0);
     setShowControls(true);
+    setLastTrackedTime(0);
+    setHasTrackedStart(false);
+    setHasTrackedCompletion(false);
+    
+    // Clean up any existing watch time interval
+    if (watchTimeIntervalRef.current) {
+      clearInterval(watchTimeIntervalRef.current);
+      watchTimeIntervalRef.current = null;
+    }
     
     // Exit fullscreen if currently in fullscreen when navigating away
     if (document.fullscreenElement || 
@@ -92,6 +116,16 @@ const VideoPlayerPage = () => {
     };
 
     fetchMovieAndRelated();
+    
+    // Cleanup function
+    return () => {
+      // Clean up session ID from localStorage when leaving page
+      localStorage.removeItem(`watchSession_${id}`);
+      if (watchTimeIntervalRef.current) {
+        clearInterval(watchTimeIntervalRef.current);
+        watchTimeIntervalRef.current = null;
+      }
+    };
   }, [id]);
 
   // Handle video player controls visibility (mouse and touch support)
@@ -175,7 +209,77 @@ const VideoPlayerPage = () => {
     return () => {
       sections.forEach(section => observer.unobserve(section));
     };
-  }, [loading, relatedMovies.length]); 
+  }, [loading, relatedMovies.length]);
+
+  // Track watch time periodically
+  useEffect(() => {
+    if (!movie || !videoRef.current || !duration || loading) return;
+
+    const video = videoRef.current;
+    
+    // Track watch time every 5 seconds
+    const interval = setInterval(async () => {
+      if (!video.paused && video.currentTime > 0 && hasTrackedStart) {
+        const currentTime = video.currentTime;
+        
+        // Only track if time has progressed (prevent spam)
+        if (Math.abs(currentTime - lastTrackedTime) >= 2) {
+          try {
+            const response = await fetch(`${API_BASE_URL}/api/watch-time/track`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              credentials: 'include',
+              body: JSON.stringify({
+                movieId: id,
+                sessionId: sessionId,
+                currentTime: currentTime,
+                videoDuration: duration,
+                quality: selectedQuality
+              })
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              setLastTrackedTime(currentTime);
+              
+              // Track completion milestone (only once per session)
+              if (data.completionPercentage >= 90 && !hasTrackedCompletion && movie?.title) {
+                analytics.trackVideoComplete(movie.title);
+                setHasTrackedCompletion(true);
+              }
+            }
+          } catch (error) {
+            console.error('Error tracking watch time:', error);
+          }
+        }
+      }
+    }, 5000); // Track every 5 seconds
+
+    watchTimeIntervalRef.current = interval;
+
+    // Cleanup on unmount or when dependencies change
+    return () => {
+      clearInterval(interval);
+      watchTimeIntervalRef.current = null;
+      
+      // Mark session as ended when component unmounts
+      if (hasTrackedStart && movie && id && sessionId) {
+        fetch(`${API_BASE_URL}/api/watch-time/end`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            movieId: id,
+            sessionId: sessionId
+          })
+        }).catch(err => console.error('Error ending session:', err));
+      }
+    };
+  }, [movie, id, sessionId, duration, selectedQuality, lastTrackedTime, hasTrackedStart, hasTrackedCompletion, loading]); 
 
   // Prevent video download and right-click
   const handleContextMenu = (e) => {
@@ -264,9 +368,15 @@ const VideoPlayerPage = () => {
     if (video.paused) {
       video.play();
       setIsPlaying(true);
+      
       // Track video play event
       if (movie?.title) {
         analytics.playVideo(movie.title);
+      }
+      
+      // Mark that we've started tracking
+      if (!hasTrackedStart) {
+        setHasTrackedStart(true);
       }
     } else {
       video.pause();

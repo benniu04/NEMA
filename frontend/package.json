@@ -25,6 +25,7 @@
     "react-player": "^2.16.0",
     "react-router-dom": "^7.6.0",
     "terser": "^5.40.0",
+    "uuid": "^13.0.0",
     "zustand": "^5.0.4"
   },
   "devDependencies": {

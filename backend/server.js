@@ -10,6 +10,7 @@ import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
 import commentsRouter from './routes/comments.routes.js';
 import reviewsRouter from './routes/reviews.routes.js';
+import watchTimeRouter from './routes/watchTime.routes.js';
 
 import { connectDB } from './config/db.js';
 import { ENV_VARS } from './config/envVars.js';
@@ -52,12 +53,32 @@ app.use(helmet({
 
 // CORS configuration
 app.use(cors({
-  origin: [
-    'https://nemaa.netlify.app',
-    'https://nema-nc78.onrender.com',
-    'http://localhost:5173',
-    'http://localhost:3000'  
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'https://nemaa.netlify.app',
+      'https://nema-nc78.onrender.com',
+      'http://localhost:5173',  // Vite default
+      'http://localhost:3000',  // React default
+      'http://localhost:5174',  // Alternative Vite port
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:5000'
+    ];
+    
+    // In development, allow any localhost origin
+    if (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost')) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 
@@ -163,7 +184,8 @@ app.get('/', (req, res) => {
       auth: '/api/auth',
       upload: '/api/upload',
       comments: '/api/comments',
-      reviews: '/api/reviews'
+      reviews: '/api/reviews',
+      watchTime: '/api/watch-time'
     }
   });
 });
@@ -174,6 +196,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/comments', commentsRouter);
 app.use('/api/reviews', reviewsRouter);
+app.use('/api/watch-time', watchTimeRouter);
 
 // CSP violation reporting endpoint
 app.post('/api/csp-report', cspReporter);
