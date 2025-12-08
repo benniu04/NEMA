@@ -130,4 +130,103 @@ export const validateReviewDelete = [
     }
     next();
   }
+];
+
+// ==================== USER VALIDATION ====================
+
+export const validateUserRegister = [
+  body('email')
+    .trim()
+    .notEmpty()
+    .withMessage('Email is required')
+    .matches(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)
+    .withMessage('Please enter a valid email address'),
+  body('username')
+    .trim()
+    .notEmpty()
+    .withMessage('Username is required')
+    .isLength({ min: 3, max: 30 })
+    .withMessage('Username must be 3-30 characters')
+    .matches(/^[a-zA-Z0-9_]+$/)
+    .withMessage('Username can only contain letters, numbers, and underscores'),
+  body('password')
+    .notEmpty()
+    .withMessage('Password is required')
+    .isLength({ min: 8, max: 100 })
+    .withMessage('Password must be 8-100 characters')
+    .matches(/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .withMessage('Password must contain uppercase, lowercase, and number'),
+  body('displayName')
+    .optional()
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Display name cannot exceed 50 characters'),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
+      return res.status(400).json({ 
+        message: 'Invalid registration data',
+        errors: errors.array()
+      });
+    }
+    next();
+  }
+];
+
+export const validateUserLogin = [
+  body('login')
+    .trim()
+    .isLength({ min: 3, max: 100 })
+    .withMessage('Email or username is required'),
+  body('password')
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Password is required'),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        message: 'Invalid login data',
+        errors: errors.array()
+      });
+    }
+    next();
+  }
+];
+
+export const validateUserUpdate = [
+  body('displayName')
+    .optional()
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Display name cannot exceed 50 characters'),
+  body('bio')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Bio cannot exceed 500 characters'),
+  body('favoriteGenres')
+    .optional()
+    .isArray({ max: 10 })
+    .withMessage('Favorite genres must be an array with max 10 items'),
+  body('favoriteGenres.*')
+    .optional()
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Each genre cannot exceed 50 characters'),
+  body('avatar')
+    .optional()
+    .trim()
+    .isURL()
+    .withMessage('Avatar must be a valid URL'),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        message: 'Invalid profile data',
+        errors: errors.array()
+      });
+    }
+    next();
+  }
 ]; 

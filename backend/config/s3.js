@@ -1,4 +1,4 @@
-import { S3Client } from '@aws-sdk/client-s3';
+import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import multer from 'multer';
 import multerS3 from 'multer-s3';
 import { ENV_VARS } from './envVars.js';
@@ -85,6 +85,31 @@ export const generatePresignedUrl = async (key) => {
     return await getS3SignedUrl(s3Client, command, { expiresIn: 86400 });
   } catch (error) {
     logger.error('Error generating presigned URL', { error: error.message, key, stack: error.stack });
+    throw error;
+  }
+};
+
+/**
+ * Delete an object from S3 bucket
+ * @param {string} key - The S3 object key to delete
+ * @returns {Promise<void>}
+ */
+export const deleteS3Object = async (key) => {
+  if (!key || key.trim() === '') {
+    logger.debug('Skipping S3 deletion for empty key');
+    return;
+  }
+
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: ENV_VARS.AWS_BUCKET_NAME,
+      Key: key
+    });
+    
+    await s3Client.send(command);
+    logger.info('Successfully deleted S3 object', { key });
+  } catch (error) {
+    logger.error('Error deleting S3 object', { error: error.message, key, stack: error.stack });
     throw error;
   }
 };

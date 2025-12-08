@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import moviesRoutes from './routes/movies.routes.js';
 import authRoutes from './routes/auth.routes.js';
+import userRoutes from './routes/user.routes.js';
 import cors from 'cors';
 import uploadRoutes from './routes/upload.routes.js';
 import rateLimit from 'express-rate-limit';
@@ -98,8 +99,9 @@ const customSanitize = (req, res, next) => {
         } else if (typeof obj[key] === 'object') {
           sanitizeObject(obj[key], fullPath);
         } else if (typeof obj[key] === 'string') {
-          // Don't sanitize S3 keys, URLs, or file-related fields
+          // Don't sanitize S3 keys, URLs, email addresses, or file-related fields
           const isFileOrUrl = 
+            key === 'email' ||               // Email addresses need dots
             key.includes('Url') ||           // posterUrl, thumbnailUrl, etc.
             key.includes('Key') ||           // posterKey, thumbnailKey, etc.  
             key === 'key' ||                 // S3 key field
@@ -113,7 +115,7 @@ const customSanitize = (req, res, next) => {
             return;
           }
           
-          // Apply sanitization to other string fields
+          // Apply sanitization to other string fields (remove $ and .)
           obj[key] = obj[key].replace(/[\$\.]/g, '');
         }
       });
@@ -182,6 +184,7 @@ app.get('/', (req, res) => {
     endpoints: {
       movies: '/api/movies',
       auth: '/api/auth',
+      users: '/api/users',
       upload: '/api/upload',
       comments: '/api/comments',
       reviews: '/api/reviews',
@@ -193,6 +196,7 @@ app.get('/', (req, res) => {
 // Routes
 app.use('/api/movies', moviesRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/comments', commentsRouter);
 app.use('/api/reviews', reviewsRouter);

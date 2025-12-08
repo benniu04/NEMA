@@ -1,7 +1,7 @@
 import express from 'express';
 import { Movie } from '../models/movie.model.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.middleware.js';
-import { generateCloudfrontSignedUrl } from '../config/s3.js';
+import { generateCloudfrontSignedUrl, deleteS3Object } from '../config/s3.js';
 import { cache, clearCache } from '../config/cache.js';
 import logger from '../config/logger.js';
 
@@ -247,14 +247,53 @@ moviesRoutes.put('/:id', [authMiddleware, adminMiddleware], async (req, res) => 
 
 moviesRoutes.delete('/:id', [authMiddleware, adminMiddleware], async (req, res) => {
   try {
-    const movie = await Movie.findByIdAndDelete(req.params.id);
+    const movie = await Movie.findById(req.params.id);
     
     if (!movie) {
       return res.status(404).json({ message: "Movie not found" });
     }
     
+    // Collect all S3 keys to delete
+    const keysToDelete = [];
+    
+    // Add video URLs (720p, 1080p, etc.)
+    if (movie.videoUrls) {
+      Object.values(movie.videoUrls).forEach(key => {
+        if (key && key.trim() !== '') {
+          keysToDelete.push(key);
+        }
+      });
+    }
+    
+    // Add poster key
+    if (movie.posterKey && movie.posterKey.trim() !== '') {
+      keysToDelete.push(movie.posterKey);
+    }
+    
+    // Add thumbnail key
+    if (movie.thumbnailKey && movie.thumbnailKey.trim() !== '') {
+      keysToDelete.push(movie.thumbnailKey);
+    }
+    
+    // Delete all S3 objects
+    const deletePromises = keysToDelete.map(key => 
+      deleteS3Object(key).catch(error => {
+        logger.error('Failed to delete S3 object, continuing...', { key, error: error.message });
+        // Don't throw - continue with deletion even if some S3 objects fail
+      })
+    );
+    
+    await Promise.all(deletePromises);
+    logger.info('Deleted S3 objects for movie', { movieId: req.params.id, keysDeleted: keysToDelete.length });
+    
+    // Now delete the movie from database
+    await Movie.findByIdAndDelete(req.params.id);
+    
     clearCache();
-    res.status(200).json({ message: "Movie deleted successfully" });
+    res.status(200).json({ 
+      message: "Movie deleted successfully",
+      s3ObjectsDeleted: keysToDelete.length 
+    });
   } catch (error) {
     logger.error('Error deleting movie:', { error: error.message, movieId: req.params.id, stack: error.stack });
     res.status(500).json({ message: "Failed to delete movie" });

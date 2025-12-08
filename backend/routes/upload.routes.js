@@ -55,4 +55,64 @@ uploadRoutes.post('/image',
   }
 );
 
+// Upload user avatar (any authenticated user)
+uploadRoutes.post('/avatar', 
+  authMiddleware,
+  upload.single('avatar'),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+      
+      logger.info('Avatar uploaded successfully', { 
+        userId: req.user.id, 
+        key: req.file.key 
+      });
+      
+      res.status(200).json({
+        message: 'Avatar uploaded successfully',
+        key: req.file.key,
+        url: req.file.location
+      });
+    } catch (error) {
+      logger.error('Error uploading avatar:', { 
+        error: error.message, 
+        stack: error.stack 
+      });
+      res.status(500).json({ message: 'Error uploading avatar' });
+    }
+  }
+);
+
+// Upload user banner (any authenticated user)
+uploadRoutes.post('/banner', 
+  authMiddleware,
+  upload.single('banner'),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+      
+      logger.info('Banner uploaded successfully', { 
+        userId: req.user.id, 
+        key: req.file.key 
+      });
+      
+      res.status(200).json({
+        message: 'Banner uploaded successfully',
+        key: req.file.key,
+        url: req.file.location
+      });
+    } catch (error) {
+      logger.error('Error uploading banner:', { 
+        error: error.message, 
+        stack: error.stack 
+      });
+      res.status(500).json({ message: 'Error uploading banner' });
+    }
+  }
+);
+
 export default uploadRoutes;

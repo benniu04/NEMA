@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useEffect } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
+import { UserProvider } from './context/UserContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import { trackPageView } from './config/analytics'
 
@@ -11,6 +12,9 @@ const CatalogPage = lazy(() => import('./pages/CatalogPage'))
 const VideoPlayerPage = lazy(() => import('./pages/VideoPlayerPage'))
 const AdminUploadPage = lazy(() => import('./pages/AdminUploadPage'))
 const AdminLogin = lazy(() => import('./pages/AdminLogin'))
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const RegisterPage = lazy(() => import('./pages/RegisterPage'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -31,24 +35,33 @@ function App() {
   }, [location])
 
   return (
-    <Suspense fallback={<LoadingFallback />}>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/catalog" element={<CatalogPage />} />
-        <Route path="/contact" element={<ContactPage />} />
-        <Route path="/video/:id" element={<VideoPlayerPage />} />
-        <Route path="/admin/login" element={<AdminLogin />} />
-        <Route 
-          path="/admin/upload" 
-          element={
-            <ProtectedRoute>
-              <AdminUploadPage />
-            </ProtectedRoute>
-          } 
-        />
-      </Routes>
-    </Suspense>
+    <UserProvider>
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/catalog" element={<CatalogPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/video/:id" element={<VideoPlayerPage />} />
+          
+          {/* User Auth Routes */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          
+          {/* Admin Routes */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route 
+            path="/admin/upload" 
+            element={
+              <ProtectedRoute>
+                <AdminUploadPage />
+              </ProtectedRoute>
+            } 
+          />
+        </Routes>
+      </Suspense>
+    </UserProvider>
   )
 }
 
