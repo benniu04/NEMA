@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import SearchBar from './SearchBar';
 
 const NavBar = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -37,7 +38,7 @@ const NavBar = () => {
       scrolled ? 'bg-black/80 backdrop-blur-md shadow-lg' : 'bg-transparent'
     }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
+        <div className="flex items-center h-20 gap-4">
           {/* Logo */}
           <div className="flex-shrink-0">
             <Link 
@@ -49,7 +50,7 @@ const NavBar = () => {
           </div>
           
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden md:flex items-center space-x-8 flex-1 justify-center">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               return (
@@ -69,6 +70,11 @@ const NavBar = () => {
                 </Link>
               );
             })}
+          </div>
+
+          {/* Desktop search */}
+          <div className="hidden md:flex justify-end w-[320px]">
+            <SearchBar />
           </div>
           
           {/* Mobile menu button */}
@@ -94,9 +100,12 @@ const NavBar = () => {
       
       {/* Mobile menu */}
       <div className={`md:hidden absolute w-full transition-all duration-300 ease-in-out ${
-        menuOpen ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0 pointer-events-none'
+        menuOpen ? 'max-h-[480px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'
       }`}>
-        <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-black/90 backdrop-blur-md">
+        <div className="px-2 pt-2 pb-3 space-y-3 sm:px-3 bg-black/90 backdrop-blur-md">
+          <div className="px-1">
+            <SearchBar isMobile />
+          </div>
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (

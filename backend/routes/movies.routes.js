@@ -121,6 +121,64 @@ moviesRoutes.get('/', async (req, res) => {
   }
 });
 
+// Lightweight search with text index + fuzzy fallback
+moviesRoutes.get('/search', async (req, res) => {
+  const query = (req.query.q || '').trim();
+  const limit = Math.min(parseInt(req.query.limit) || 10, 20);
+
+  if (!query) {
+    return res.status(400).json({ message: 'Search query is required' });
+  }
+
+  try {
+    // Primary: text search ranked by score
+    const textResults = await Movie.find(
+      { $text: { $search: query } },
+      { score: { $meta: 'textScore' } }
+    )
+    .sort({ score: { $meta: 'textScore' }, createdAt: -1 })
+    .limit(limit);
+
+    // Fallback: regex-based partial matches to fill remaining slots
+    const remaining = limit - textResults.length;
+    let fallbackResults = [];
+
+    if (remaining > 0) {
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'i');
+
+      fallbackResults = await Movie.find({
+        _id: { $nin: textResults.map(movie => movie._id) },
+        $or: [
+          { title: regex },
+          { description: regex },
+          { director: regex },
+          { cast: regex },
+          { tags: regex }
+        ]
+      })
+      .sort({ createdAt: -1 })
+      .limit(remaining);
+    }
+
+    const combinedResults = [...textResults, ...fallbackResults];
+
+    // Refresh signed URLs before returning
+    const moviesWithFreshUrls = await Promise.all(
+      combinedResults.map(async (movie) => {
+        const movieObj = movie.toObject();
+        const freshUrls = await generateFreshSignedUrls(movie);
+        return { ...movieObj, ...freshUrls };
+      })
+    );
+
+    res.status(200).json(moviesWithFreshUrls);
+  } catch (error) {
+    logger.error('Error searching movies:', { error: error.message, query, stack: error.stack });
+    res.status(500).json({ message: 'Failed to search movies' });
+  }
+});
+
 moviesRoutes.get('/:id', async (req, res) => {
   try {
     const cacheKey = req.originalUrl;
