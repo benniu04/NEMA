@@ -2,9 +2,11 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { WatchTime } from '../models/watchTime.model.js';
 import { Movie } from '../models/movie.model.js';
+import { Activity } from '../models/activity.model.js';
 import rateLimit from 'express-rate-limit';
 import logger from '../config/logger.js';
 import { clearCache } from '../config/cache.js';
+import { optionalAuthMiddleware } from '../middleware/auth.middleware.js';
 
 const watchTimeRouter = express.Router();
 
@@ -28,7 +30,7 @@ const watchTimeLimiter = rateLimit({
 });
 
 // Track watch time update
-watchTimeRouter.post('/track', watchTimeLimiter, async (req, res) => {
+watchTimeRouter.post('/track', watchTimeLimiter, optionalAuthMiddleware, async (req, res) => {
   try {
     const deviceId = getClientIp(req);
     const { movieId, sessionId, currentTime, videoDuration, quality = '720p' } = req.body;
@@ -72,6 +74,7 @@ watchTimeRouter.post('/track', watchTimeLimiter, async (req, res) => {
 
     // Update watch time data
     const timeDiff = currentTime - (watchTime.maxTimeReached || 0);
+    const wasCompleted = watchTime.completed;
     
     // Only add positive time differences (prevent time travel)
     if (timeDiff > 0 && timeDiff < videoDuration) {
@@ -81,6 +84,21 @@ watchTimeRouter.post('/track', watchTimeLimiter, async (req, res) => {
     }
 
     await watchTime.save();
+
+    // Create activity record if user is authenticated and just completed the movie
+    if (req.user && watchTime.completed && !wasCompleted) {
+      try {
+        await Activity.create({
+          userId: req.user.id,
+          type: 'watched',
+          movieId
+        });
+        logger.info('Activity created for completed movie', { userId: req.user.id, movieId });
+      } catch (activityError) {
+        // Don't fail the watch time tracking if activity fails
+        logger.error('Failed to create activity for watched movie:', { error: activityError.message });
+      }
+    }
 
     res.status(200).json({ 
       success: true,
@@ -127,14 +145,14 @@ watchTimeRouter.post('/end', watchTimeLimiter, async (req, res) => {
 });
 
 // Get watch history for a device (user's watch history)
-watchTimeRouter.get('/history', async (req, res) => {
+watchTimeRouter.get('/history', optionalAuthMiddleware, async (req, res) => {
   try {
     const deviceId = getClientIp(req);
     const limit = parseInt(req.query.limit) || 20;
 
     const watchHistory = await WatchTime.find({ deviceId })
       .populate('movieId', 'title director thumbnailUrl posterUrl releaseDate')
-      .sort({ createdAt: -1 })
+      .sort({ lastUpdatedAt: -1 })
       .limit(limit);
 
     res.json(watchHistory);

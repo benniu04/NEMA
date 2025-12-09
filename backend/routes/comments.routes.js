@@ -1,8 +1,10 @@
 import express from 'express';
 import { Comment } from '../models/comment.model.js';
+import { Activity } from '../models/activity.model.js';
 import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
 import { validateComment, validateCommentDelete } from '../middleware/validation.middleware.js';
+import { optionalAuthMiddleware } from '../middleware/auth.middleware.js';
 import logger from '../config/logger.js';
 
 const router = express.Router();
@@ -71,7 +73,7 @@ router.get('/movie/:movieId', async (req, res) => {
 });
 
 // Add a new comment
-router.post('/', commentPostLimiter, commentPostSlow, validateComment, async (req, res) => {
+router.post('/', commentPostLimiter, commentPostSlow, optionalAuthMiddleware, validateComment, async (req, res) => {
   // ALWAYS use server-side IP (never trust client-provided deviceId)
   const deviceId = getClientIp(req);
   
@@ -84,6 +86,24 @@ router.post('/', commentPostLimiter, commentPostSlow, validateComment, async (re
 
   try {
     const newComment = await comment.save();
+    
+    // Create activity record if user is authenticated
+    if (req.user) {
+      try {
+        await Activity.create({
+          userId: req.user.id,
+          type: 'comment',
+          movieId: req.body.movieId,
+          commentId: newComment._id,
+          content: req.body.content
+        });
+        logger.info('Activity created for comment', { userId: req.user.id, commentId: newComment._id });
+      } catch (activityError) {
+        // Don't fail the comment creation if activity fails
+        logger.error('Failed to create activity for comment:', { error: activityError.message });
+      }
+    }
+    
     logger.info('Comment created', { 
       commentId: newComment._id, 
       movieId: req.body.movieId, 

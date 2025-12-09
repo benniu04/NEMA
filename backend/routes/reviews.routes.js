@@ -2,10 +2,12 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { Review } from '../models/review.model.js';
 import { Movie }  from '../models/movie.model.js';
+import { Activity } from '../models/activity.model.js';
 import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
 import { clearCache } from '../config/cache.js';
 import { validateReview, validateReviewDelete } from '../middleware/validation.middleware.js';
+import { optionalAuthMiddleware } from '../middleware/auth.middleware.js';
 import logger from '../config/logger.js';
 
 const reviewRouter = express.Router();
@@ -94,17 +96,38 @@ reviewRouter.get('/movie/:movieId', async (req, res) => {
 });
 
 /* create or update the single review for this device */
-reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, validateReview, async (req, res) => {
+reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, optionalAuthMiddleware, validateReview, async (req, res) => {
   try {
     // ALWAYS use server-side IP (never trust client-provided deviceId)
     const deviceId = getClientIp(req);
     const { movieId, nickname, rating, comment } = req.body;
+
+    const existingReview = await Review.findOne({ movieId, deviceId });
+    const isNewReview = !existingReview;
 
     let review = await Review.findOneAndUpdate(
       { movieId, deviceId },
       { nickname, rating, comment },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
+
+    // Create activity record if user is authenticated and this is a new review
+    if (req.user && isNewReview) {
+      try {
+        await Activity.create({
+          userId: req.user.id,
+          type: 'review',
+          movieId,
+          reviewId: review._id,
+          rating,
+          content: comment
+        });
+        logger.info('Activity created for review', { userId: req.user.id, movieId, reviewId: review._id });
+      } catch (activityError) {
+        // Don't fail the review creation if activity fails
+        logger.error('Failed to create activity for review:', { error: activityError.message });
+      }
+    }
 
     await recomputeAvg(movieId);
     clearCache(); // Clear movie cache so ratings update immediately

@@ -12,6 +12,7 @@ const ProfilePage = () => {
   const [activeTab, setActiveTab] = useState('activity');
   const [activities, setActivities] = useState([]);
   const [favorites, setFavorites] = useState([]);
+  const [watchHistory, setWatchHistory] = useState([]);
   const [isEditingBio, setIsEditingBio] = useState(false);
   const [bio, setBio] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -32,6 +33,7 @@ const ProfilePage = () => {
       setBio(user.bio || '');
       loadActivities();
       loadFavorites();
+      loadWatchHistory();
     }
   }, [user]);
 
@@ -60,6 +62,30 @@ const ProfilePage = () => {
       }
     } catch (error) {
       console.error('Failed to load favorites:', error);
+    }
+  };
+
+  const loadWatchHistory = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/watch-time/history?limit=50`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Group by movie and get the latest session for each
+        const movieMap = new Map();
+        data.forEach(session => {
+          if (session.movieId) {
+            const existingSession = movieMap.get(session.movieId._id);
+            if (!existingSession || new Date(session.lastUpdatedAt) > new Date(existingSession.lastUpdatedAt)) {
+              movieMap.set(session.movieId._id, session);
+            }
+          }
+        });
+        setWatchHistory(Array.from(movieMap.values()));
+      }
+    } catch (error) {
+      console.error('Failed to load watch history:', error);
     }
   };
 
@@ -387,7 +413,90 @@ const ProfilePage = () => {
 
           {activeTab === 'films' && (
             <div className="pb-12">
-              <p className="text-white/30 text-center py-12">Films watched will appear here</p>
+              {watchHistory.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-white/30 mb-4">No films watched yet</p>
+                  <Link 
+                    to="/catalog"
+                    className="inline-block px-6 py-2 bg-white text-black hover:bg-white/90 transition-colors"
+                  >
+                    Browse Films
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {watchHistory.map((session) => (
+                    <Link
+                      key={session._id}
+                      to={`/video/${session.movieId._id}`}
+                      className="flex gap-4 p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all group"
+                    >
+                      {/* Poster */}
+                      <div className="w-20 h-28 flex-shrink-0 bg-white/5 overflow-hidden">
+                        {session.movieId.posterUrl ? (
+                          <img 
+                            src={session.movieId.posterUrl} 
+                            alt={session.movieId.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-white/20">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-white font-medium mb-1 group-hover:text-amber-500 transition-colors truncate">
+                          {session.movieId.title}
+                        </h3>
+                        <p className="text-white/50 text-sm mb-3">
+                          {session.movieId.director} • {new Date(session.movieId.releaseDate).getFullYear()}
+                        </p>
+                        
+                        {/* Progress Bar */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs text-white/50">
+                            <span>{session.completed ? 'Completed' : 'In Progress'}</span>
+                            <span>{Math.round(session.completionPercentage)}%</span>
+                          </div>
+                          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all ${
+                                session.completed ? 'bg-green-500' : 'bg-amber-500'
+                              }`}
+                              style={{ width: `${session.completionPercentage}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Last watched */}
+                        <p className="text-white/40 text-xs mt-2">
+                          Last watched {new Date(session.lastUpdatedAt).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </p>
+                      </div>
+
+                      {/* Completion badge */}
+                      {session.completed && (
+                        <div className="flex-shrink-0 flex items-center">
+                          <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        </div>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

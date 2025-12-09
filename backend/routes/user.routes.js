@@ -193,6 +193,20 @@ userRoutes.get('/me', authMiddleware, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Calculate stats dynamically from Activity collection
+    const [reviewCount, commentCount, watchedCount] = await Promise.all([
+      Activity.countDocuments({ userId: req.user.id, type: 'review' }),
+      Activity.countDocuments({ userId: req.user.id, type: 'comment' }),
+      Activity.countDocuments({ userId: req.user.id, type: 'watched' })
+    ]);
+
+    // Update user stats
+    user.stats = {
+      filmsWatched: watchedCount,
+      reviewsWritten: reviewCount,
+      commentsWritten: commentCount
+    };
+
     res.json(user.toPrivateProfile());
   } catch (error) {
     logger.error('Get profile error:', { error: error.message, stack: error.stack });

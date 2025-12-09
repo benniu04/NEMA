@@ -8,10 +8,12 @@ import ReviewSection from '../components/ReviewSection'
 import CarouselRow from '../components/CarouselRow'
 import Footer from '../components/Footer'
 import { analytics } from '../config/analytics'
+import { useUser } from '../context/UserContext'
 
 const VideoPlayerPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useUser();
   const [movie, setMovie] = useState(null);
   const [relatedMovies, setRelatedMovies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +32,10 @@ const VideoPlayerPage = () => {
   const videoRef = useRef(null);
   const progressBarRef = useRef(null);
   
+  // Watchlist state
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
+  const [watchlistLoading, setWatchlistLoading] = useState(false);
+  
   // Watch time tracking state
   const [sessionId] = useState(() => {
     // Generate or retrieve session ID from localStorage
@@ -43,6 +49,18 @@ const VideoPlayerPage = () => {
   const [hasTrackedStart, setHasTrackedStart] = useState(false);
   const [hasTrackedCompletion, setHasTrackedCompletion] = useState(false);
   const watchTimeIntervalRef = useRef(null);
+
+  // Check if movie is in watchlist
+  useEffect(() => {
+    if (isAuthenticated && user?.watchlist && id) {
+      const inWatchlist = user.watchlist.some(movieId => {
+        // Handle both ObjectId objects and string IDs
+        const watchlistId = typeof movieId === 'object' ? movieId._id : movieId;
+        return watchlistId === id;
+      });
+      setIsInWatchlist(inWatchlist);
+    }
+  }, [user, id, isAuthenticated]);
 
   // Fetch movie data and related movies
   useEffect(() => {
@@ -564,6 +582,43 @@ const VideoPlayerPage = () => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  // Toggle watchlist
+  const toggleWatchlist = async () => {
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: { pathname: `/video/${id}` } } });
+      return;
+    }
+
+    setWatchlistLoading(true);
+    try {
+      const endpoint = isInWatchlist 
+        ? `${API_BASE_URL}/api/users/watchlist/${id}`
+        : `${API_BASE_URL}/api/users/watchlist/${id}`;
+      
+      const method = isInWatchlist ? 'DELETE' : 'POST';
+      
+      const response = await fetch(endpoint, {
+        method,
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        setIsInWatchlist(!isInWatchlist);
+        // Optionally refresh user context to update watchlist
+        if (window.location) {
+          // Trigger a soft refresh of user data if your context supports it
+        }
+      } else {
+        const data = await response.json();
+        console.error('Failed to update watchlist:', data.message);
+      }
+    } catch (error) {
+      console.error('Error toggling watchlist:', error);
+    } finally {
+      setWatchlistLoading(false);
+    }
+  };
+
   // Get available video qualities (only those with valid URLs)
   const getAvailableQualities = () => {
     if (!movie?.videoUrls) return [];
@@ -831,6 +886,36 @@ const VideoPlayerPage = () => {
 
             <div className="lg:col-span-1">
               <div className="sticky top-24">
+                {/* Watchlist Button */}
+                <button
+                  onClick={toggleWatchlist}
+                  disabled={watchlistLoading}
+                  className={`w-full mb-4 px-4 py-3 border transition-all duration-300 flex items-center justify-center gap-2 ${
+                    isInWatchlist
+                      ? 'bg-amber-500 border-amber-500 text-black hover:bg-amber-600 hover:border-amber-600'
+                      : 'bg-transparent border-amber-100/20 text-amber-100/80 hover:border-amber-100/40 hover:text-amber-100'
+                  } ${watchlistLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {watchlistLoading ? (
+                    <span>Loading...</span>
+                  ) : isInWatchlist ? (
+                    <>
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                        <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      In Watchlist
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Add to Watchlist
+                    </>
+                  )}
+                </button>
+                
                 <div 
                   className="poster-container group relative aspect-[2/3] bg-cover bg-center rounded-lg overflow-hidden mb-6 border border-amber-100/20 shadow-2xl transition-all duration-500 hover:shadow-3xl hover:shadow-amber-500/30 cursor-pointer"
                   style={{ backgroundImage: `url(${movie.posterUrl})` }}
