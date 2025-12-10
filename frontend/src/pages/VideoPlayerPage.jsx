@@ -13,7 +13,7 @@ import { useUser } from '../context/UserContext'
 const VideoPlayerPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useUser();
+  const { user, isAuthenticated, addToFavorites, removeFromFavorites, isInFavorites: checkIsInFavorites } = useUser();
   const [movie, setMovie] = useState(null);
   const [relatedMovies, setRelatedMovies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +35,10 @@ const VideoPlayerPage = () => {
   // Watchlist state
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
+  
+  // Favorites state
+  const [isInFavoritesList, setIsInFavoritesList] = useState(false);
+  const [favoritesLoading, setFavoritesLoading] = useState(false);
   
   // Watch time tracking state
   const [sessionId] = useState(() => {
@@ -61,6 +65,13 @@ const VideoPlayerPage = () => {
       setIsInWatchlist(inWatchlist);
     }
   }, [user, id, isAuthenticated]);
+
+  // Check if movie is in favorites
+  useEffect(() => {
+    if (isAuthenticated && id) {
+      setIsInFavoritesList(checkIsInFavorites(id));
+    }
+  }, [user, id, isAuthenticated, checkIsInFavorites]);
 
   // Fetch movie data and related movies
   useEffect(() => {
@@ -591,12 +602,12 @@ const VideoPlayerPage = () => {
 
     setWatchlistLoading(true);
     try {
-      const endpoint = isInWatchlist 
+      const endpoint = isInWatchlist
         ? `${API_BASE_URL}/api/users/watchlist/${id}`
         : `${API_BASE_URL}/api/users/watchlist/${id}`;
-      
+
       const method = isInWatchlist ? 'DELETE' : 'POST';
-      
+
       const response = await fetch(endpoint, {
         method,
         credentials: 'include'
@@ -616,6 +627,33 @@ const VideoPlayerPage = () => {
       console.error('Error toggling watchlist:', error);
     } finally {
       setWatchlistLoading(false);
+    }
+  };
+
+  // Toggle favorites
+  const toggleFavorites = async () => {
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: { pathname: `/video/${id}` } } });
+      return;
+    }
+
+    setFavoritesLoading(true);
+    try {
+      const result = isInFavoritesList
+        ? await removeFromFavorites(id)
+        : await addToFavorites(id);
+
+      if (result.success) {
+        setIsInFavoritesList(!isInFavoritesList);
+      } else {
+        // Show error message to user
+        alert(result.error);
+      }
+    } catch (error) {
+      console.error('Error toggling favorites:', error);
+      alert('Failed to update favorites. Please try again.');
+    } finally {
+      setFavoritesLoading(false);
     }
   };
 
@@ -912,6 +950,35 @@ const VideoPlayerPage = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                       </svg>
                       Add to Watchlist
+                    </>
+                  )}
+                </button>
+
+                {/* Favorites Button */}
+                <button
+                  onClick={toggleFavorites}
+                  disabled={favoritesLoading}
+                  className={`w-full mb-4 px-4 py-3 border transition-all duration-300 flex items-center justify-center gap-2 ${
+                    isInFavoritesList
+                      ? 'bg-rose-500 border-rose-500 text-white hover:bg-rose-600 hover:border-rose-600'
+                      : 'bg-transparent border-rose-400/20 text-rose-400/80 hover:border-rose-400/40 hover:text-rose-400'
+                  } ${favoritesLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {favoritesLoading ? (
+                    <span>Loading...</span>
+                  ) : isInFavoritesList ? (
+                    <>
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                      </svg>
+                      In Favorites
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                      </svg>
+                      Add to Favorites
                     </>
                   )}
                 </button>

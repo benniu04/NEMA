@@ -48,14 +48,15 @@
     "express-validator": "^7.2.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
+    "lighthouse": "^13.0.1",
     "lru-cache": "^11.2.2",
     "mongoose": "^8.14.2",
     "multer": "^2.0.0",
     "multer-s3": "^3.0.1",
     "nodemailer": "^7.0.3",
     "nodemon": "^3.1.10",
-    "winston": "^3.18.3",
-    "pm2": "^5.3.0"
+    "pm2": "^5.3.0",
+    "winston": "^3.18.3"
   },
   "devDependencies": {
     "@jest/globals": "^30.2.0",

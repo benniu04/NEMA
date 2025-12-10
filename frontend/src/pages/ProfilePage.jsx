@@ -7,7 +7,7 @@ import API_BASE_URL from '../config/api.js';
 
 const ProfilePage = () => {
   const navigate = useNavigate();
-  const { user, logout, updateProfile, loading, isAuthenticated, refreshUser } = useUser();
+  const { user, logout, updateProfile, loading, isAuthenticated, refreshUser, removeFromFavorites } = useUser();
   
   const [activeTab, setActiveTab] = useState('activity');
   const [activities, setActivities] = useState([]);
@@ -16,12 +16,13 @@ const ProfilePage = () => {
   const [isEditingBio, setIsEditingBio] = useState(false);
   const [bio, setBio] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [removingFavorite, setRemovingFavorite] = useState(null);
   
   const avatarInputRef = useRef(null);
   const bannerInputRef = useRef(null);
 
   // Redirect if not logged in
-  useEffect(() => {
+  useEffect(() => { 
     if (!loading && !isAuthenticated) {
       navigate('/login', { state: { from: { pathname: '/profile' } } });
     }
@@ -203,6 +204,29 @@ const ProfilePage = () => {
     }
   };
 
+  const handleRemoveFavorite = async (movieId, movieTitle, e) => {
+    e.preventDefault(); // Prevent navigation to movie page
+    
+    const confirmRemove = window.confirm(`Remove "${movieTitle}" from your favorites?`);
+    if (!confirmRemove) return;
+
+    setRemovingFavorite(movieId);
+    try {
+      const result = await removeFromFavorites(movieId);
+      if (result.success) {
+        // Refresh favorites list
+        await loadFavorites();
+      } else {
+        alert(result.error || 'Failed to remove from favorites');
+      }
+    } catch (error) {
+      console.error('Error removing favorite:', error);
+      alert('Failed to remove from favorites. Please try again.');
+    } finally {
+      setRemovingFavorite(null);
+    }
+  };
+
   if (loading || !user) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -371,34 +395,75 @@ const ProfilePage = () => {
           </div>
 
           {/* Favorite Films */}
-          {favorites.length > 0 && (
+          {favorites.length >= 0 && (
             <div className="mb-12">
-              <h2 className="text-sm uppercase tracking-wider text-white/50 mb-4">Favorite Films</h2>
-              <div className="grid grid-cols-4 gap-3">
-                {favorites.map((movie) => (
-                  <Link 
-                    key={movie._id}
-                    to={`/video/${movie._id}`}
-                    className="group"
-                  >
-                    <div className="aspect-[2/3] bg-white/5 overflow-hidden">
-                      {movie.posterUrl ? (
-                        <img 
-                          src={movie.posterUrl} 
-                          alt={movie.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-white/20">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
-                          </svg>
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-                ))}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm uppercase tracking-wider text-white/50">
+                  Favorite Films ({favorites.length}/5)
+                </h2>
+                {favorites.length > 0 && (
+                  <p className="text-xs text-white/30 italic">Hover to remove</p>
+                )}
               </div>
+              {favorites.length === 0 ? (
+                <div className="text-center py-12 border border-white/10 border-dashed rounded">
+                  <p className="text-white/30 mb-2">No favorite films yet</p>
+                  <p className="text-white/20 text-sm">Add up to 5 films to showcase your favorites</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-5 gap-3">
+                  {favorites.slice(0, 5).map((movie) => (
+                    <div key={movie._id} className="relative group">
+                      <Link 
+                        to={`/video/${movie._id}`}
+                        className="block"
+                      >
+                        <div className="aspect-[2/3] bg-white/5 overflow-hidden relative">
+                          {movie.posterUrl ? (
+                            <img 
+                              src={movie.posterUrl} 
+                              alt={movie.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-white/20">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                              </svg>
+                            </div>
+                          )}
+                          {/* Dark overlay on hover */}
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+                        </div>
+                      </Link>
+                      
+                      {/* Remove button */}
+                      <button
+                        onClick={(e) => handleRemoveFavorite(movie._id, movie.title, e)}
+                        disabled={removingFavorite === movie._id}
+                        className="absolute top-2 right-2 p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                        title="Remove from favorites"
+                      >
+                        {removingFavorite === movie._id ? (
+                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        )}
+                      </button>
+
+                      {/* Movie title on hover */}
+                      <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black via-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <p className="text-white text-xs font-medium truncate">{movie.title}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

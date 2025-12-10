@@ -226,6 +226,56 @@ export const UserProvider = ({ children }) => {
     return user.watchlist.some(id => id === movieId || id._id === movieId);
   };
 
+  // Add to favorites
+  const addToFavorites = async (movieId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/favorites/${movieId}`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to add to favorites');
+      }
+
+      // Update local user state
+      setUser(prev => prev ? { ...prev, favoriteFilms: data.favorites } : null);
+      return { success: true, message: data.message };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  // Remove from favorites
+  const removeFromFavorites = async (movieId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/favorites/${movieId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to remove from favorites');
+      }
+
+      // Update local user state
+      setUser(prev => prev ? { ...prev, favoriteFilms: data.favorites } : null);
+      return { success: true, message: data.message };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  // Check if movie is in favorites
+  const isInFavorites = (movieId) => {
+    if (!user || !user.favoriteFilms) return false;
+    return user.favoriteFilms.some(id => id === movieId || id._id === movieId);
+  };
+
   const value = {
     user,
     loading,
@@ -239,6 +289,9 @@ export const UserProvider = ({ children }) => {
     addToWatchlist,
     removeFromWatchlist,
     isInWatchlist,
+    addToFavorites,
+    removeFromFavorites,
+    isInFavorites,
     refreshUser: checkAuth
   };
 

@@ -513,9 +513,9 @@ userRoutes.post('/favorites/:movieId', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'Movie already in favorites' });
     }
 
-    // Limit to 4 favorite films (like Letterboxd)
-    if (user.favoriteFilms.length >= 4) {
-      return res.status(400).json({ message: 'Maximum 4 favorite films allowed' });
+    // Limit to 5 favorite films
+    if (user.favoriteFilms.length >= 5) {
+      return res.status(400).json({ message: 'You can only add 5 films to your favorites' });
     }
 
     user.favoriteFilms.push(movieId);
