@@ -632,32 +632,34 @@ const ProfilePage = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {user.watchlist.map((movie) => (
-                    <Link 
-                      key={movie._id || movie}
-                      to={`/video/${movie._id || movie}`}
-                      className="group"
-                    >
-                      <div className="aspect-[2/3] bg-white/5 overflow-hidden mb-2">
-                        {movie.posterUrl ? (
-                          <img 
-                            src={movie.posterUrl} 
-                            alt={movie.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white/20">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
-                            </svg>
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-sm text-white/70 group-hover:text-white transition-colors truncate">
-                        {movie.title || 'Untitled'}
-                      </p>
-                    </Link>
-                  ))}
+                  {user.watchlist
+                    .filter(movie => movie && typeof movie === 'object' && movie._id) // Only render populated movie objects
+                    .map((movie) => (
+                      <Link 
+                        key={movie._id}
+                        to={`/video/${movie._id}`}
+                        className="group"
+                      >
+                        <div className="aspect-[2/3] bg-white/5 overflow-hidden mb-2">
+                          {movie.posterUrl ? (
+                            <img 
+                              src={movie.posterUrl} 
+                              alt={movie.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-white/20">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-sm text-white/70 group-hover:text-white transition-colors truncate">
+                          {movie.title || 'Untitled'}
+                        </p>
+                      </Link>
+                    ))}
                 </div>
               )}
             </div>

@@ -67,6 +67,10 @@ export const UserProvider = ({ children }) => {
       }
 
       setUser(data.user);
+      
+      // Fetch full user profile with populated watchlist and favorites
+      await checkAuth();
+      
       return { success: true, user: data.user };
     } catch (err) {
       setError(err.message);
@@ -99,6 +103,10 @@ export const UserProvider = ({ children }) => {
       }
 
       setUser(data.user);
+      
+      // Fetch full user profile with populated watchlist and favorites
+      await checkAuth();
+      
       return { success: true, user: data.user };
     } catch (err) {
       setError(err.message);
