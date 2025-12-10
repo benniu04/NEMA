@@ -5,6 +5,7 @@ import { Activity } from '../models/activity.model.js';
 import { ENV_VARS } from '../config/envVars.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.middleware.js';
 import { validateUserRegister, validateUserLogin, validateUserUpdate } from '../middleware/validation.middleware.js';
+import { generateCloudfrontSignedUrl } from '../config/s3.js';
 import logger from '../config/logger.js';
 
 const userRoutes = express.Router();
@@ -186,8 +187,8 @@ userRoutes.post('/logout', async (req, res) => {
 userRoutes.get('/me', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
-      .populate('watchlist', 'title posterUrl director rating')
-      .populate('favoriteFilms', 'title posterUrl director rating');
+      .populate('watchlist', 'title posterKey posterUrl director rating releaseDate')
+      .populate('favoriteFilms', 'title posterKey posterUrl director rating releaseDate');
     
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -207,7 +208,37 @@ userRoutes.get('/me', authMiddleware, async (req, res) => {
       commentsWritten: commentCount
     };
 
-    res.json(user.toPrivateProfile());
+    // Generate fresh signed URLs for watchlist and favorite films
+    const [watchlistWithUrls, favoritesWithUrls] = await Promise.all([
+      Promise.all(user.watchlist.map(async (movie) => {
+        const movieObj = movie.toObject();
+        if (movieObj.posterKey) {
+          try {
+            movieObj.posterUrl = await generateCloudfrontSignedUrl(movieObj.posterKey);
+          } catch (error) {
+            logger.error('Error generating poster URL for watchlist:', { error: error.message });
+          }
+        }
+        return movieObj;
+      })),
+      Promise.all(user.favoriteFilms.map(async (movie) => {
+        const movieObj = movie.toObject();
+        if (movieObj.posterKey) {
+          try {
+            movieObj.posterUrl = await generateCloudfrontSignedUrl(movieObj.posterKey);
+          } catch (error) {
+            logger.error('Error generating poster URL for favorites:', { error: error.message });
+          }
+        }
+        return movieObj;
+      }))
+    ]);
+
+    const userProfile = user.toPrivateProfile();
+    userProfile.watchlist = watchlistWithUrls;
+    userProfile.favoriteFilms = favoritesWithUrls;
+
+    res.json(userProfile);
   } catch (error) {
     logger.error('Get profile error:', { error: error.message, stack: error.stack });
     res.status(500).json({ message: 'Failed to get profile' });
@@ -357,13 +388,28 @@ userRoutes.delete('/watchlist/:movieId', authMiddleware, async (req, res) => {
 // Get watchlist
 userRoutes.get('/watchlist', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).populate('watchlist', 'title posterUrl director rating genre');
+    const user = await User.findById(req.user.id).populate('watchlist', 'title posterKey posterUrl director rating genre releaseDate');
     
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json({ watchlist: user.watchlist });
+    // Generate fresh signed URLs for posters
+    const watchlistWithUrls = await Promise.all(
+      user.watchlist.map(async (movie) => {
+        const movieObj = movie.toObject();
+        if (movieObj.posterKey) {
+          try {
+            movieObj.posterUrl = await generateCloudfrontSignedUrl(movieObj.posterKey);
+          } catch (error) {
+            logger.error('Error generating poster URL:', { error: error.message, movieId: movie._id });
+          }
+        }
+        return movieObj;
+      })
+    );
+
+    res.json({ watchlist: watchlistWithUrls });
   } catch (error) {
     logger.error('Get watchlist error:', { error: error.message, stack: error.stack });
     res.status(500).json({ message: 'Failed to get watchlist' });
@@ -423,13 +469,28 @@ userRoutes.get('/check-email/:email', async (req, res) => {
 // Get favorite films
 userRoutes.get('/favorites', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).populate('favoriteFilms', 'title posterUrl director rating genre');
+    const user = await User.findById(req.user.id).populate('favoriteFilms', 'title posterKey posterUrl director rating genre releaseDate');
     
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json({ favorites: user.favoriteFilms });
+    // Generate fresh signed URLs for posters
+    const favoritesWithUrls = await Promise.all(
+      user.favoriteFilms.map(async (movie) => {
+        const movieObj = movie.toObject();
+        if (movieObj.posterKey) {
+          try {
+            movieObj.posterUrl = await generateCloudfrontSignedUrl(movieObj.posterKey);
+          } catch (error) {
+            logger.error('Error generating poster URL:', { error: error.message, movieId: movie._id });
+          }
+        }
+        return movieObj;
+      })
+    );
+
+    res.json({ favorites: favoritesWithUrls });
   } catch (error) {
     logger.error('Get favorites error:', { error: error.message, stack: error.stack });
     res.status(500).json({ message: 'Failed to get favorites' });

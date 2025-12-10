@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import logger from '../config/logger.js';
 import { clearCache } from '../config/cache.js';
 import { optionalAuthMiddleware } from '../middleware/auth.middleware.js';
+import { generateCloudfrontSignedUrl } from '../config/s3.js';
 
 const watchTimeRouter = express.Router();
 
@@ -151,11 +152,26 @@ watchTimeRouter.get('/history', optionalAuthMiddleware, async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
 
     const watchHistory = await WatchTime.find({ deviceId })
-      .populate('movieId', 'title director thumbnailUrl posterUrl releaseDate')
+      .populate('movieId', 'title director posterKey posterUrl thumbnailKey releaseDate')
       .sort({ lastUpdatedAt: -1 })
       .limit(limit);
 
-    res.json(watchHistory);
+    // Generate fresh signed URLs for posters
+    const historyWithUrls = await Promise.all(
+      watchHistory.map(async (session) => {
+        const sessionObj = session.toObject();
+        if (sessionObj.movieId && sessionObj.movieId.posterKey) {
+          try {
+            sessionObj.movieId.posterUrl = await generateCloudfrontSignedUrl(sessionObj.movieId.posterKey);
+          } catch (error) {
+            logger.error('Error generating poster URL:', { error: error.message, movieId: sessionObj.movieId._id });
+          }
+        }
+        return sessionObj;
+      })
+    );
+
+    res.json(historyWithUrls);
   } catch (error) {
     logger.error('Error fetching watch history:', { error: error.message });
     res.status(500).json({ message: 'Failed to fetch watch history' });
