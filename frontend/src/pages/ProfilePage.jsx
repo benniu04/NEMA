@@ -104,6 +104,45 @@ const ProfilePage = () => {
   const handleImageUpload = async (file, type) => {
     if (!file) return;
 
+    // Validate image resolution for banner
+    if (type === 'banner') {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      
+      img.onload = async () => {
+        URL.revokeObjectURL(objectUrl);
+        
+        // Check if resolution is below recommended
+        if (img.width < 1500 || img.height < 500) {
+          const proceed = window.confirm(
+            `⚠️ Image Resolution Warning\n\n` +
+            `Current: ${img.width}x${img.height}px\n` +
+            `Recommended: 1500x500px or higher\n\n` +
+            `Your image may appear blurry or pixelated. Continue anyway?`
+          );
+          
+          if (!proceed) {
+            return;
+          }
+        }
+        
+        // Proceed with upload
+        await performUpload(file, type);
+      };
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        alert('Failed to load image. Please try a different file.');
+      };
+      
+      img.src = objectUrl;
+    } else {
+      // For avatar, upload directly
+      await performUpload(file, type);
+    }
+  };
+
+  const performUpload = async (file, type) => {
     setIsUploading(true);
     const formData = new FormData();
     formData.append(type, file);
@@ -119,9 +158,12 @@ const ProfilePage = () => {
         const data = await response.json();
         await updateProfile({ [type]: data.url });
         await refreshUser();
+      } else {
+        alert(`Failed to upload ${type}. Please try again.`);
       }
     } catch (error) {
       console.error(`Failed to upload ${type}:`, error);
+      alert(`Failed to upload ${type}. Please try again.`);
     } finally {
       setIsUploading(false);
     }
@@ -180,11 +222,15 @@ const ProfilePage = () => {
         {/* Banner */}
         <div className="relative h-64 bg-white/5 group">
           {user.banner ? (
-            <img 
-              src={user.banner} 
-              alt="Banner" 
-              className="w-full h-full object-cover"
-            />
+            <>
+              <img 
+                src={user.banner} 
+                alt="Banner" 
+                className="w-full h-full object-cover object-center"
+              />
+              {/* Dimming overlay */}
+              <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/60"></div>
+            </>
           ) : (
             <div className="w-full h-full flex items-center justify-center text-white/20">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -192,13 +238,20 @@ const ProfilePage = () => {
               </svg>
             </div>
           )}
-          <button
-            onClick={() => bannerInputRef.current.click()}
-            className="absolute top-4 right-4 px-3 py-1.5 bg-black/70 text-white text-sm border border-white/20 hover:bg-black/90 transition-all opacity-0 group-hover:opacity-100"
-            disabled={isUploading}
-          >
-            {isUploading ? 'Uploading...' : 'Change Banner'}
-          </button>
+          <div className="absolute bottom-4 right-4 z-10 group/button">
+            <button
+              onClick={() => bannerInputRef.current.click()}
+              className="px-3 py-1.5 bg-black/70 text-white text-sm border border-white/20 hover:bg-black/90 transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm"
+              disabled={isUploading}
+            >
+              {isUploading ? 'Uploading...' : 'Change Banner'}
+            </button>
+            {/* Resolution warning tooltip */}
+            <div className="absolute top-full right-0 mt-2 w-64 px-3 py-2 bg-black/95 border border-amber-500/30 text-xs text-white/80 opacity-0 group-hover/button:opacity-100 pointer-events-none transition-opacity backdrop-blur-sm">
+              <p className="font-medium text-amber-500 mb-1">💡 Recommended:</p>
+              <p>Use a high-quality image with at least 1500x500px resolution for best results.</p>
+            </div>
+          </div>
           <input
             ref={bannerInputRef}
             type="file"
@@ -210,11 +263,11 @@ const ProfilePage = () => {
 
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Profile Header */}
-          <div className="relative -mt-16 mb-8">
+          <div className="relative -mt-16 mb-8 z-10">
             <div className="flex items-end gap-6">
               {/* Avatar */}
-              <div className="relative group">
-                <div className="w-32 h-32 bg-white/5 border-4 border-black overflow-hidden">
+              <div className="relative group z-20">
+                <div className="w-32 h-32 bg-white/5 border-4 border-black overflow-hidden shadow-xl">
                   {user.avatar ? (
                     <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
                   ) : (
@@ -225,7 +278,7 @@ const ProfilePage = () => {
                 </div>
                 <button
                   onClick={() => avatarInputRef.current.click()}
-                  className="absolute inset-0 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+                  className="absolute inset-0 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs backdrop-blur-sm"
                   disabled={isUploading}
                 >
                   Change
