@@ -67,6 +67,15 @@ const userSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  // Social - Following/Followers
+  following: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  followers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   stats: {
     filmsWatched: {
       type: Number,
@@ -107,6 +116,11 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ email: 1 });
 userSchema.index({ username: 1 });
 userSchema.index({ createdAt: -1 });
+// Index for user search
+userSchema.index({ username: 'text', displayName: 'text' });
+// Index for followers/following
+userSchema.index({ followers: 1 });
+userSchema.index({ following: 1 });
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {
@@ -142,6 +156,11 @@ userSchema.methods.toPublicProfile = function() {
     avatar: this.avatar,
     bio: this.bio,
     favoriteGenres: this.favoriteGenres,
+    stats: {
+      ...this.stats,
+      followersCount: this.followers?.length || 0,
+      followingCount: this.following?.length || 0
+    },
     createdAt: this.createdAt
   };
 };
@@ -160,7 +179,13 @@ userSchema.methods.toPrivateProfile = function() {
     favoriteFilms: this.favoriteFilms,
     watchlist: this.watchlist,
     watchedFilms: this.watchedFilms,
-    stats: this.stats,
+    following: this.following,
+    followers: this.followers,
+    stats: {
+      ...this.stats,
+      followersCount: this.followers?.length || 0,
+      followingCount: this.following?.length || 0
+    },
     isVerified: this.isVerified,
     isAdmin: this.isAdmin,
     lastLogin: this.lastLogin,

@@ -7,7 +7,7 @@ import API_BASE_URL from '../config/api.js';
 
 const ProfilePage = () => {
   const navigate = useNavigate();
-  const { user, logout, updateProfile, loading, isAuthenticated, refreshUser, removeFromFavorites } = useUser();
+  const { user, logout, updateProfile, loading, isAuthenticated, refreshUser, removeFromFavorites, followUser, unfollowUser, isFollowing: checkIsFollowing } = useUser();
   
   const [activeTab, setActiveTab] = useState('activity');
   const [activities, setActivities] = useState([]);
@@ -18,6 +18,14 @@ const ProfilePage = () => {
   const [bio, setBio] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [removingFavorite, setRemovingFavorite] = useState(null);
+  
+  // Social modal state
+  const [showFollowersModal, setShowFollowersModal] = useState(false);
+  const [showFollowingModal, setShowFollowingModal] = useState(false);
+  const [followers, setFollowers] = useState([]);
+  const [following, setFollowing] = useState([]);
+  const [loadingSocial, setLoadingSocial] = useState(false);
+  const [followActionLoading, setFollowActionLoading] = useState({});
   
   const avatarInputRef = useRef(null);
   const bannerInputRef = useRef(null);
@@ -103,6 +111,98 @@ const ProfilePage = () => {
       }
     } catch (error) {
       console.error('Failed to load user reviews:', error);
+    }
+  };
+
+  const loadFollowers = async () => {
+    if (!user) return;
+    setLoadingSocial(true);
+    try {
+      const userId = user.id || user._id;
+      console.log('Loading followers for user:', userId);
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/followers`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Followers loaded:', data.length);
+        setFollowers(data);
+      } else {
+        console.error('Failed to fetch followers:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to load followers:', error);
+    } finally {
+      setLoadingSocial(false);
+    }
+  };
+
+  const loadFollowing = async () => {
+    if (!user) return;
+    setLoadingSocial(true);
+    try {
+      const userId = user.id || user._id;
+      console.log('Loading following for user:', userId);
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/following`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Following loaded:', data.length);
+        setFollowing(data);
+      } else {
+        console.error('Failed to fetch following:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to load following:', error);
+    } finally {
+      setLoadingSocial(false);
+    }
+  };
+
+  const handleShowFollowers = async () => {
+    setShowFollowersModal(true);
+    await loadFollowers();
+  };
+
+  const handleShowFollowing = async () => {
+    setShowFollowingModal(true);
+    await loadFollowing();
+  };
+
+  const handleFollowAction = async (userId, currentlyFollowing) => {
+    setFollowActionLoading(prev => ({ ...prev, [userId]: true }));
+    
+    try {
+      const result = currentlyFollowing 
+        ? await unfollowUser(userId)
+        : await followUser(userId);
+      
+      if (result.success) {
+        // Update local lists
+        setFollowers(prev => prev.map(u => 
+          u.id === userId ? { ...u, isFollowing: !currentlyFollowing } : u
+        ));
+        
+        // If unfollowing, remove from following list
+        if (currentlyFollowing) {
+          setFollowing(prev => prev.filter(u => u.id !== userId));
+        }
+        
+        // Refresh user data to update counts
+        await refreshUser();
+        
+        // Reload the following list if the modal is open and we just followed someone
+        if (!currentlyFollowing && showFollowingModal) {
+          await loadFollowing();
+        }
+      } else {
+        alert(result.error);
+      }
+    } catch (error) {
+      console.error('Follow action error:', error);
+    } finally {
+      setFollowActionLoading(prev => ({ ...prev, [userId]: false }));
     }
   };
 
@@ -347,10 +447,20 @@ const ProfilePage = () => {
                     <span className="text-white font-medium">{user.stats?.reviewsWritten || 0}</span>
                     <span className="text-white/50 ml-1">Reviews</span>
                   </div>
-                  <div>
-                    <span className="text-white font-medium">{user.watchlist?.length || 0}</span>
-                    <span className="text-white/50 ml-1">Watchlist</span>
-                  </div>
+                  <button
+                    onClick={handleShowFollowers}
+                    className="hover:text-white transition-colors cursor-pointer"
+                  >
+                    <span className="text-white font-medium">{user.stats?.followersCount || 0}</span>
+                    <span className="text-white/50 ml-1">Followers</span>
+                  </button>
+                  <button
+                    onClick={handleShowFollowing}
+                    className="hover:text-white transition-colors cursor-pointer"
+                  >
+                    <span className="text-white font-medium">{user.stats?.followingCount || 0}</span>
+                    <span className="text-white/50 ml-1">Following</span>
+                  </button>
                 </div>
               </div>
 
@@ -842,6 +952,126 @@ const ProfilePage = () => {
       </main>
 
       <Footer />
+
+      {/* Followers Modal */}
+      {showFollowersModal && (
+        <SocialModal
+          title="Followers"
+          users={followers}
+          loading={loadingSocial}
+          onClose={() => setShowFollowersModal(false)}
+          onFollowAction={handleFollowAction}
+          followActionLoading={followActionLoading}
+          currentUserId={user.id}
+        />
+      )}
+
+      {/* Following Modal */}
+      {showFollowingModal && (
+        <SocialModal
+          title="Following"
+          users={following}
+          loading={loadingSocial}
+          onClose={() => setShowFollowingModal(false)}
+          onFollowAction={handleFollowAction}
+          followActionLoading={followActionLoading}
+          currentUserId={user.id}
+        />
+      )}
+    </div>
+  );
+};
+
+// Social Modal Component
+const SocialModal = ({ title, users, loading, onClose, onFollowAction, followActionLoading, currentUserId }) => {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+        onClick={onClose}
+      ></div>
+      
+      {/* Modal */}
+      <div className="relative bg-black border border-white/20 rounded-lg w-full max-w-md max-h-[80vh] flex flex-col mx-4">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <h2 className="text-lg font-medium text-white">{title}</h2>
+          <button
+            onClick={onClose}
+            className="text-white/60 hover:text-white transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+            </div>
+          ) : users.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-white/40">No {title.toLowerCase()} yet</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {users.map((user) => (
+                <div key={user.id} className="flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded transition-colors">
+                  {/* Avatar */}
+                  <Link 
+                    to={`/profile/${user.username}`}
+                    onClick={onClose}
+                    className="flex-shrink-0"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-white/10 overflow-hidden">
+                      {user.avatar ? (
+                        <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-lg font-light text-white/40">
+                          {user.displayName?.charAt(0).toUpperCase() || user.username?.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+
+                  {/* User Info */}
+                  <div className="flex-1 min-w-0">
+                    <Link 
+                      to={`/profile/${user.username}`}
+                      onClick={onClose}
+                      className="block group"
+                    >
+                      <p className="text-white font-medium group-hover:text-amber-500 transition-colors truncate">
+                        {user.displayName || user.username}
+                      </p>
+                    </Link>
+                    <p className="text-white/50 text-sm truncate">@{user.username}</p>
+                  </div>
+
+                  {/* Follow Button */}
+                  {user.id !== currentUserId && (
+                    <button
+                      onClick={() => onFollowAction(user.id, user.isFollowing)}
+                      disabled={followActionLoading[user.id]}
+                      className={`px-4 py-1.5 text-sm font-medium rounded transition-all ${
+                        user.isFollowing
+                          ? 'bg-white/10 border border-white/20 text-white hover:bg-white/5'
+                          : 'bg-amber-500 text-black hover:bg-amber-600'
+                      } ${followActionLoading[user.id] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      {followActionLoading[user.id] ? '...' : user.isFollowing ? 'Following' : 'Follow'}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

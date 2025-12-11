@@ -15,6 +15,7 @@ const AdminLogin = lazy(() => import('./pages/AdminLogin'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const PeoplePage = lazy(() => import('./pages/PeoplePage'))
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -48,6 +49,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/people" element={<PeoplePage />} />
           
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminLogin />} />

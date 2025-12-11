@@ -284,6 +284,70 @@ export const UserProvider = ({ children }) => {
     return user.favoriteFilms.some(id => id === movieId || id._id === movieId);
   };
 
+  // Follow a user
+  const followUser = async (userId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/follow/${userId}`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to follow user');
+      }
+
+      // Update local user state
+      setUser(prev => prev ? { 
+        ...prev, 
+        following: data.following,
+        stats: {
+          ...prev.stats,
+          followingCount: data.followingCount
+        }
+      } : null);
+      return { success: true, message: data.message };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  // Unfollow a user
+  const unfollowUser = async (userId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/follow/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to unfollow user');
+      }
+
+      // Update local user state
+      setUser(prev => prev ? { 
+        ...prev, 
+        following: data.following,
+        stats: {
+          ...prev.stats,
+          followingCount: data.followingCount
+        }
+      } : null);
+      return { success: true, message: data.message };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  // Check if following a user
+  const isFollowing = (userId) => {
+    if (!user || !user.following) return false;
+    return user.following.some(id => id === userId || id._id === userId);
+  };
+
   const value = {
     user,
     loading,
@@ -300,6 +364,9 @@ export const UserProvider = ({ children }) => {
     addToFavorites,
     removeFromFavorites,
     isInFavorites,
+    followUser,
+    unfollowUser,
+    isFollowing,
     refreshUser: checkAuth
   };
 

@@ -607,5 +607,203 @@ userRoutes.get('/activity/:username', async (req, res) => {
   }
 });
 
+// ==================== SOCIAL - FOLLOW/UNFOLLOW ====================
+
+// Search users by username or displayName
+userRoutes.get('/search', authMiddleware, async (req, res) => {
+  try {
+    const { q } = req.query;
+    
+    if (!q || q.trim().length < 2) {
+      return res.status(400).json({ message: 'Search query must be at least 2 characters' });
+    }
+
+    const users = await User.find({
+      $and: [
+        { _id: { $ne: req.user.id } }, // Exclude current user
+        {
+          $or: [
+            { username: { $regex: q, $options: 'i' } },
+            { displayName: { $regex: q, $options: 'i' } }
+          ]
+        }
+      ]
+    })
+    .select('username displayName avatar bio stats followers following')
+    .limit(20);
+
+    const usersWithStats = users.map(user => ({
+      ...user.toPublicProfile(),
+      isFollowing: user.followers.includes(req.user.id)
+    }));
+
+    res.json(usersWithStats);
+  } catch (error) {
+    logger.error('Search users error:', { error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Failed to search users' });
+  }
+});
+
+// Get suggested users (users with similar taste)
+userRoutes.get('/suggested', authMiddleware, async (req, res) => {
+  try {
+    const currentUser = await User.findById(req.user.id);
+    
+    if (!currentUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Find users with similar favorite films or genres
+    const suggested = await User.find({
+      $and: [
+        { _id: { $ne: req.user.id } }, // Exclude current user
+        { _id: { $nin: currentUser.following } }, // Exclude already following
+        {
+          $or: [
+            { favoriteFilms: { $in: currentUser.favoriteFilms } },
+            { favoriteGenres: { $in: currentUser.favoriteGenres } }
+          ]
+        }
+      ]
+    })
+    .select('username displayName avatar bio stats followers following favoriteFilms')
+    .limit(10);
+
+    const suggestedWithStats = suggested.map(user => user.toPublicProfile());
+
+    res.json(suggestedWithStats);
+  } catch (error) {
+    logger.error('Get suggested users error:', { error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Failed to get suggested users' });
+  }
+});
+
+// Follow a user
+userRoutes.post('/follow/:userId', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (userId === req.user.id) {
+      return res.status(400).json({ message: 'You cannot follow yourself' });
+    }
+
+    const [currentUser, targetUser] = await Promise.all([
+      User.findById(req.user.id),
+      User.findById(userId)
+    ]);
+
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if already following
+    if (currentUser.following.includes(userId)) {
+      return res.status(400).json({ message: 'Already following this user' });
+    }
+
+    // Add to following/followers
+    currentUser.following.push(userId);
+    targetUser.followers.push(req.user.id);
+
+    await Promise.all([
+      currentUser.save(),
+      targetUser.save()
+    ]);
+
+    res.json({ 
+      message: 'Successfully followed user',
+      following: currentUser.following,
+      followingCount: currentUser.following.length
+    });
+  } catch (error) {
+    logger.error('Follow user error:', { error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Failed to follow user' });
+  }
+});
+
+// Unfollow a user
+userRoutes.delete('/follow/:userId', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const [currentUser, targetUser] = await Promise.all([
+      User.findById(req.user.id),
+      User.findById(userId)
+    ]);
+
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Remove from following/followers
+    currentUser.following = currentUser.following.filter(id => id.toString() !== userId);
+    targetUser.followers = targetUser.followers.filter(id => id.toString() !== req.user.id);
+
+    await Promise.all([
+      currentUser.save(),
+      targetUser.save()
+    ]);
+
+    res.json({ 
+      message: 'Successfully unfollowed user',
+      following: currentUser.following,
+      followingCount: currentUser.following.length
+    });
+  } catch (error) {
+    logger.error('Unfollow user error:', { error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Failed to unfollow user' });
+  }
+});
+
+// Get user's followers
+userRoutes.get('/:userId/followers', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId)
+      .populate({
+        path: 'followers',
+        select: 'username displayName avatar bio stats followers following'
+      });
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const followersWithStats = user.followers.map(follower => ({
+      ...follower.toPublicProfile(),
+      isFollowing: follower.followers.some(id => id.toString() === req.user.id)
+    }));
+
+    res.json(followersWithStats);
+  } catch (error) {
+    logger.error('Get followers error:', { error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Failed to get followers' });
+  }
+});
+
+// Get user's following
+userRoutes.get('/:userId/following', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId)
+      .populate({
+        path: 'following',
+        select: 'username displayName avatar bio stats followers following'
+      });
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const followingWithStats = user.following.map(followedUser => ({
+      ...followedUser.toPublicProfile(),
+      isFollowing: followedUser.followers.some(id => id.toString() === req.user.id)
+    }));
+
+    res.json(followingWithStats);
+  } catch (error) {
+    logger.error('Get following error:', { error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Failed to get following' });
+  }
+});
+
 export default userRoutes;
 
