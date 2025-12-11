@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
 import NavBar from '../components/NavBar'
 import API_BASE_URL from '../../config/api.js'
@@ -13,6 +13,7 @@ import { useUser } from '../context/UserContext'
 const VideoPlayerPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, isAuthenticated, addToFavorites, removeFromFavorites, isInFavorites: checkIsInFavorites } = useUser();
   const [movie, setMovie] = useState(null);
   const [relatedMovies, setRelatedMovies] = useState([]);
@@ -421,6 +422,16 @@ const VideoPlayerPage = () => {
 
   const handleLoadedMetadata = (e) => {
     setDuration(e.target.duration);
+    
+    // Check for resume timestamp in URL
+    const resumeTime = searchParams.get('t');
+    if (resumeTime && !isNaN(resumeTime) && videoRef.current) {
+      const timeInSeconds = parseInt(resumeTime, 10);
+      if (timeInSeconds > 0 && timeInSeconds < e.target.duration) {
+        videoRef.current.currentTime = timeInSeconds;
+        setCurrentTime(timeInSeconds);
+      }
+    }
   };
 
   // Fixed seek function with better accuracy

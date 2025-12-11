@@ -8,6 +8,7 @@ import slowDown from 'express-slow-down';
 import { clearCache } from '../config/cache.js';
 import { validateReview, validateReviewDelete } from '../middleware/validation.middleware.js';
 import { optionalAuthMiddleware } from '../middleware/auth.middleware.js';
+import { generateCloudfrontSignedUrl } from '../config/s3.js';
 import logger from '../config/logger.js';
 
 const reviewRouter = express.Router();
@@ -95,6 +96,36 @@ reviewRouter.get('/movie/:movieId', async (req, res) => {
   }
 });
 
+/* get reviews by current user (based on their IP) */
+reviewRouter.get('/user/my-reviews', async (req, res) => {
+  try {
+    const deviceId = getClientIp(req);
+    const reviews = await Review.find({ deviceId })
+                                .populate('movieId', 'title posterUrl posterKey director releaseDate')
+                                .sort({ createdAt: -1 });
+    
+    // Generate signed URLs for posters
+    const reviewsWithUrls = await Promise.all(
+      reviews.map(async (review) => {
+        const reviewObj = review.toObject();
+        if (reviewObj.movieId && reviewObj.movieId.posterKey) {
+          try {
+            reviewObj.movieId.posterUrl = await generateCloudfrontSignedUrl(reviewObj.movieId.posterKey);
+          } catch (error) {
+            logger.error('Error generating poster URL for review:', { error: error.message });
+          }
+        }
+        return reviewObj;
+      })
+    );
+    
+    res.json(reviewsWithUrls);
+  } catch (error) {
+    logger.error('Error fetching user reviews:', { error: error.message });
+    res.status(500).json({ message: 'Failed to fetch reviews' });
+  }
+});
+
 /* create or update the single review for this device */
 reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, optionalAuthMiddleware, validateReview, async (req, res) => {
   try {
@@ -125,7 +156,7 @@ reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, optionalAuthMiddleware
         logger.info('Activity created for review', { userId: req.user.id, movieId, reviewId: review._id });
       } catch (activityError) {
         // Don't fail the review creation if activity fails
-        logger.error('Failed to create activity for review:', { error: activityError.message });
+        logger.error('Failed to create activity for review:', { error: activityError.message });  
       }
     }
 

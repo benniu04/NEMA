@@ -13,6 +13,7 @@ const ProfilePage = () => {
   const [activities, setActivities] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [watchHistory, setWatchHistory] = useState([]);
+  const [userReviews, setUserReviews] = useState([]);
   const [isEditingBio, setIsEditingBio] = useState(false);
   const [bio, setBio] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -35,6 +36,7 @@ const ProfilePage = () => {
       loadActivities();
       loadFavorites();
       loadWatchHistory();
+      loadUserReviews();
     }
   }, [user]);
 
@@ -87,6 +89,20 @@ const ProfilePage = () => {
       }
     } catch (error) {
       console.error('Failed to load watch history:', error);
+    }
+  };
+
+  const loadUserReviews = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/reviews/user/my-reviews`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUserReviews(data);
+      }
+    } catch (error) {
+      console.error('Failed to load user reviews:', error);
     }
   };
 
@@ -411,54 +427,65 @@ const ProfilePage = () => {
                   <p className="text-white/20 text-sm">Add up to 5 films to showcase your favorites</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-5 gap-3">
+                <div className="grid grid-cols-5 gap-4">
                   {favorites.slice(0, 5).map((movie) => (
-                    <div key={movie._id} className="relative group">
-                      <Link 
-                        to={`/video/${movie._id}`}
-                        className="block"
-                      >
-                        <div className="aspect-[2/3] bg-white/5 overflow-hidden relative">
-                          {movie.posterUrl ? (
-                            <img 
-                              src={movie.posterUrl} 
-                              alt={movie.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            />
+                    <div 
+                      key={movie._id} 
+                      className="relative group cursor-pointer"
+                    >
+                      {/* Container with lift effect */}
+                      <div className="transform transition-all duration-300 ease-out group-hover:-translate-y-2">
+                        <Link 
+                          to={`/video/${movie._id}`}
+                          className="block relative"
+                        >
+                          {/* Border glow effect */}
+                          <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 via-amber-500 to-amber-500 rounded opacity-0 group-hover:opacity-75 blur transition-all duration-500"></div>
+                          
+                          {/* Main poster container */}
+                          <div className="relative aspect-[2/3] bg-white/5 overflow-hidden rounded shadow-lg group-hover:shadow-2xl group-hover:shadow-rose-500/20 transition-all duration-300">
+                            {movie.posterUrl ? (
+                              <img 
+                                src={movie.posterUrl} 
+                                alt={movie.title}
+                                className="w-full h-full object-cover transition-all duration-500 ease-out group-hover:scale-110"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-white/20">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                                </svg>
+                              </div>
+                            )}
+                            
+                            {/* Subtle gradient overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                          </div>
+                        </Link>
+                        
+                        {/* Remove button - slides in from right */}
+                        <button
+                          onClick={(e) => handleRemoveFavorite(movie._id, movie.title, e)}
+                          disabled={removingFavorite === movie._id}
+                          className="absolute top-2 right-2 p-2 bg-amber-500/90 backdrop-blur-sm hover:bg-amber-600 text-white rounded-full shadow-lg transform translate-x-10 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 ease-out hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed z-20"
+                          title="Remove from favorites"
+                        >
+                          {removingFavorite === movie._id ? (
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-white/20">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
-                              </svg>
-                            </div>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
                           )}
-                          {/* Dark overlay on hover */}
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
-                        </div>
-                      </Link>
-                      
-                      {/* Remove button */}
-                      <button
-                        onClick={(e) => handleRemoveFavorite(movie._id, movie.title, e)}
-                        disabled={removingFavorite === movie._id}
-                        className="absolute top-2 right-2 p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed z-10"
-                        title="Remove from favorites"
-                      >
-                        {removingFavorite === movie._id ? (
-                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                        ) : (
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        )}
-                      </button>
+                        </button>
 
-                      {/* Movie title on hover */}
-                      <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black via-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <p className="text-white text-xs font-medium truncate">{movie.title}</p>
+                        {/* Movie title - slides up from bottom */}
+                        <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black via-black/95 to-transparent transform translate-y-full group-hover:translate-y-0 transition-all duration-300 ease-out rounded-b z-10">
+                          <p className="text-white text-sm font-medium truncate">{movie.title}</p>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -470,7 +497,7 @@ const ProfilePage = () => {
           {/* Tabs */}
           <div className="border-b border-white/10 mb-8">
             <div className="flex gap-8">
-              {['activity', 'films', 'watchlist'].map((tab) => (
+              {['activity', 'films', 'reviews', 'watchlist'].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -481,6 +508,11 @@ const ProfilePage = () => {
                   }`}
                 >
                   {tab}
+                  {tab === 'reviews' && userReviews.length > 0 && (
+                    <span className="ml-2 px-1.5 py-0.5 bg-white/10 text-white/60 text-xs rounded">
+                      {userReviews.length}
+                    </span>
+                  )}
                   {activeTab === tab && (
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white"></div>
                   )}
@@ -543,75 +575,217 @@ const ProfilePage = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {watchHistory.map((session) => (
-                    <Link
-                      key={session._id}
-                      to={`/video/${session.movieId._id}`}
-                      className="flex gap-4 p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all group"
-                    >
-                      {/* Poster */}
-                      <div className="w-20 h-28 flex-shrink-0 bg-white/5 overflow-hidden">
-                        {session.movieId.posterUrl ? (
-                          <img 
-                            src={session.movieId.posterUrl} 
-                            alt={session.movieId.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white/20">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                  {watchHistory.map((session) => {
+                    // Calculate display percentage - show 100% if completed
+                    const displayPercentage = session.completed ? 100 : Math.round(session.completionPercentage);
+                    // Calculate resume timestamp (convert percentage to seconds)
+                    const resumeTime = session.maxTimeReached || (session.videoDuration * (session.completionPercentage / 100));
+                    
+                    return (
+                      <div
+                        key={session._id}
+                        className="flex gap-4 p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all group relative"
+                      >
+                        {/* Resume badge */}
+                        {!session.completed && session.completionPercentage > 5 && (
+                          <div className="absolute top-2 left-2 px-2 py-1 bg-amber-500 text-black text-xs font-medium rounded flex items-center gap-1 z-10">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
                             </svg>
+                            Resume
                           </div>
                         )}
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-white font-medium mb-1 group-hover:text-amber-500 transition-colors truncate">
-                          {session.movieId.title}
-                        </h3>
-                        <p className="text-white/50 text-sm mb-3">
-                          {session.movieId.director} • {new Date(session.movieId.releaseDate).getFullYear()}
-                        </p>
                         
-                        {/* Progress Bar */}
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-xs text-white/50">
-                            <span>{session.completed ? 'Completed' : 'In Progress'}</span>
-                            <span>{Math.round(session.completionPercentage)}%</span>
-                          </div>
-                          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full transition-all ${
-                                session.completed ? 'bg-green-500' : 'bg-amber-500'
-                              }`}
-                              style={{ width: `${session.completionPercentage}%` }}
+                        {/* Poster - Clickable */}
+                        <Link 
+                          to={`/video/${session.movieId._id}${!session.completed && resumeTime > 0 ? `?t=${Math.floor(resumeTime)}` : ''}`}
+                          className="w-20 h-28 flex-shrink-0 bg-white/5 overflow-hidden relative block"
+                        >
+                          {session.movieId.posterUrl ? (
+                            <img 
+                              src={session.movieId.posterUrl} 
+                              alt={session.movieId.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-white/20">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                              </svg>
+                            </div>
+                          )}
+                        </Link>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <Link 
+                            to={`/video/${session.movieId._id}${!session.completed && resumeTime > 0 ? `?t=${Math.floor(resumeTime)}` : ''}`}
+                            className="block"
+                          >
+                            <h3 className="text-white font-medium mb-1 group-hover:text-amber-500 transition-colors truncate">
+                              {session.movieId.title}
+                            </h3>
+                          </Link>
+                          <p className="text-white/50 text-sm mb-3">
+                            {session.movieId.director} • {new Date(session.movieId.releaseDate).getFullYear()}
+                          </p>
+                          
+                          {/* Progress Bar */}
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs text-white/50">
+                              <span>{session.completed ? 'Completed' : `${displayPercentage}% watched`}</span>
+                              <span>{displayPercentage}%</span>
+                            </div>
+                            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full transition-all ${
+                                  session.completed ? 'bg-green-500' : 'bg-amber-500'
+                                }`}
+                                style={{ width: `${displayPercentage}%` }}
+                              />
+                            </div>
                           </div>
+
+                          {/* Last watched */}
+                          <p className="text-white/40 text-xs mt-2">
+                            Last watched {new Date(session.lastUpdatedAt).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </p>
                         </div>
 
-                        {/* Last watched */}
-                        <p className="text-white/40 text-xs mt-2">
-                          Last watched {new Date(session.lastUpdatedAt).toLocaleDateString('en-US', { 
-                            month: 'short', 
-                            day: 'numeric',
-                            year: 'numeric'
-                          })}
-                        </p>
+                        {/* Action buttons */}
+                        <div className="flex-shrink-0 flex flex-col items-end gap-2">
+                          {session.completed ? (
+                            <>
+                              {/* Completion badge */}
+                              <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                              
+                              {/* Rewatch button */}
+                              <Link
+                                to={`/video/${session.movieId._id}?t=0`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/20 hover:border-white/40 text-white/70 hover:text-white text-xs font-medium rounded transition-all flex items-center gap-1.5 opacity-0 group-hover:opacity-100"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                Rewatch
+                              </Link>
+                            </>
+                          ) : (
+                            <div className="text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
                       </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
-                      {/* Completion badge */}
-                      {session.completed && (
-                        <div className="flex-shrink-0 flex items-center">
-                          <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-                            <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
+          {activeTab === 'reviews' && (
+            <div className="pb-12">
+              {userReviews.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-white/30 mb-4">No reviews written yet</p>
+                  <Link 
+                    to="/catalog"
+                    className="inline-block px-6 py-2 bg-white text-black hover:bg-white/90 transition-colors"
+                  >
+                    Browse Films to Review
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {userReviews.map((review) => (
+                    <div
+                      key={review._id}
+                      className="bg-white/5 border border-white/10 hover:border-white/20 transition-all p-6 rounded"
+                    >
+                      <div className="flex gap-4">
+                        {/* Poster */}
+                        <Link 
+                          to={`/video/${review.movieId._id}`}
+                          className="flex-shrink-0 group"
+                        >
+                          <div className="w-24 h-36 bg-white/5 overflow-hidden rounded">
+                            {review.movieId.posterUrl ? (
+                              <img 
+                                src={review.movieId.posterUrl} 
+                                alt={review.movieId.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-white/20">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                        </Link>
+
+                        {/* Review Content */}
+                        <div className="flex-1 min-w-0">
+                          {/* Movie Title & Rating */}
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <Link 
+                                to={`/video/${review.movieId._id}`}
+                                className="text-white font-medium text-lg hover:text-amber-500 transition-colors inline-block"
+                              >
+                                {review.movieId.title}
+                              </Link>
+                              <p className="text-white/50 text-sm mt-1">
+                                {review.movieId.director} • {new Date(review.movieId.releaseDate).getFullYear()}
+                              </p>
+                            </div>
+                            
+                            {/* Rating Badge */}
+                            <div className="flex items-center gap-2 bg-amber-500/20 border border-amber-500/40 px-3 py-1.5 rounded">
+                              <svg className="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                              </svg>
+                              <span className="text-amber-500 font-bold text-lg">{review.rating}</span>
+                              <span className="text-white/40 text-sm">/10</span>
+                            </div>
+                          </div>
+
+                          {/* Review Text */}
+                          {review.comment && (
+                            <p className="text-white/70 leading-relaxed mb-3 whitespace-pre-wrap">
+                              {review.comment}
+                            </p>
+                          )}
+
+                          {/* Review Meta */}
+                          <div className="flex items-center gap-4 text-xs text-white/40">
+                            <span>
+                              Reviewed {new Date(review.createdAt).toLocaleDateString('en-US', { 
+                                month: 'long', 
+                                day: 'numeric',
+                                year: 'numeric'
+                              })}
+                            </span>
+                            {review.nickname && review.nickname !== 'Anonymous' && (
+                              <span>by {review.nickname}</span>
+                            )}
                           </div>
                         </div>
-                      )}
-                    </Link>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
