@@ -52,14 +52,18 @@ watchTimeRouter.post('/track', watchTimeLimiter, optionalAuthMiddleware, async (
     
     if (!watchTime) {
       // New session - check if user has watched this before (for rewatch tracking)
-      const previousWatch = await WatchTime.findOne({ 
-        movieId, 
-        deviceId,
-        completed: true 
-      }).sort({ createdAt: -1 });
+      const previousWatchQuery = { movieId, completed: true };
+      if (req.user) {
+        previousWatchQuery.userId = req.user.id;
+      } else {
+        previousWatchQuery.deviceId = deviceId;
+      }
+      
+      const previousWatch = await WatchTime.findOne(previousWatchQuery).sort({ createdAt: -1 });
 
       watchTime = new WatchTime({
         movieId,
+        userId: req.user ? req.user.id : null,
         deviceId,
         sessionId,
         videoDuration,
@@ -148,10 +152,14 @@ watchTimeRouter.post('/end', watchTimeLimiter, async (req, res) => {
 // Get watch history for a device (user's watch history)
 watchTimeRouter.get('/history', optionalAuthMiddleware, async (req, res) => {
   try {
-    const deviceId = getClientIp(req);
     const limit = parseInt(req.query.limit) || 20;
 
-    const watchHistory = await WatchTime.find({ deviceId })
+    // If user is authenticated, filter by userId, otherwise by deviceId
+    const query = req.user 
+      ? { userId: req.user.id }
+      : { deviceId: getClientIp(req) };
+
+    const watchHistory = await WatchTime.find(query)
       .populate('movieId', 'title director posterKey posterUrl thumbnailKey releaseDate')
       .sort({ lastUpdatedAt: -1 })
       .limit(limit);

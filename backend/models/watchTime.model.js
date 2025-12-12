@@ -7,6 +7,12 @@ const watchTimeSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true
+  },
   deviceId: {
     type: String,
     required: true,
@@ -72,13 +78,15 @@ const watchTimeSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Compound indexes for efficient queries
-// 1. Get watch time for a specific movie and device
+// 1. Get watch time for a specific movie and user/device
+watchTimeSchema.index({ movieId: 1, userId: 1 });
 watchTimeSchema.index({ movieId: 1, deviceId: 1 });
 
 // 2. Get all watch sessions for a movie (for analytics)
 watchTimeSchema.index({ movieId: 1, createdAt: -1 });
 
-// 3. Get user's watch history
+// 3. Get user's watch history (by userId or deviceId)
+watchTimeSchema.index({ userId: 1, createdAt: -1 });
 watchTimeSchema.index({ deviceId: 1, createdAt: -1 });
 
 // 4. Get completed watches
