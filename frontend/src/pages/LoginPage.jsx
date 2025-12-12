@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import GoogleOAuth from '../components/GoogleOAuth';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isAuthenticated, loading } = useUser();
+  const { login, isAuthenticated, loading, refreshUser } = useUser();
   
   const [formData, setFormData] = useState({
     login: '',
@@ -53,6 +54,16 @@ const LoginPage = () => {
     }
     
     setIsSubmitting(false);
+  };
+
+  const handleGoogleSuccess = async (user) => {
+    // Refresh user context to get full user data
+    await refreshUser();
+    navigate(from, { replace: true });
+  };
+
+  const handleGoogleError = (errorMessage) => {
+    setError(errorMessage);
   };
 
   if (loading) {
@@ -121,6 +132,22 @@ const LoginPage = () => {
               {isSubmitting ? 'SIGNING IN...' : 'SIGN IN'}
             </button>
           </form>
+
+          {/* Divider */}
+          <div className="relative my-8">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/10"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 text-white/40 bg-white/[0.02]">OR</span>
+            </div>
+          </div>
+
+          {/* Google OAuth */}
+          <GoogleOAuth 
+            onSuccess={handleGoogleSuccess}
+            onError={handleGoogleError}
+          />
 
           <div className="mt-8 text-center">
             <p className="text-white/40 text-sm">

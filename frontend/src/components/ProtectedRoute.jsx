@@ -1,55 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Navigate } from 'react-router-dom';
-import API_BASE_URL from '../config/api.js';
+import { useUser } from '../context/UserContext';
 
-const ProtectedRoute = ({ children }) => {
-  const [authStatus, setAuthStatus] = useState('checking');
+/**
+ * Protected Route Component
+ * Redirects to login if user is not authenticated
+ * Works with your existing UserContext
+ */
+const ProtectedRoute = ({ children, redirectTo = '/login' }) => {
+  const { user, loading } = useUser();
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-          credentials: 'include'
-        });
-        
-        if (response.ok) {
-          const userData = await response.json();
-          if (userData.isAdmin) {
-            setAuthStatus('authenticated');
-            return;
-          }
-        }
-        
-        setAuthStatus('unauthenticated');
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        setAuthStatus('unauthenticated');
-      }
-    };
-
-    checkAuth();
-
-    // Check authentication periodically (every 5 minutes)
-    const interval = setInterval(checkAuth, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  if (authStatus === 'checking') {
+  if (loading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
-          <p>Checking authentication...</p>
+          <p className="text-amber-100/60">Loading...</p>
         </div>
       </div>
     );
   }
 
-  if (authStatus === 'unauthenticated') {
-    return <Navigate to="/admin/login" replace />;
+  // If not authenticated, redirect to login
+  if (!user) {
+    return <Navigate to={redirectTo} replace />;
   }
 
+  // User is authenticated, render children
   return children;
 };
 
-export default ProtectedRoute; 
+export default ProtectedRoute;

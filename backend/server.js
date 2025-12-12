@@ -99,9 +99,10 @@ const customSanitize = (req, res, next) => {
         } else if (typeof obj[key] === 'object') {
           sanitizeObject(obj[key], fullPath);
         } else if (typeof obj[key] === 'string') {
-          // Don't sanitize S3 keys, URLs, email addresses, or file-related fields
+          // Don't sanitize S3 keys, URLs, email addresses, tokens, or file-related fields
           const isFileOrUrl = 
             key === 'email' ||               // Email addresses need dots
+            key === 'firebaseToken' ||       // Firebase JWT tokens need dots
             key.includes('Url') ||           // posterUrl, thumbnailUrl, etc.
             key.includes('Key') ||           // posterKey, thumbnailKey, etc.  
             key === 'key' ||                 // S3 key field

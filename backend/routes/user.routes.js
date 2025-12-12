@@ -7,6 +7,7 @@ import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.middl
 import { validateUserRegister, validateUserLogin, validateUserUpdate } from '../middleware/validation.middleware.js';
 import { generateCloudfrontSignedUrl } from '../config/s3.js';
 import logger from '../config/logger.js';
+import { verifyFirebaseToken } from '../config/firebase-admin.js';
 
 const userRoutes = express.Router();
 
@@ -158,6 +159,108 @@ userRoutes.post('/login', validateUserLogin, async (req, res) => {
     securityLogger('USER_LOGIN_ERROR', { error: error.message }, req);
     logger.error('Login error:', { error: error.message, stack: error.stack });
     res.status(500).json({ message: 'Login failed. Please try again.' });
+  }
+});
+
+// ==================== FIREBASE OAUTH ====================
+
+// Firebase OAuth authentication
+userRoutes.post('/firebase-auth', async (req, res) => {
+  try {
+    const { firebaseToken, email, displayName, photoURL, uid } = req.body;
+
+    if (!firebaseToken) {
+      return res.status(400).json({ message: 'Firebase token is required' });
+    }
+
+    securityLogger('FIREBASE_AUTH_ATTEMPT', { email, uid }, req);
+
+    // Verify Firebase token
+    let decodedToken;
+    try {
+      decodedToken = await verifyFirebaseToken(firebaseToken);
+    } catch (error) {
+      logger.error('Firebase token verification failed:', { error: error.message });
+      securityLogger('FIREBASE_AUTH_FAILED', { error: error.message }, req);
+      return res.status(401).json({ message: 'Invalid Firebase token' });
+    }
+
+    // Check if user exists by Firebase UID or email
+    let user = await User.findOne({
+      $or: [
+        { firebaseUid: decodedToken.uid },
+        { email: decodedToken.email.toLowerCase() }
+      ]
+    });
+
+    if (user) {
+      // User exists - update Firebase UID if not set and update last login
+      if (!user.firebaseUid) {
+        user.firebaseUid = decodedToken.uid;
+        user.authProvider = 'google';
+      }
+      
+      // Update display name and avatar if provided from Google
+      if (displayName && displayName !== user.displayName) {
+        user.displayName = displayName;
+      }
+      if (photoURL && photoURL !== user.avatar) {
+        user.avatar = photoURL;
+      }
+      
+      user.lastLogin = new Date();
+      await user.save();
+      
+      securityLogger('FIREBASE_AUTH_SUCCESS', { userId: user._id, email: user.email }, req);
+    } else {
+      // Create new user from Firebase OAuth
+      // Generate unique username from email
+      const baseUsername = decodedToken.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
+      let username = baseUsername;
+      let counter = 1;
+      
+      // Ensure username is unique
+      while (await User.findOne({ username })) {
+        username = `${baseUsername}${counter}`;
+        counter++;
+      }
+
+      user = new User({
+        email: decodedToken.email.toLowerCase(),
+        username,
+        displayName: displayName || decodedToken.name || username,
+        avatar: photoURL || decodedToken.picture,
+        firebaseUid: decodedToken.uid,
+        authProvider: 'google',
+        isVerified: decodedToken.emailVerified,
+        lastLogin: new Date(),
+        password: undefined // No password for OAuth users
+      });
+
+      await user.save();
+      
+      securityLogger('FIREBASE_AUTH_NEW_USER', { userId: user._id, email: user.email }, req);
+    }
+
+    // Generate JWT token
+    const token = generateToken(user);
+
+    // Set cookie
+    res.cookie('userToken', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    res.json({
+      message: 'Authentication successful',
+      user: user.toPrivateProfile()
+    });
+  } catch (error) {
+    securityLogger('FIREBASE_AUTH_ERROR', { error: error.message }, req);
+    logger.error('Firebase auth error:', { error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Authentication failed. Please try again.' });
   }
 });
 

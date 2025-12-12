@@ -40,6 +40,13 @@ if (process.env.ADMIN_PASSWORD_HASH && !process.env.ADMIN_PASSWORD_HASH.startsWi
   process.exit(1);
 }
 
+// Helper function to remove quotes from environment variables
+const removeQuotes = (str) => {
+  if (!str) return str;
+  // Remove surrounding single or double quotes
+  return str.replace(/^['"]|['"]$/g, '');
+};
+
 export const ENV_VARS = {
     MONGO_URL: process.env.MONGO_URL,
     PORT: process.env.PORT || 5000,
@@ -56,4 +63,8 @@ export const ENV_VARS = {
     CLOUDFRONT_DOMAIN: process.env.CLOUDFRONT_DOMAIN,
     CLOUDFRONT_KEY_PAIR_ID: process.env.CLOUDFRONT_KEY_PAIR_ID,
     CLOUDFRONT_PRIVATE_KEY: process.env.CLOUDFRONT_PRIVATE_KEY,
+    // Firebase Admin SDK (Optional - for OAuth) - Remove quotes
+    FIREBASE_PROJECT_ID: removeQuotes(process.env.FIREBASE_PROJECT_ID),
+    FIREBASE_CLIENT_EMAIL: removeQuotes(process.env.FIREBASE_CLIENT_EMAIL),
+    FIREBASE_PRIVATE_KEY: removeQuotes(process.env.FIREBASE_PRIVATE_KEY),
 }
