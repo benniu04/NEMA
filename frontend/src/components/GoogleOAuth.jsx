@@ -1,25 +1,41 @@
-import React, { useState } from 'react';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import React, { useState, useEffect } from 'react';
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import API_BASE_URL from '../config/api';
 
 /**
  * Google OAuth Component
- * Simplified version with only Google authentication
+ * Uses popup mode on desktop, redirect mode on mobile
  */
 const GoogleOAuth = ({ onSuccess, onError }) => {
   const [loading, setLoading] = useState(false);
+  
+  // Detect if user is on mobile
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-  const handleGoogleSignIn = async () => {
-    setLoading(true);
+  // Check for redirect result on component mount (for mobile)
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          setLoading(true);
+          await processAuthResult(result);
+        }
+      } catch (error) {
+        console.error('Redirect result error:', error);
+        if (onError) {
+          onError(error.message || 'Authentication failed');
+        }
+      }
+    };
 
+    handleRedirectResult();
+  }, []);
+
+  // Process authentication result (used by both popup and redirect)
+  const processAuthResult = async (result) => {
     try {
-      const provider = new GoogleAuthProvider();
-      provider.addScope('profile');
-      provider.addScope('email');
-
-      // Sign in with Google
-      const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
       // Get Firebase ID token
@@ -53,6 +69,29 @@ const GoogleOAuth = ({ onSuccess, onError }) => {
         onSuccess(data.user);
       }
     } catch (error) {
+      console.error('Authentication processing error:', error);
+      throw error;
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
+
+      if (isMobile) {
+        // Mobile: Use redirect flow (better for mobile browsers)
+        await signInWithRedirect(auth, provider);
+        // Note: The page will redirect away, result handled in useEffect
+      } else {
+        // Desktop: Use popup flow
+        const result = await signInWithPopup(auth, provider);
+        await processAuthResult(result);
+      }
+    } catch (error) {
       console.error('Google sign-in error:', error);
       
       let errorMessage = 'Failed to sign in with Google';
@@ -68,7 +107,7 @@ const GoogleOAuth = ({ onSuccess, onError }) => {
       if (onError) {
         onError(errorMessage);
       }
-    } finally {
+      
       setLoading(false);
     }
   };
