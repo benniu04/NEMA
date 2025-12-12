@@ -17,13 +17,26 @@ const GoogleOAuth = ({ onSuccess, onError }) => {
   useEffect(() => {
     const handleRedirectResult = async () => {
       try {
+        // Check if we're returning from a redirect
+        const pendingRedirect = sessionStorage.getItem('pendingRedirect');
+        
         const result = await getRedirectResult(auth);
         if (result) {
+          console.log('Got redirect result, processing...');
           setLoading(true);
+          sessionStorage.removeItem('pendingRedirect'); // Clear the flag
           await processAuthResult(result);
+          setLoading(false);
+        } else if (pendingRedirect === 'true') {
+          // Redirect happened but no result - might be an error
+          console.log('Expected redirect result but got none');
+          sessionStorage.removeItem('pendingRedirect');
+          setLoading(false);
         }
       } catch (error) {
         console.error('Redirect result error:', error);
+        sessionStorage.removeItem('pendingRedirect');
+        setLoading(false);
         if (onError) {
           onError(error.message || 'Authentication failed');
         }
@@ -31,12 +44,13 @@ const GoogleOAuth = ({ onSuccess, onError }) => {
     };
 
     handleRedirectResult();
-  }, []);
+  }, [onSuccess, onError]);
 
   // Process authentication result (used by both popup and redirect)
   const processAuthResult = async (result) => {
     try {
       const user = result.user;
+      console.log('Processing auth result for user:', user.email);
 
       // Get Firebase ID token
       const idToken = await user.getIdToken();
@@ -59,14 +73,19 @@ const GoogleOAuth = ({ onSuccess, onError }) => {
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('Backend authentication failed:', errorData);
         throw new Error(errorData.message || 'Authentication failed');
       }
 
       const data = await response.json();
+      console.log('Backend authentication successful');
 
       // Call success callback
       if (onSuccess) {
+        console.log('Calling onSuccess callback');
         onSuccess(data.user);
+      } else {
+        console.warn('No onSuccess callback provided');
       }
     } catch (error) {
       console.error('Authentication processing error:', error);
@@ -84,6 +103,8 @@ const GoogleOAuth = ({ onSuccess, onError }) => {
 
       if (isMobile) {
         // Mobile: Use redirect flow (better for mobile browsers)
+        console.log('Using redirect flow for mobile');
+        sessionStorage.setItem('pendingRedirect', 'true'); // Set flag before redirect
         await signInWithRedirect(auth, provider);
         // Note: The page will redirect away, result handled in useEffect
       } else {
