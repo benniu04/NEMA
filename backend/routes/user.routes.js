@@ -88,7 +88,8 @@ userRoutes.post('/register', (req, res, next) => {
 
     res.status(201).json({
       message: 'Registration successful',
-      user: user.toPrivateProfile()
+      user: user.toPrivateProfile(),
+      token: token // Include token for mobile browsers
     });
   } catch (error) {
     securityLogger('USER_REGISTER_ERROR', { error: error.message }, req);
@@ -153,7 +154,8 @@ userRoutes.post('/login', validateUserLogin, async (req, res) => {
 
     res.json({
       message: 'Login successful',
-      user: user.toPrivateProfile()
+      user: user.toPrivateProfile(),
+      token: token // Include token for mobile browsers
     });
   } catch (error) {
     securityLogger('USER_LOGIN_ERROR', { error: error.message }, req);
@@ -255,7 +257,8 @@ userRoutes.post('/firebase-auth', async (req, res) => {
 
     res.json({
       message: 'Authentication successful',
-      user: user.toPrivateProfile()
+      user: user.toPrivateProfile(),
+      token: token // Include token in response for mobile compatibility
     });
   } catch (error) {
     securityLogger('FIREBASE_AUTH_ERROR', { error: error.message }, req);

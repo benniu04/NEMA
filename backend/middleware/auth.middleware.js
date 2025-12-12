@@ -4,12 +4,21 @@ import logger from '../config/logger.js';
 
 /**
  * Auth middleware that checks for user token (userToken) or admin token (adminToken)
+ * Supports both cookies and Authorization header (for mobile browsers)
  * Requires authentication - returns 401 if no valid token
  */
 export const authMiddleware = async (req, res, next) => {
   try {
-    // Check for user token first, then admin token
-    const token = req.cookies.userToken || req.cookies.adminToken;
+    // Check for token in cookies first, then Authorization header, then admin cookie
+    let token = req.cookies.userToken || req.cookies.adminToken;
+    
+    // If no cookie, check Authorization header (for mobile browsers)
+    if (!token && req.headers.authorization) {
+      const authHeader = req.headers.authorization;
+      if (authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
     
     if (!token) {
       return res.status(401).json({ message: "No token provided" });
@@ -26,11 +35,21 @@ export const authMiddleware = async (req, res, next) => {
 
 /**
  * Optional auth middleware - attaches user to request if token exists
+ * Supports both cookies and Authorization header (for mobile browsers)
  * Does not require authentication - continues even without token
  */
 export const optionalAuthMiddleware = async (req, res, next) => {
   try {
-    const token = req.cookies.userToken || req.cookies.adminToken;
+    // Check for token in cookies first, then Authorization header
+    let token = req.cookies.userToken || req.cookies.adminToken;
+    
+    // If no cookie, check Authorization header (for mobile browsers)
+    if (!token && req.headers.authorization) {
+      const authHeader = req.headers.authorization;
+      if (authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
     
     if (token) {
       const decoded = jwt.verify(token, ENV_VARS.JWT_SECRET);

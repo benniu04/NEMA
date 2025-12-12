@@ -80,6 +80,12 @@ const GoogleOAuth = ({ onSuccess, onError }) => {
       const data = await response.json();
       console.log('Backend authentication successful');
 
+      // Store token in localStorage for mobile browsers
+      if (data.token) {
+        localStorage.setItem('authToken', data.token);
+        console.log('Token stored in localStorage');
+      }
+
       // Call success callback
       if (onSuccess) {
         console.log('Calling onSuccess callback');

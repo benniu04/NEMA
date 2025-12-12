@@ -20,8 +20,22 @@ export const UserProvider = ({ children }) => {
   const checkAuth = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // Get token from localStorage (for mobile browsers that block cookies)
+      const token = localStorage.getItem('authToken');
+      
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      
+      // Add Authorization header if token exists
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
       const response = await fetch(`${API_BASE_URL}/api/users/me`, {
-        credentials: 'include'
+        credentials: 'include', // Still try cookies for desktop
+        headers
       });
 
       if (response.ok) {
@@ -29,6 +43,8 @@ export const UserProvider = ({ children }) => {
         setUser(userData);
       } else {
         setUser(null);
+        // Clear invalid token
+        localStorage.removeItem('authToken');
       }
     } catch (err) {
       console.error('Auth check failed:', err);
@@ -68,6 +84,11 @@ export const UserProvider = ({ children }) => {
 
       setUser(data.user);
       
+      // Store token in localStorage for mobile browsers
+      if (data.token) {
+        localStorage.setItem('authToken', data.token);
+      }
+      
       // Fetch full user profile with populated watchlist and favorites
       await checkAuth();
       
@@ -104,6 +125,11 @@ export const UserProvider = ({ children }) => {
 
       setUser(data.user);
       
+      // Store token in localStorage for mobile browsers
+      if (data.token) {
+        localStorage.setItem('authToken', data.token);
+      }
+      
       // Fetch full user profile with populated watchlist and favorites
       await checkAuth();
       
@@ -122,11 +148,14 @@ export const UserProvider = ({ children }) => {
         credentials: 'include'
       });
       setUser(null);
+      // Clear token from localStorage
+      localStorage.removeItem('authToken');
       return { success: true };
     } catch (err) {
       console.error('Logout failed:', err);
       // Still clear user locally even if server request fails
       setUser(null);
+      localStorage.removeItem('authToken');
       return { success: false, error: err.message };
     }
   };
