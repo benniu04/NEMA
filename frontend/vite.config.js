@@ -29,5 +29,11 @@ export default defineConfig({
         comments: false,
       },
     },
+    // Ensure assets are correctly handled
+    assetsInlineLimit: 0, // Don't inline assets, always create separate files
   },
+  // Ensure proper module resolution
+  resolve: {
+    extensions: ['.mjs', '.js', '.jsx', '.json']
+  }
 })
