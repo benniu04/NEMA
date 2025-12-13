@@ -185,7 +185,7 @@ const NavBar = () => {
           </div>
           
           {/* Mobile menu button */}
-          <div className="md:hidden flex items-center">
+          <div className="md:hidden flex items-center ml-auto">
             <button
               onClick={() => setMenuOpen(!menuOpen)}
               className="text-white/70 hover:text-white transition-colors"
