@@ -542,6 +542,40 @@ userRoutes.get('/profile/:username', async (req, res) => {
   }
 });
 
+// Get user's public favorites by user ID
+userRoutes.get('/:userId/favorites', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await User.findById(userId)
+      .populate('favoriteFilms', 'title posterKey posterUrl director rating releaseDate');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Generate fresh signed URLs for favorite films
+    const favoritesWithUrls = await Promise.all(
+      (user.favoriteFilms || []).map(async (movie) => {
+        const movieObj = movie.toObject();
+        if (movieObj.posterKey) {
+          try {
+            movieObj.posterUrl = await generateCloudfrontSignedUrl(movieObj.posterKey);
+          } catch (error) {
+            logger.error('Error generating poster URL for favorites:', { error: error.message });
+          }
+        }
+        return movieObj;
+      })
+    );
+
+    res.json({ favorites: favoritesWithUrls });
+  } catch (error) {
+    logger.error('Get user favorites error:', { error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Failed to get favorites' });
+  }
+});
+
 // Check if username is available
 userRoutes.get('/check-username/:username', async (req, res) => {
   try {
