@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import { useSettings } from '../context/SettingsContext';
 import NavBar from '../components/NavBar';
 import Footer from '../components/Footer';
 import API_BASE_URL from '../config/api.js';
@@ -9,6 +10,7 @@ const ProfilePage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, updateProfile, loading, isAuthenticated, refreshUser, removeFromFavorites, followUser, unfollowUser, isFollowing: checkIsFollowing } = useUser();
+  const { t } = useSettings();
 
   // Check for tab state from navigation (e.g., from Watchlist link)
   const initialTab = location.state?.tab || 'activity';
@@ -241,24 +243,24 @@ const ProfilePage = () => {
         // Check if resolution is below recommended
         if (img.width < 1500 || img.height < 500) {
           const proceed = window.confirm(
-            `⚠️ Image Resolution Warning\n\n` +
-            `Current: ${img.width}x${img.height}px\n` +
-            `Recommended: 1500x500px or higher\n\n` +
-            `Your image may appear blurry or pixelated. Continue anyway?`
+            `⚠️ ${t('profile.imageResolutionWarning')}\n\n` +
+            `${t('profile.currentResolution')} ${img.width}x${img.height}px\n` +
+            `${t('profile.recommendedResolution')}\n\n` +
+            `${t('profile.imageBlurryWarning')}`
           );
-          
+
           if (!proceed) {
             return;
           }
         }
-        
+
         // Proceed with upload
         await performUpload(file, type);
       };
-      
+
       img.onerror = () => {
         URL.revokeObjectURL(objectUrl);
-        alert('Failed to load image. Please try a different file.');
+        alert(t('profile.failedToLoadImage'));
       };
       
       img.src = objectUrl;
@@ -285,11 +287,11 @@ const ProfilePage = () => {
         await updateProfile({ [type]: data.url });
         await refreshUser();
       } else {
-        alert(`Failed to upload ${type}. Please try again.`);
+        alert(t('profile.failedToUpload'));
       }
     } catch (error) {
       console.error(`Failed to upload ${type}:`, error);
-      alert(`Failed to upload ${type}. Please try again.`);
+      alert(t('profile.failedToUpload'));
     } finally {
       setIsUploading(false);
     }
@@ -313,17 +315,18 @@ const ProfilePage = () => {
   };
 
   const getActivityText = (activity) => {
+    const movieTitle = activity.movieId?.title;
     switch (activity.type) {
       case 'review':
-        return `reviewed ${activity.movieId?.title}`;
+        return `${t('profile.activityReviewed')} ${movieTitle}`;
       case 'comment':
-        return `commented on ${activity.movieId?.title}`;
+        return `${t('profile.activityCommented')} ${movieTitle}`;
       case 'watchlist_add':
-        return `added ${activity.movieId?.title} to watchlist`;
+        return `${t('profile.activityAddedToWatchlist')} ${movieTitle}`;
       case 'favorite_add':
-        return `added ${activity.movieId?.title} to favorites`;
+        return `${t('profile.activityAddedToFavorites')} ${movieTitle}`;
       case 'watched':
-        return `watched ${activity.movieId?.title}`;
+        return `${t('profile.activityWatched')} ${movieTitle}`;
       default:
         return '';
     }
@@ -332,7 +335,7 @@ const ProfilePage = () => {
   const handleRemoveFavorite = async (movieId, movieTitle, e) => {
     e.preventDefault(); // Prevent navigation to movie page
     
-    const confirmRemove = window.confirm(`Remove "${movieTitle}" from your favorites?`);
+    const confirmRemove = window.confirm(`${t('profile.removeFavoriteConfirm')} "${movieTitle}"`);
     if (!confirmRemove) return;
 
     setRemovingFavorite(movieId);
@@ -342,11 +345,11 @@ const ProfilePage = () => {
         // Refresh favorites list
         await loadFavorites();
       } else {
-        alert(result.error || 'Failed to remove from favorites');
+        alert(result.error || t('profile.removeFavoriteError'));
       }
     } catch (error) {
       console.error('Error removing favorite:', error);
-      alert('Failed to remove from favorites. Please try again.');
+      alert(t('profile.removeFavoriteError'));
     } finally {
       setRemovingFavorite(null);
     }
@@ -357,7 +360,7 @@ const ProfilePage = () => {
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Loading profile...</p>
+          <p>{t('profile.loadingProfile')}</p>
         </div>
       </div>
     );
@@ -393,12 +396,12 @@ const ProfilePage = () => {
               className="px-3 py-1.5 bg-black/70 text-white text-sm border border-white/20 hover:bg-black/90 transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm"
               disabled={isUploading}
             >
-              {isUploading ? 'Uploading...' : 'Change Banner'}
+              {isUploading ? t('profile.uploading') : t('profile.changeBanner')}
             </button>
             {/* Resolution warning tooltip */}
             <div className="absolute top-full right-0 mt-2 w-64 px-3 py-2 bg-black/95 border border-amber-500/30 text-xs text-white/80 opacity-0 group-hover/button:opacity-100 pointer-events-none transition-opacity backdrop-blur-sm">
-              <p className="font-medium text-amber-500 mb-1">💡 Recommended:</p>
-              <p>Use a high-quality image with at least 1500x500px resolution for best results.</p>
+              <p className="font-medium text-amber-500 mb-1">💡 {t('profile.bannerRecommended')}</p>
+              <p>{t('profile.bannerTip')}</p>
             </div>
           </div>
           <input
@@ -436,25 +439,25 @@ const ProfilePage = () => {
                 <div className="flex gap-6 text-sm">
                   <div>
                     <span className="text-white font-medium">{user.stats?.filmsWatched || 0}</span>
-                    <span className="text-white/50 ml-1">Films</span>
+                    <span className="text-white/50 ml-1">{t('profile.films')}</span>
                   </div>
                   <div>
                     <span className="text-white font-medium">{user.stats?.reviewsWritten || 0}</span>
-                    <span className="text-white/50 ml-1">Reviews</span>
+                    <span className="text-white/50 ml-1">{t('profile.reviews')}</span>
                   </div>
                   <button
                     onClick={handleShowFollowers}
                     className="hover:text-white transition-colors cursor-pointer"
                   >
                     <span className="text-white font-medium">{user.stats?.followersCount || 0}</span>
-                    <span className="text-white/50 ml-1">Followers</span>
+                    <span className="text-white/50 ml-1">{t('profile.followers')}</span>
                   </button>
                   <button
                     onClick={handleShowFollowing}
                     className="hover:text-white transition-colors cursor-pointer"
                   >
                     <span className="text-white font-medium">{user.stats?.followingCount || 0}</span>
-                    <span className="text-white/50 ml-1">Following</span>
+                    <span className="text-white/50 ml-1">{t('profile.following')}</span>
                   </button>
                 </div>
               </div>
@@ -463,7 +466,7 @@ const ProfilePage = () => {
                 onClick={handleLogout}
                 className="px-4 py-2 border border-white/20 text-white/60 hover:text-white hover:border-white/40 transition-colors text-sm mb-2"
               >
-                Sign Out
+                {t('profile.signOut')}
               </button>
             </div>
           </div>
@@ -478,14 +481,14 @@ const ProfilePage = () => {
                   maxLength={500}
                   rows={3}
                   className="w-full bg-white/5 border border-white/20 px-3 py-2 focus:outline-none focus:border-white/40 resize-none text-sm"
-                  placeholder="Tell us about yourself..."
+                  placeholder={t('profile.tellAboutYourself')}
                 />
                 <div className="flex gap-2 mt-2">
                   <button
                     onClick={handleBioSave}
                     className="px-4 py-1.5 bg-white text-black text-sm hover:bg-white/90 transition-colors"
                   >
-                    Save
+                    {t('profile.save')}
                   </button>
                   <button
                     onClick={() => {
@@ -494,7 +497,7 @@ const ProfilePage = () => {
                     }}
                     className="px-4 py-1.5 border border-white/20 text-sm hover:border-white/40 transition-colors"
                   >
-                    Cancel
+                    {t('profile.cancel')}
                   </button>
                 </div>
               </div>
@@ -503,13 +506,13 @@ const ProfilePage = () => {
                 {bio ? (
                   <p className="text-white/70 text-sm leading-relaxed">{bio}</p>
                 ) : (
-                  <p className="text-white/30 text-sm italic">No bio yet</p>
+                  <p className="text-white/30 text-sm italic">{t('profile.noBio')}</p>
                 )}
                 <button
                   onClick={() => setIsEditingBio(true)}
                   className="text-white/40 hover:text-white/60 text-xs mt-2 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  Edit bio
+                  {t('profile.editBio')}
                 </button>
               </div>
             )}
@@ -520,16 +523,16 @@ const ProfilePage = () => {
             <div className="mb-12">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm uppercase tracking-wider text-white/50">
-                  Favorite Films ({favorites.length}/5)
+                  {t('profile.favoriteFilms')} ({favorites.length}/5)
                 </h2>
                 {favorites.length > 0 && (
-                  <p className="text-xs text-white/30 italic">Hover to remove</p>
+                  <p className="text-xs text-white/30 italic">{t('profile.hoverToRemove')}</p>
                 )}
               </div>
               {favorites.length === 0 ? (
                 <div className="text-center py-12 border border-white/10 border-dashed rounded">
-                  <p className="text-white/30 mb-2">No favorite films yet</p>
-                  <p className="text-white/20 text-sm">Add up to 5 films to showcase your favorites</p>
+                  <p className="text-white/30 mb-2">{t('profile.noFavorites')}</p>
+                  <p className="text-white/20 text-sm">{t('profile.noFavoritesDescription')}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-5 gap-4">
@@ -573,7 +576,7 @@ const ProfilePage = () => {
                           onClick={(e) => handleRemoveFavorite(movie._id, movie.title, e)}
                           disabled={removingFavorite === movie._id}
                           className="absolute top-2 right-2 p-2 bg-amber-500/90 backdrop-blur-sm hover:bg-amber-600 text-white rounded-full shadow-lg transform translate-x-10 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 ease-out hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed z-20"
-                          title="Remove from favorites"
+                          title={t('profile.removeFromFavorites')}
                         >
                           {removingFavorite === movie._id ? (
                             <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -602,23 +605,28 @@ const ProfilePage = () => {
           {/* Tabs */}
           <div className="border-b border-white/10 mb-8">
             <div className="flex gap-8">
-              {['activity', 'films', 'reviews', 'watchlist'].map((tab) => (
+              {[
+                { key: 'activity', label: t('profile.activity') },
+                { key: 'films', label: t('profile.filmsTab') },
+                { key: 'reviews', label: t('profile.reviewsTab') },
+                { key: 'watchlist', label: t('profile.watchlistTab') }
+              ].map((tab) => (
                 <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
                   className={`pb-3 text-sm uppercase tracking-wider transition-colors relative ${
-                    activeTab === tab 
-                      ? 'text-white' 
+                    activeTab === tab.key
+                      ? 'text-white'
                       : 'text-white/40 hover:text-white/60'
                   }`}
                 >
-                  {tab}
-                  {tab === 'reviews' && userReviews.length > 0 && (
+                  {tab.label}
+                  {tab.key === 'reviews' && userReviews.length > 0 && (
                     <span className="ml-2 px-1.5 py-0.5 bg-white/10 text-white/60 text-xs rounded">
                       {userReviews.length}
                     </span>
                   )}
-                  {activeTab === tab && (
+                  {activeTab === tab.key && (
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white"></div>
                   )}
                 </button>
@@ -630,7 +638,7 @@ const ProfilePage = () => {
           {activeTab === 'activity' && (
             <div className="space-y-4 pb-12">
               {activities.length === 0 ? (
-                <p className="text-white/30 text-center py-12">No recent activity</p>
+                <p className="text-white/30 text-center py-12">{t('profile.noRecentActivity')}</p>
               ) : (
                 activities.map((activity) => (
                   <div key={activity._id} className="flex gap-4 pb-4 border-b border-white/5">
@@ -670,12 +678,12 @@ const ProfilePage = () => {
             <div className="pb-12">
               {watchHistory.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-white/30 mb-4">No films watched yet</p>
-                  <Link 
+                  <p className="text-white/30 mb-4">{t('profile.noFilmsWatched')}</p>
+                  <Link
                     to="/catalog"
                     className="inline-block px-6 py-2 bg-white text-black hover:bg-white/90 transition-colors"
                   >
-                    Browse Films
+                    {t('profile.browseFilms')}
                   </Link>
                 </div>
               ) : (
@@ -697,7 +705,7 @@ const ProfilePage = () => {
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                               <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
                             </svg>
-                            Resume
+                            {t('profile.resume')}
                           </div>
                         )}
                         
@@ -738,7 +746,7 @@ const ProfilePage = () => {
                           {/* Progress Bar */}
                           <div className="space-y-1">
                             <div className="flex justify-between text-xs text-white/50">
-                              <span>{session.completed ? 'Completed' : `${displayPercentage}% watched`}</span>
+                              <span>{session.completed ? t('profile.completed') : `${displayPercentage}% ${t('profile.watched')}`}</span>
                               <span>{displayPercentage}%</span>
                             </div>
                             <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
@@ -753,7 +761,7 @@ const ProfilePage = () => {
 
                           {/* Last watched */}
                           <p className="text-white/40 text-xs mt-2">
-                            Last watched {new Date(session.lastUpdatedAt).toLocaleDateString('en-US', { 
+                            {t('profile.lastWatched')} {new Date(session.lastUpdatedAt).toLocaleDateString('en-US', { 
                               month: 'short', 
                               day: 'numeric',
                               year: 'numeric'
@@ -781,7 +789,7 @@ const ProfilePage = () => {
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                 </svg>
-                                Rewatch
+                                {t('profile.rewatch')}
                               </Link>
                             </>
                           ) : (
@@ -804,12 +812,12 @@ const ProfilePage = () => {
             <div className="pb-12">
               {userReviews.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-white/30 mb-4">No reviews written yet</p>
-                  <Link 
+                  <p className="text-white/30 mb-4">{t('profile.noReviews')}</p>
+                  <Link
                     to="/catalog"
                     className="inline-block px-6 py-2 bg-white text-black hover:bg-white/90 transition-colors"
                   >
-                    Browse Films to Review
+                    {t('profile.browseFilmsToReview')}
                   </Link>
                 </div>
               ) : (
@@ -878,14 +886,14 @@ const ProfilePage = () => {
                           {/* Review Meta */}
                           <div className="flex items-center gap-4 text-xs text-white/40">
                             <span>
-                              Reviewed {new Date(review.createdAt).toLocaleDateString('en-US', { 
-                                month: 'long', 
+                              {t('profile.reviewed')} {new Date(review.createdAt).toLocaleDateString('en-US', {
+                                month: 'long',
                                 day: 'numeric',
                                 year: 'numeric'
                               })}
                             </span>
                             {review.nickname && review.nickname !== 'Anonymous' && (
-                              <span>by {review.nickname}</span>
+                              <span>{t('profile.by')} {review.nickname}</span>
                             )}
                           </div>
                         </div>
@@ -901,12 +909,12 @@ const ProfilePage = () => {
             <div className="pb-12">
               {(!user.watchlist || user.watchlist.length === 0) ? (
                 <div className="text-center py-12">
-                  <p className="text-white/30 mb-4">Your watchlist is empty</p>
-                  <Link 
+                  <p className="text-white/30 mb-4">{t('profile.watchlistEmpty')}</p>
+                  <Link
                     to="/catalog"
                     className="inline-block px-6 py-2 bg-white text-black hover:bg-white/90 transition-colors"
                   >
-                    Browse Films
+                    {t('profile.browseFilms')}
                   </Link>
                 </div>
               ) : (
@@ -935,7 +943,7 @@ const ProfilePage = () => {
                           )}
                         </div>
                         <p className="text-sm text-white/70 group-hover:text-white transition-colors truncate">
-                          {movie.title || 'Untitled'}
+                          {movie.title || t('profile.untitled')}
                         </p>
                       </Link>
                     ))}
@@ -951,26 +959,30 @@ const ProfilePage = () => {
       {/* Followers Modal */}
       {showFollowersModal && (
         <SocialModal
-          title="Followers"
+          title={t('profile.followers')}
+          emptyMessage={t('profile.noFollowersYet')}
           users={followers}
           loading={loadingSocial}
           onClose={() => setShowFollowersModal(false)}
           onFollowAction={handleFollowAction}
           followActionLoading={followActionLoading}
           currentUserId={user.id}
+          t={t}
         />
       )}
 
       {/* Following Modal */}
       {showFollowingModal && (
         <SocialModal
-          title="Following"
+          title={t('profile.following')}
+          emptyMessage={t('profile.noFollowingYet')}
           users={following}
           loading={loadingSocial}
           onClose={() => setShowFollowingModal(false)}
           onFollowAction={handleFollowAction}
           followActionLoading={followActionLoading}
           currentUserId={user.id}
+          t={t}
         />
       )}
     </div>
@@ -978,15 +990,15 @@ const ProfilePage = () => {
 };
 
 // Social Modal Component
-const SocialModal = ({ title, users, loading, onClose, onFollowAction, followActionLoading, currentUserId }) => {
+const SocialModal = ({ title, emptyMessage, users, loading, onClose, onFollowAction, followActionLoading, currentUserId, t }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
         onClick={onClose}
       ></div>
-      
+
       {/* Modal */}
       <div className="relative bg-black border border-white/20 rounded-lg w-full max-w-md max-h-[80vh] flex flex-col mx-4">
         {/* Header */}
@@ -1010,14 +1022,14 @@ const SocialModal = ({ title, users, loading, onClose, onFollowAction, followAct
             </div>
           ) : users.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-white/40">No {title.toLowerCase()} yet</p>
+              <p className="text-white/40">{emptyMessage}</p>
             </div>
           ) : (
             <div className="space-y-3">
               {users.map((user) => (
                 <div key={user.id} className="flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded transition-colors">
                   {/* Avatar */}
-                  <Link 
+                  <Link
                     to={`/profile/${user.username}`}
                     onClick={onClose}
                     className="flex-shrink-0"
@@ -1035,7 +1047,7 @@ const SocialModal = ({ title, users, loading, onClose, onFollowAction, followAct
 
                   {/* User Info */}
                   <div className="flex-1 min-w-0">
-                    <Link 
+                    <Link
                       to={`/profile/${user.username}`}
                       onClick={onClose}
                       className="block group"
@@ -1058,7 +1070,7 @@ const SocialModal = ({ title, users, loading, onClose, onFollowAction, followAct
                           : 'bg-amber-500 text-black hover:bg-amber-600'
                       } ${followActionLoading[user.id] ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                      {followActionLoading[user.id] ? '...' : user.isFollowing ? 'Following' : 'Follow'}
+                      {followActionLoading[user.id] ? '...' : user.isFollowing ? t('people.following') : t('people.follow')}
                     </button>
                   )}
                 </div>
