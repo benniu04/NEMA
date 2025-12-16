@@ -22,6 +22,16 @@ const AdminDashboard = () => {
       '720p': '',
       '1080p': ''
     },
+    subtitleUrls: {
+      en: '',
+      es: '',
+      fr: '',
+      de: '',
+      zh: '',
+      ja: '',
+      ko: '',
+      pt: ''
+    },
     thumbnailUrl: '',
     posterUrl: '',
     isFeatured: false,
@@ -358,6 +368,40 @@ const AdminDashboard = () => {
     } catch (error) {
       setError(`Failed to upload ${type}: ${error.message}`);
       setUploadProgress(prev => ({ ...prev, [progressKey]: 0 }));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Handle subtitle file upload
+  const handleSubtitleUpload = async (file, lang) => {
+    if (!file) return;
+
+    setUploading(true);
+
+    try {
+      const uploadFormData = new FormData();
+      uploadFormData.append('subtitle', file);
+      uploadFormData.append('language', lang);
+
+      const response = await fetch(`${API_BASE_URL}/api/upload/subtitle`, {
+        method: 'POST',
+        credentials: 'include',
+        body: uploadFormData
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.message || 'Subtitle upload failed');
+
+      setFormData(prev => ({
+        ...prev,
+        subtitleUrls: { ...prev.subtitleUrls, [lang]: data.key }
+      }));
+
+      setSuccess(`${lang.toUpperCase()} subtitle uploaded successfully!`);
+    } catch (error) {
+      setError(`Failed to upload subtitle: ${error.message}`);
     } finally {
       setUploading(false);
     }
@@ -702,6 +746,39 @@ const AdminDashboard = () => {
                       )}
                       {formData.posterUrl && <p className="text-xs text-green-400 mt-1">✓ Poster uploaded</p>}
                     </div>
+                  </div>
+
+                  {/* Subtitles Section */}
+                  <div className="border-t border-amber-100/10 pt-6 mt-6">
+                    <h3 className="text-lg font-medium text-amber-100 mb-4">Subtitles (VTT files)</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {Object.entries({
+                        en: 'English',
+                        es: 'Spanish',
+                        fr: 'French',
+                        de: 'German',
+                        zh: 'Chinese',
+                        ja: 'Japanese',
+                        ko: 'Korean',
+                        pt: 'Portuguese'
+                      }).map(([lang, label]) => (
+                        <div key={lang}>
+                          <label className="block text-sm font-medium text-amber-100/60 mb-2">
+                            {label} {formData.subtitleUrls?.[lang] && <span className="text-green-400">✓</span>}
+                          </label>
+                          <input
+                            type="file"
+                            accept=".vtt,.srt"
+                            onChange={(e) => handleSubtitleUpload(e.target.files[0], lang)}
+                            className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition-colors file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:bg-amber-500/20 file:text-amber-100 file:text-xs"
+                          />
+                          {formData.subtitleUrls?.[lang] && (
+                            <p className="text-xs text-green-400 mt-1 truncate">✓ {label} subtitle ready</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-amber-100/40 mt-3">Upload .vtt or .srt subtitle files for each language</p>
                   </div>
 
                   <div className="flex items-center">

@@ -5,19 +5,26 @@ import { useSettings } from '../context/SettingsContext';
 import NavBar from '../components/NavBar';
 import Footer from '../components/Footer';
 import API_BASE_URL from '../config/api.js';
-import { Search, Users, Sparkles, Loader2 } from 'lucide-react';
+import { Search, Users, Sparkles, Loader2, Activity, Star, MessageSquare, Heart, Film, Plus, Share2 } from 'lucide-react';
 
 const PeoplePage = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, loading: userLoading, followUser, unfollowUser, isFollowing } = useUser();
   const { t } = useSettings();
   
+  const [activeTab, setActiveTab] = useState('discover');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [suggestedUsers, setSuggestedUsers] = useState([]);
   const [searching, setSearching] = useState(false);
   const [loadingSuggested, setLoadingSuggested] = useState(true);
   const [followLoading, setFollowLoading] = useState({});
+
+  // Feed state
+  const [feedActivities, setFeedActivities] = useState([]);
+  const [feedLoading, setFeedLoading] = useState(false);
+  const [feedHasMore, setFeedHasMore] = useState(true);
+  const [feedOffset, setFeedOffset] = useState(0);
 
   // Redirect if not logged in
   useEffect(() => {
@@ -33,11 +40,23 @@ const PeoplePage = () => {
     }
   }, [isAuthenticated]);
 
+  // Load feed when tab switches to feed
+  useEffect(() => {
+    if (activeTab === 'feed' && isAuthenticated && feedActivities.length === 0) {
+      loadFeed(true);
+    }
+  }, [activeTab, isAuthenticated]);
+
   const loadSuggestedUsers = async () => {
     try {
       setLoadingSuggested(true);
+      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const response = await fetch(`${API_BASE_URL}/api/users/suggested`, {
-        credentials: 'include'
+        credentials: 'include',
+        headers
       });
       if (response.ok) {
         const data = await response.json();
@@ -47,6 +66,39 @@ const PeoplePage = () => {
       console.error('Failed to load suggested users:', error);
     } finally {
       setLoadingSuggested(false);
+    }
+  };
+
+  const loadFeed = async (reset = false) => {
+    if (feedLoading) return;
+
+    setFeedLoading(true);
+    const offset = reset ? 0 : feedOffset;
+
+    try {
+      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(`${API_BASE_URL}/api/users/feed?limit=20&offset=${offset}`, {
+        credentials: 'include',
+        headers
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (reset) {
+          setFeedActivities(data.activities);
+        } else {
+          setFeedActivities(prev => [...prev, ...data.activities]);
+        }
+        setFeedHasMore(data.hasMore);
+        setFeedOffset(offset + data.activities.length);
+      }
+    } catch (error) {
+      console.error('Failed to load feed:', error);
+    } finally {
+      setFeedLoading(false);
     }
   };
 
@@ -122,80 +174,149 @@ const PeoplePage = () => {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-4xl font-light mb-2">{t('people.discoverPeople')}</h1>
-            <p className="text-white/60">{t('people.findConnect')}</p>
+            <h1 className="text-4xl font-light mb-2">{t('people.discoverPeople') || 'People'}</h1>
+            <p className="text-white/60">{t('people.findConnect') || 'Find and connect with other film enthusiasts'}</p>
           </div>
 
-          {/* Search Bar */}
-          <div className="mb-12">
-            <div className="relative">
-              <div className="flex items-center gap-3 rounded border border-white/20 bg-white/5 px-4 py-3 focus-within:border-white/40 focus-within:bg-white/10 transition-all">
-                <Search className="h-5 w-5 text-white/50" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t('people.searchPlaceholder')}
-                  className="w-full bg-transparent text-white placeholder-white/40 focus:outline-none"
-                />
-                {searching && <Loader2 className="h-5 w-5 animate-spin text-white/50" />}
-              </div>
-            </div>
+          {/* Tabs */}
+          <div className="flex border-b border-white/10 mb-8">
+            <button
+              onClick={() => setActiveTab('discover')}
+              className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${
+                activeTab === 'discover'
+                  ? 'text-white border-amber-500'
+                  : 'text-white/50 border-transparent hover:text-white/70'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              {t('people.discover') || 'Discover'}
+            </button>
+            <button
+              onClick={() => setActiveTab('feed')}
+              className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${
+                activeTab === 'feed'
+                  ? 'text-white border-amber-500'
+                  : 'text-white/50 border-transparent hover:text-white/70'
+              }`}
+            >
+              <Activity className="w-4 h-4" />
+              {t('people.activityFeed') || 'Activity Feed'}
+            </button>
+          </div>
 
-            {/* Search Results */}
-            {searchQuery && (
-              <div className="mt-4">
-                {searchResults.length > 0 ? (
-                  <div className="space-y-3">
-                    <p className="text-sm text-white/50">{searchResults.length} {searchResults.length === 1 ? t('people.result') : t('people.results')}</p>
-                    {searchResults.map((foundUser) => (
-                      <UserCard
-                        key={foundUser.id}
-                        user={foundUser}
-                        currentUserId={user.id}
-                        onFollow={handleFollow}
-                        loading={followLoading[foundUser.id]}
-                        t={t}
-                      />
-                    ))}
+          {/* Discover Tab Content */}
+          {activeTab === 'discover' && (
+            <>
+              {/* Search Bar */}
+              <div className="mb-12">
+                <div className="relative">
+                  <div className="flex items-center gap-3 rounded border border-white/20 bg-white/5 px-4 py-3 focus-within:border-white/40 focus-within:bg-white/10 transition-all">
+                    <Search className="h-5 w-5 text-white/50" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={t('people.searchPlaceholder')}
+                      className="w-full bg-transparent text-white placeholder-white/40 focus:outline-none"
+                    />
+                    {searching && <Loader2 className="h-5 w-5 animate-spin text-white/50" />}
                   </div>
-                ) : !searching && (
-                  <p className="text-white/40 text-center py-8">{t('people.noUsersFound')}</p>
+                </div>
+
+                {/* Search Results */}
+                {searchQuery && (
+                  <div className="mt-4">
+                    {searchResults.length > 0 ? (
+                      <div className="space-y-3">
+                        <p className="text-sm text-white/50">{searchResults.length} {searchResults.length === 1 ? t('people.result') : t('people.results')}</p>
+                        {searchResults.map((foundUser) => (
+                          <UserCard
+                            key={foundUser.id}
+                            user={foundUser}
+                            currentUserId={user.id}
+                            onFollow={handleFollow}
+                            loading={followLoading[foundUser.id]}
+                            t={t}
+                          />
+                        ))}
+                      </div>
+                    ) : !searching && (
+                      <p className="text-white/40 text-center py-8">{t('people.noUsersFound')}</p>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* Suggested Users */}
-          {!searchQuery && (
+              {/* Suggested Users */}
+              {!searchQuery && (
+                <div>
+                  <div className="flex items-center gap-2 mb-6">
+                    <Sparkles className="h-5 w-5 text-amber-500" />
+                    <h2 className="text-xl font-light">{t('people.suggestedForYou')}</h2>
+                  </div>
+
+                  {loadingSuggested ? (
+                    <div className="text-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-white/50 mx-auto" />
+                    </div>
+                  ) : suggestedUsers.length > 0 ? (
+                    <div className="space-y-3">
+                      {suggestedUsers.map((suggestedUser) => (
+                        <UserCard
+                          key={suggestedUser.id}
+                          user={suggestedUser}
+                          currentUserId={user.id}
+                          onFollow={handleFollow}
+                          loading={followLoading[suggestedUser.id]}
+                          t={t}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 border border-white/10 border-dashed rounded">
+                      <Users className="h-12 w-12 text-white/20 mx-auto mb-4" />
+                      <p className="text-white/40 mb-2">{t('people.noSuggestions')}</p>
+                      <p className="text-white/30 text-sm">{t('people.noSuggestionsDescription')}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Activity Feed Tab Content */}
+          {activeTab === 'feed' && (
             <div>
-              <div className="flex items-center gap-2 mb-6">
-                <Sparkles className="h-5 w-5 text-amber-500" />
-                <h2 className="text-xl font-light">{t('people.suggestedForYou')}</h2>
-              </div>
-
-              {loadingSuggested ? (
+              {feedLoading && feedActivities.length === 0 ? (
                 <div className="text-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-white/50 mx-auto" />
                 </div>
-              ) : suggestedUsers.length > 0 ? (
-                <div className="space-y-3">
-                  {suggestedUsers.map((suggestedUser) => (
-                    <UserCard
-                      key={suggestedUser.id}
-                      user={suggestedUser}
-                      currentUserId={user.id}
-                      onFollow={handleFollow}
-                      loading={followLoading[suggestedUser.id]}
-                      t={t}
-                    />
+              ) : feedActivities.length > 0 ? (
+                <div className="space-y-4">
+                  {feedActivities.map((activity) => (
+                    <ActivityCard key={activity._id} activity={activity} t={t} />
                   ))}
+                  {feedHasMore && (
+                    <div className="text-center pt-4">
+                      <button
+                        onClick={() => loadFeed(false)}
+                        disabled={feedLoading}
+                        className="px-6 py-2 text-sm border border-white/20 text-white/70 hover:text-white hover:border-white/40 transition-colors disabled:opacity-50"
+                      >
+                        {feedLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                        ) : (
+                          t('people.loadMore') || 'Load More'
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-12 border border-white/10 border-dashed rounded">
-                  <Users className="h-12 w-12 text-white/20 mx-auto mb-4" />
-                  <p className="text-white/40 mb-2">{t('people.noSuggestions')}</p>
-                  <p className="text-white/30 text-sm">{t('people.noSuggestionsDescription')}</p>
+                  <Activity className="h-12 w-12 text-white/20 mx-auto mb-4" />
+                  <p className="text-white/40 mb-2">{t('people.noActivity') || 'No activity yet'}</p>
+                  <p className="text-white/30 text-sm">{t('people.noActivityDescription') || 'Follow some people to see their activity here'}</p>
                 </div>
               )}
             </div>
@@ -255,6 +376,152 @@ const UserCard = ({ user, currentUserId, onFollow, loading, t }) => {
         >
           {loading ? t('people.loading') : user.isFollowing ? t('people.following') : t('people.follow')}
         </button>
+      )}
+    </div>
+  );
+};
+
+// Activity Card Component
+const ActivityCard = ({ activity, t }) => {
+  const activityUser = activity.userId;
+  const movie = activity.movieId;
+
+  const getActivityIcon = () => {
+    switch (activity.type) {
+      case 'review':
+        return <Star className="w-4 h-4 text-amber-500" />;
+      case 'comment':
+        return <MessageSquare className="w-4 h-4 text-blue-400" />;
+      case 'watchlist_add':
+        return <Plus className="w-4 h-4 text-green-400" />;
+      case 'favorite_add':
+        return <Heart className="w-4 h-4 text-red-400 fill-current" />;
+      case 'watched':
+        return <Film className="w-4 h-4 text-purple-400" />;
+      default:
+        return <Activity className="w-4 h-4 text-white/50" />;
+    }
+  };
+
+  const getActivityText = () => {
+    const userName = activityUser?.displayName || activityUser?.username || 'Someone';
+    const movieTitle = movie?.title || 'a film';
+
+    switch (activity.type) {
+      case 'review':
+        return (
+          <>
+            <span className="font-medium text-white">{userName}</span>
+            <span className="text-white/60"> reviewed </span>
+            <span className="font-medium text-amber-500">{movieTitle}</span>
+            {activity.rating && (
+              <span className="text-white/60"> - {activity.rating}/10</span>
+            )}
+          </>
+        );
+      case 'comment':
+        return (
+          <>
+            <span className="font-medium text-white">{userName}</span>
+            <span className="text-white/60"> commented on </span>
+            <span className="font-medium text-amber-500">{movieTitle}</span>
+          </>
+        );
+      case 'watchlist_add':
+        return (
+          <>
+            <span className="font-medium text-white">{userName}</span>
+            <span className="text-white/60"> added </span>
+            <span className="font-medium text-amber-500">{movieTitle}</span>
+            <span className="text-white/60"> to their watchlist</span>
+          </>
+        );
+      case 'favorite_add':
+        return (
+          <>
+            <span className="font-medium text-white">{userName}</span>
+            <span className="text-white/60"> added </span>
+            <span className="font-medium text-amber-500">{movieTitle}</span>
+            <span className="text-white/60"> to favorites</span>
+          </>
+        );
+      case 'watched':
+        return (
+          <>
+            <span className="font-medium text-white">{userName}</span>
+            <span className="text-white/60"> watched </span>
+            <span className="font-medium text-amber-500">{movieTitle}</span>
+          </>
+        );
+      default:
+        return (
+          <>
+            <span className="font-medium text-white">{userName}</span>
+            <span className="text-white/60"> did something with </span>
+            <span className="font-medium text-amber-500">{movieTitle}</span>
+          </>
+        );
+    }
+  };
+
+  const timeAgo = (date) => {
+    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+    const intervals = [
+      { label: 'y', seconds: 31536000 },
+      { label: 'mo', seconds: 2592000 },
+      { label: 'd', seconds: 86400 },
+      { label: 'h', seconds: 3600 },
+      { label: 'm', seconds: 60 },
+    ];
+    for (const interval of intervals) {
+      const count = Math.floor(seconds / interval.seconds);
+      if (count >= 1) return `${count}${interval.label}`;
+    }
+    return 'now';
+  };
+
+  return (
+    <div className="flex gap-4 p-4 bg-white/5 hover:bg-white/8 border border-white/10 rounded transition-all">
+      {/* User Avatar */}
+      <Link to={`/profile/${activityUser?.username}`} className="flex-shrink-0">
+        <div className="w-12 h-12 rounded-full bg-white/10 overflow-hidden">
+          {activityUser?.avatar ? (
+            <img src={activityUser.avatar} alt={activityUser.displayName} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-lg font-light text-white/40">
+              {activityUser?.displayName?.charAt(0).toUpperCase() || activityUser?.username?.charAt(0).toUpperCase() || '?'}
+            </div>
+          )}
+        </div>
+      </Link>
+
+      {/* Activity Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          {getActivityIcon()}
+          <p className="text-sm">{getActivityText()}</p>
+        </div>
+
+        {activity.content && (
+          <p className="text-white/60 text-sm mt-2 line-clamp-2">{activity.content}</p>
+        )}
+
+        <p className="text-white/40 text-xs mt-2">{timeAgo(activity.createdAt)}</p>
+      </div>
+
+      {/* Movie Poster */}
+      {movie && (
+        <Link to={`/video/${movie._id}`} className="flex-shrink-0">
+          <div className="w-16 h-24 bg-white/10 rounded overflow-hidden">
+            {movie.posterUrl ? (
+              <img src={movie.posterUrl} alt={movie.title} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Film className="w-6 h-6 text-white/20" />
+              </div>
+            )}
+          </div>
+        </Link>
       )}
     </div>
   );

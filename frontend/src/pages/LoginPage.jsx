@@ -14,11 +14,12 @@ const LoginPage = () => {
     login: '',
     password: ''
   });
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Get redirect path from location state, or default to profile
-  const from = location.state?.from?.pathname || '/profile';
+  // Get redirect path from location state, or default to home
+  const from = location.state?.from?.pathname || '/';
 
   // Redirect if already logged in
   useEffect(() => {
@@ -47,7 +48,7 @@ const LoginPage = () => {
     setIsSubmitting(true);
     setError('');
     
-    const result = await login(formData.login, formData.password);
+    const result = await login(formData.login, formData.password, rememberMe);
 
     if (result.success) {
       navigate(from, { replace: true });
@@ -80,8 +81,30 @@ const LoginPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Background Image */}
+      <div
+        className="absolute inset-0 z-0 opacity-60"
+        style={{
+          backgroundImage: "url('/hero-image.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      ></div>
+
+      {/* Gradient Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black z-[1]"></div>
+
+      {/* Film Grain Effect */}
+      <div className="absolute inset-0 bg-[url('/film-grain.png')] opacity-[0.03] mix-blend-overlay z-[1] pointer-events-none"></div>
+
+      {/* Vignette Effect */}
+      <div
+        className="absolute inset-0 pointer-events-none z-[1]"
+        style={{ boxShadow: "inset 0 0 200px rgba(0,0,0,0.7)" }}
+      ></div>
+
+      <div className="w-full max-w-md relative z-10">
         {/* Logo */}
         <div className="text-center mb-12">
           <Link to="/" className="inline-block">
@@ -92,7 +115,7 @@ const LoginPage = () => {
         </div>
 
         {/* Login Form */}
-        <div className="bg-white/[0.02] border border-white/10 p-10">
+        <div className="bg-black/60 backdrop-blur-md border border-white/10 p-10">
           <h2 className="text-2xl font-light text-center mb-8 tracking-wide">{t('login.title')}</h2>
           
           {error && (
@@ -124,6 +147,26 @@ const LoginPage = () => {
                 placeholder={t('login.password')}
                 autoComplete="current-password"
               />
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 bg-transparent border border-white/30 rounded-sm checked:bg-white checked:border-white focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                />
+                <span className="text-sm text-white/50 group-hover:text-white/70 transition-colors">
+                  {t('login.rememberMe')}
+                </span>
+              </label>
+              <Link
+                to="/forgot-password"
+                className="text-sm text-white/50 hover:text-white/70 transition-colors"
+              >
+                {t('login.forgotPassword')}
+              </Link>
             </div>
 
             <button

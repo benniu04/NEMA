@@ -174,8 +174,30 @@ const RegisterPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Background Image */}
+      <div
+        className="absolute inset-0 z-0 opacity-60"
+        style={{
+          backgroundImage: "url('/hero-image.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      ></div>
+
+      {/* Gradient Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black z-[1]"></div>
+
+      {/* Film Grain Effect */}
+      <div className="absolute inset-0 bg-[url('/film-grain.png')] opacity-[0.03] mix-blend-overlay z-[1] pointer-events-none"></div>
+
+      {/* Vignette Effect */}
+      <div
+        className="absolute inset-0 pointer-events-none z-[1]"
+        style={{ boxShadow: "inset 0 0 200px rgba(0,0,0,0.7)" }}
+      ></div>
+
+      <div className="w-full max-w-md relative z-10">
         {/* Logo */}
         <div className="text-center mb-12">
           <Link to="/" className="inline-block">
@@ -186,7 +208,7 @@ const RegisterPage = () => {
         </div>
 
         {/* Register Form */}
-        <div className="bg-white/[0.02] border border-white/10 p-10">
+        <div className="bg-black/60 backdrop-blur-md border border-white/10 p-10">
           <h2 className="text-2xl font-light text-center mb-8 tracking-wide">{t('register.title')}</h2>
             
           {errors.submit && (

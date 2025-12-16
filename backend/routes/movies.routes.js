@@ -1,6 +1,8 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import { Movie } from '../models/movie.model.js';
-import { authMiddleware, adminMiddleware } from '../middleware/auth.middleware.js';
+import { User } from '../models/user.model.js';
+import { authMiddleware, adminMiddleware, optionalAuthMiddleware } from '../middleware/auth.middleware.js';
 import { generateCloudfrontSignedUrl, deleteS3Object } from '../config/s3.js';
 import { cache, clearCache } from '../config/cache.js';
 import logger from '../config/logger.js';
@@ -176,6 +178,101 @@ moviesRoutes.get('/search', async (req, res) => {
   } catch (error) {
     logger.error('Error searching movies:', { error: error.message, query, stack: error.stack });
     res.status(500).json({ message: 'Failed to search movies' });
+  }
+});
+
+// Get personalized movie recommendations for authenticated users
+// Falls back to popular/trending for non-authenticated users
+moviesRoutes.get('/recommendations', optionalAuthMiddleware, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+    const cacheKey = req.user ? `recommendations:${req.user.userId}` : 'recommendations:anonymous';
+
+    // Check cache (shorter TTL for personalized recommendations)
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      res.set('Cache-Control', 'private, max-age=300');
+      res.set('X-Cache', 'HIT');
+      return res.json(cached);
+    }
+
+    let recommendations = [];
+    let recommendationType = 'popular';
+
+    if (req.user) {
+      // Get user with their preferences
+      const user = await User.findById(req.user.userId);
+
+      if (user) {
+        const favoriteGenres = user.favoriteGenres || [];
+        const watchedMovieIds = (user.watchedFilms || []).map(w => w.movieId);
+        const favoriteFilmIds = user.favoriteFilms || [];
+        const watchlistIds = user.watchlist || [];
+
+        // Combine all movies to exclude from recommendations
+        const excludeIds = [...new Set([...watchedMovieIds, ...favoriteFilmIds, ...watchlistIds].map(id => id?.toString()).filter(Boolean))];
+
+        if (favoriteGenres.length > 0) {
+          // Genre-based recommendations - find movies matching user's favorite genres
+          recommendationType = 'personalized';
+
+          const excludeObjectIds = excludeIds.map(id => new mongoose.Types.ObjectId(id));
+
+          recommendations = await Movie.aggregate([
+            {
+              $match: {
+                _id: { $nin: excludeObjectIds },
+                genre: { $in: favoriteGenres }
+              }
+            },
+            {
+              // Score by how many favorite genres match
+              $addFields: {
+                genreMatchScore: {
+                  $size: {
+                    $setIntersection: ['$genre', favoriteGenres]
+                  }
+                }
+              }
+            },
+            {
+              $sort: { genreMatchScore: -1, rating: -1, views: -1 }
+            },
+            {
+              $limit: limit
+            }
+          ]);
+        }
+      }
+    }
+
+    // If no personalized recommendations, fall back to popular movies
+    if (recommendations.length === 0) {
+      recommendationType = 'popular';
+      recommendations = await Movie.find()
+        .sort({ views: -1, rating: -1 })
+        .limit(limit);
+    }
+
+    // Generate fresh signed URLs for each movie
+    const moviesWithFreshUrls = await Promise.all(
+      recommendations.map(async (movie) => {
+        const movieObj = movie.toObject ? movie.toObject() : movie;
+        const freshUrls = await generateFreshSignedUrls(movie);
+        return { ...movieObj, ...freshUrls, recommendationType };
+      })
+    );
+
+    // Cache results (5 minutes for personalized, 15 for anonymous)
+    const ttl = req.user ? 1000 * 60 * 5 : 1000 * 60 * 15;
+    cache.set(cacheKey, moviesWithFreshUrls, { ttl });
+
+    res.set('Cache-Control', req.user ? 'private, max-age=300' : 'public, max-age=900');
+    res.set('X-Cache', 'MISS');
+    res.status(200).json(moviesWithFreshUrls);
+  } catch (error) {
+    logger.error('Error fetching recommendations:', { error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Failed to fetch recommendations' });
   }
 });
 

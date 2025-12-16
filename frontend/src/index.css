@@ -6,6 +6,7 @@
 /* Set background color for overscroll bounce effect */
 html, body {
   background-color: #000000;
+  overflow-x: hidden;
 }
 
 /* For the background images, use Tailwind's @layer to extend with custom classes */

@@ -31,7 +31,7 @@ uploadRoutes.post('/video',
 );
 
 // Upload image file
-uploadRoutes.post('/image', 
+uploadRoutes.post('/image',
   [authMiddleware, adminMiddleware],
   upload.single('image'),
   async (req, res) => {
@@ -39,9 +39,9 @@ uploadRoutes.post('/image',
       if (!req.file) {
         return res.status(400).json({ message: 'No file uploaded' });
       }
-      
+
       const imageType = req.body.type || 'poster';
-      
+
       logger.info('Image uploaded successfully', { key: req.file.key, type: imageType });
       res.status(200).json({
         message: 'Image uploaded successfully',
@@ -51,6 +51,43 @@ uploadRoutes.post('/image',
     } catch (error) {
       logger.error('Error uploading image:', { error: error.message, stack: error.stack });
       res.status(500).json({ message: 'Error uploading image' });
+    }
+  }
+);
+
+// Upload subtitle file (VTT format)
+uploadRoutes.post('/subtitle',
+  [authMiddleware, adminMiddleware],
+  upload.single('subtitle'),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      const language = req.body.language || 'en';
+
+      // Validate file extension
+      const validExtensions = ['.vtt', '.srt'];
+      const fileExtension = req.file.originalname.toLowerCase().slice(req.file.originalname.lastIndexOf('.'));
+      if (!validExtensions.includes(fileExtension)) {
+        return res.status(400).json({ message: 'Invalid subtitle format. Please upload VTT or SRT files.' });
+      }
+
+      logger.info('Subtitle uploaded successfully', {
+        key: req.file.key,
+        language,
+        originalName: req.file.originalname
+      });
+
+      res.status(200).json({
+        message: 'Subtitle uploaded successfully',
+        key: req.file.key,
+        language: language
+      });
+    } catch (error) {
+      logger.error('Error uploading subtitle:', { error: error.message, stack: error.stack });
+      res.status(500).json({ message: 'Error uploading subtitle' });
     }
   }
 );

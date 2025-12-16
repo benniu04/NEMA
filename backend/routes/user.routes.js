@@ -9,8 +9,14 @@ import { validateUserRegister, validateUserLogin, validateUserUpdate } from '../
 import { generateCloudfrontSignedUrl } from '../config/s3.js';
 import logger from '../config/logger.js';
 import { verifyFirebaseToken } from '../config/firebase-admin.js';
+import { sendEmail, emailTemplates } from '../config/email.js';
 
 const userRoutes = express.Router();
+
+// Get frontend URL for email links
+const getFrontendUrl = () => {
+  return process.env.FRONTEND_URL || 'http://localhost:5173';
+};
 
 // Rate limiter for username/email enumeration protection
 const enumerationLimiter = rateLimit({
@@ -288,17 +294,244 @@ userRoutes.post('/firebase-auth', async (req, res) => {
 userRoutes.post('/logout', async (req, res) => {
   try {
     securityLogger('USER_LOGOUT', { userId: req.user?.id }, req);
-    
+
     res.clearCookie('userToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
     });
-    
+
     res.json({ message: 'Logged out successfully' });
   } catch (error) {
     logger.error('Logout error:', { error: error.message, stack: error.stack });
     res.status(500).json({ message: 'Logout failed' });
+  }
+});
+
+// ==================== PASSWORD RESET ====================
+
+// Rate limiter for password reset to prevent abuse
+const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Limit to 5 requests per hour
+  message: { message: 'Too many password reset requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Request password reset (forgot password)
+userRoutes.post('/forgot-password', passwordResetLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    securityLogger('PASSWORD_RESET_REQUEST', { email }, req);
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    // Always return success to prevent email enumeration
+    if (!user) {
+      securityLogger('PASSWORD_RESET_USER_NOT_FOUND', { email }, req);
+      return res.json({
+        message: 'If an account with that email exists, a password reset link has been sent.'
+      });
+    }
+
+    // Check if user is OAuth only (no password)
+    if (user.authProvider === 'google' && !user.password) {
+      securityLogger('PASSWORD_RESET_OAUTH_USER', { email }, req);
+      return res.json({
+        message: 'If an account with that email exists, a password reset link has been sent.'
+      });
+    }
+
+    // Generate reset token
+    const resetToken = user.generatePasswordResetToken();
+    await user.save();
+
+    // Build reset URL
+    const resetUrl = `${getFrontendUrl()}/reset-password/${resetToken}`;
+
+    // Send email
+    const emailContent = emailTemplates.passwordReset(resetUrl, user.displayName || user.username);
+    const result = await sendEmail({
+      to: user.email,
+      subject: emailContent.subject,
+      html: emailContent.html
+    });
+
+    if (!result.success) {
+      logger.error('Failed to send password reset email:', { email, error: result.error });
+      // In development, log the reset URL to console for testing
+      if (process.env.NODE_ENV !== 'production') {
+        logger.info('📧 [DEV MODE] Password reset link (email not configured):');
+        logger.info(`   URL: ${resetUrl}`);
+        logger.info(`   User: ${user.email}`);
+      }
+    }
+
+    securityLogger('PASSWORD_RESET_EMAIL_SENT', { email, userId: user._id }, req);
+
+    res.json({
+      message: 'If an account with that email exists, a password reset link has been sent.'
+    });
+  } catch (error) {
+    securityLogger('PASSWORD_RESET_ERROR', { error: error.message }, req);
+    logger.error('Forgot password error:', { error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Failed to process password reset request' });
+  }
+});
+
+// Reset password with token
+userRoutes.post('/reset-password/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ message: 'New password is required' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
+
+    securityLogger('PASSWORD_RESET_ATTEMPT', { token: token.substring(0, 8) + '...' }, req);
+
+    // Find user by reset token
+    const user = await User.findByPasswordResetToken(token);
+
+    if (!user) {
+      securityLogger('PASSWORD_RESET_INVALID_TOKEN', { token: token.substring(0, 8) + '...' }, req);
+      return res.status(400).json({ message: 'Invalid or expired reset token' });
+    }
+
+    // Update password and clear reset token
+    user.password = password;
+    user.passwordResetToken = null;
+    user.passwordResetExpires = null;
+    await user.save();
+
+    securityLogger('PASSWORD_RESET_SUCCESS', { userId: user._id }, req);
+
+    res.json({ message: 'Password has been reset successfully' });
+  } catch (error) {
+    securityLogger('PASSWORD_RESET_ERROR', { error: error.message }, req);
+    logger.error('Reset password error:', { error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Failed to reset password' });
+  }
+});
+
+// Verify reset token is valid (for frontend validation)
+userRoutes.get('/reset-password/:token/verify', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const user = await User.findByPasswordResetToken(token);
+
+    if (!user) {
+      return res.status(400).json({ valid: false, message: 'Invalid or expired reset token' });
+    }
+
+    res.json({ valid: true });
+  } catch (error) {
+    logger.error('Verify reset token error:', { error: error.message });
+    res.status(500).json({ valid: false, message: 'Failed to verify token' });
+  }
+});
+
+// ==================== EMAIL VERIFICATION ====================
+
+// Verify email with token
+userRoutes.post('/verify-email/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    securityLogger('EMAIL_VERIFY_ATTEMPT', { token: token.substring(0, 8) + '...' }, req);
+
+    const user = await User.findByEmailVerificationToken(token);
+
+    if (!user) {
+      securityLogger('EMAIL_VERIFY_INVALID_TOKEN', { token: token.substring(0, 8) + '...' }, req);
+      return res.status(400).json({ message: 'Invalid or expired verification token' });
+    }
+
+    // Mark user as verified
+    user.isVerified = true;
+    user.emailVerificationToken = null;
+    user.emailVerificationExpires = null;
+    await user.save();
+
+    // Send welcome email
+    const welcomeContent = emailTemplates.welcomeEmail(user.displayName || user.username);
+    await sendEmail({
+      to: user.email,
+      subject: welcomeContent.subject,
+      html: welcomeContent.html
+    });
+
+    securityLogger('EMAIL_VERIFY_SUCCESS', { userId: user._id }, req);
+
+    res.json({ message: 'Email verified successfully' });
+  } catch (error) {
+    securityLogger('EMAIL_VERIFY_ERROR', { error: error.message }, req);
+    logger.error('Verify email error:', { error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Failed to verify email' });
+  }
+});
+
+// Resend verification email
+userRoutes.post('/resend-verification', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ message: 'Email is already verified' });
+    }
+
+    securityLogger('RESEND_VERIFICATION_REQUEST', { userId: user._id }, req);
+
+    // Generate new verification token
+    const verifyToken = user.generateEmailVerificationToken();
+    await user.save();
+
+    // Build verification URL
+    const verifyUrl = `${getFrontendUrl()}/verify-email/${verifyToken}`;
+
+    // Send email
+    const emailContent = emailTemplates.emailVerification(verifyUrl, user.displayName || user.username);
+    const result = await sendEmail({
+      to: user.email,
+      subject: emailContent.subject,
+      html: emailContent.html
+    });
+
+    if (!result.success) {
+      logger.error('Failed to send verification email:', { userId: user._id, error: result.error });
+      // In development, log the verification URL to console for testing
+      if (process.env.NODE_ENV !== 'production') {
+        logger.info('📧 [DEV MODE] Email verification link (email not configured):');
+        logger.info(`   URL: ${verifyUrl}`);
+        logger.info(`   User: ${user.email}`);
+      } else {
+        return res.status(500).json({ message: 'Failed to send verification email' });
+      }
+    }
+
+    securityLogger('RESEND_VERIFICATION_SUCCESS', { userId: user._id }, req);
+
+    res.json({ message: 'Verification email sent' });
+  } catch (error) {
+    securityLogger('RESEND_VERIFICATION_ERROR', { error: error.message }, req);
+    logger.error('Resend verification error:', { error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Failed to resend verification email' });
   }
 });
 
@@ -759,6 +992,53 @@ userRoutes.get('/activity/:username', async (req, res) => {
   } catch (error) {
     logger.error('Get public activity error:', { error: error.message, stack: error.stack });
     res.status(500).json({ message: 'Failed to get activity' });
+  }
+});
+
+// Get activity feed from users you follow
+userRoutes.get('/feed', authMiddleware, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 30;
+    const offset = parseInt(req.query.offset) || 0;
+
+    // Get the current user's following list
+    const currentUser = await User.findById(req.user.id).select('following');
+
+    if (!currentUser || currentUser.following.length === 0) {
+      return res.json({ activities: [], hasMore: false });
+    }
+
+    // Get activities from users the current user follows
+    const activities = await Activity.find({ userId: { $in: currentUser.following } })
+      .sort({ createdAt: -1 })
+      .skip(offset)
+      .limit(limit + 1)
+      .populate('userId', 'username displayName avatar')
+      .populate('movieId', 'title posterUrl posterKey director releaseDate')
+      .lean();
+
+    // Check if there are more activities
+    const hasMore = activities.length > limit;
+    const result = hasMore ? activities.slice(0, limit) : activities;
+
+    // Generate signed URLs for movie posters
+    const activitiesWithUrls = await Promise.all(
+      result.map(async (activity) => {
+        if (activity.movieId && activity.movieId.posterKey) {
+          try {
+            activity.movieId.posterUrl = await generateCloudfrontSignedUrl(activity.movieId.posterKey);
+          } catch (error) {
+            logger.error('Error generating poster URL for feed:', { error: error.message });
+          }
+        }
+        return activity;
+      })
+    );
+
+    res.json({ activities: activitiesWithUrls, hasMore });
+  } catch (error) {
+    logger.error('Get feed error:', { error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Failed to get feed' });
   }
 });
 

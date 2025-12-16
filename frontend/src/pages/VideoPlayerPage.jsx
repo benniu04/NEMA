@@ -34,6 +34,17 @@ const VideoPlayerPage = () => {
   const [visibleSections, setVisibleSections] = useState({});
   const videoRef = useRef(null);
   const progressBarRef = useRef(null);
+
+  // Playback speed state
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const speedOptions = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+
+  // Subtitle state
+  const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
+  const [currentSubtitle, setCurrentSubtitle] = useState('off');
+  const [subtitleSize, setSubtitleSize] = useState('medium'); // small, medium, large
+  const subtitleSizes = { small: '14px', medium: '18px', large: '24px' };
   
   // Watchlist state
   const [isInWatchlist, setIsInWatchlist] = useState(false);
@@ -517,6 +528,64 @@ const VideoPlayerPage = () => {
     video.addEventListener('loadeddata', handleLoadedData);
   };
 
+  // Playback speed handler
+  const handlePlaybackSpeedChange = (speed) => {
+    const video = videoRef.current;
+    if (video) {
+      video.playbackRate = speed;
+      setPlaybackSpeed(speed);
+      setShowSpeedMenu(false);
+    }
+  };
+
+  // Subtitle handlers
+  const handleSubtitleChange = (lang) => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Disable all tracks first
+    for (let i = 0; i < video.textTracks.length; i++) {
+      video.textTracks[i].mode = 'hidden';
+    }
+
+    if (lang !== 'off') {
+      // Find and enable the selected track
+      for (let i = 0; i < video.textTracks.length; i++) {
+        if (video.textTracks[i].language === lang) {
+          video.textTracks[i].mode = 'showing';
+          break;
+        }
+      }
+    }
+
+    setCurrentSubtitle(lang);
+    setShowSubtitleMenu(false);
+  };
+
+  const handleSubtitleSizeChange = (size) => {
+    setSubtitleSize(size);
+  };
+
+  // Get available subtitles from movie
+  const getAvailableSubtitles = () => {
+    if (!movie?.subtitleUrls) return [];
+    return Object.entries(movie.subtitleUrls).filter(([_, url]) => url);
+  };
+
+  // Close menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (showSpeedMenu || showSubtitleMenu) {
+        if (!e.target.closest('.speed-menu-container') && !e.target.closest('.subtitle-menu-container')) {
+          setShowSpeedMenu(false);
+          setShowSubtitleMenu(false);
+        }
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showSpeedMenu, showSubtitleMenu]);
+
   const toggleFullscreen = async () => {
     const videoContainer = document.querySelector('.video-container');
     const video = videoRef.current;
@@ -716,6 +785,18 @@ const VideoPlayerPage = () => {
 
         <div className="relative max-w-7xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
           <section className="mb-16">
+            {/* Subtitle styling */}
+            <style>
+              {`
+                .video-container video::cue {
+                  font-size: ${subtitleSizes[subtitleSize]};
+                  background-color: rgba(0, 0, 0, 0.75);
+                  color: white;
+                  padding: 4px 8px;
+                  border-radius: 4px;
+                }
+              `}
+            </style>
             <div className={`video-container relative aspect-video bg-black rounded-none overflow-hidden ${!showControls ? 'cursor-none' : 'cursor-default'}`}>
               {movie && selectedQuality && movie.videoUrls[selectedQuality] ? (
                 <video
@@ -834,7 +915,8 @@ const VideoPlayerPage = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-3">
+                    {/* Quality Selector */}
                     <select
                       value={selectedQuality}
                       onChange={(e) => handleQualityChange(e.target.value)}
@@ -845,9 +927,121 @@ const VideoPlayerPage = () => {
                       ))}
                     </select>
 
+                    {/* Playback Speed Control */}
+                    <div className="relative speed-menu-container">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowSpeedMenu(!showSpeedMenu);
+                          setShowSubtitleMenu(false);
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 text-sm text-white hover:text-amber-500 transition-colors bg-white/5 border border-amber-100/20"
+                        title={t('video.playbackSpeed')}
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span>{playbackSpeed}x</span>
+                      </button>
+
+                      {showSpeedMenu && (
+                        <div className="absolute bottom-full right-0 mb-2 bg-black/95 border border-amber-100/20 rounded shadow-xl z-50 min-w-[100px]">
+                          <div className="py-1">
+                            {speedOptions.map((speed) => (
+                              <button
+                                key={speed}
+                                onClick={() => handlePlaybackSpeedChange(speed)}
+                                className={`w-full px-4 py-2 text-sm text-left hover:bg-white/10 transition-colors ${
+                                  playbackSpeed === speed ? 'text-amber-500 bg-white/5' : 'text-white'
+                                }`}
+                              >
+                                {speed === 1 ? t('video.normal') : `${speed}x`}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Subtitle Control */}
+                    <div className="relative subtitle-menu-container">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowSubtitleMenu(!showSubtitleMenu);
+                          setShowSpeedMenu(false);
+                        }}
+                        className={`flex items-center gap-1 px-2 py-1 text-sm transition-colors bg-white/5 border border-amber-100/20 ${
+                          currentSubtitle !== 'off' ? 'text-amber-500' : 'text-white hover:text-amber-500'
+                        }`}
+                        title={t('video.subtitles')}
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                        </svg>
+                        <span className="hidden sm:inline">{t('video.cc')}</span>
+                      </button>
+
+                      {showSubtitleMenu && (
+                        <div className="absolute bottom-full right-0 mb-2 bg-black/95 border border-amber-100/20 rounded shadow-xl z-50 min-w-[180px]">
+                          <div className="py-1">
+                            {/* Subtitle Language Options */}
+                            <div className="px-3 py-1 text-xs text-white/50 uppercase tracking-wider">{t('video.language')}</div>
+                            <button
+                              onClick={() => handleSubtitleChange('off')}
+                              className={`w-full px-4 py-2 text-sm text-left hover:bg-white/10 transition-colors ${
+                                currentSubtitle === 'off' ? 'text-amber-500 bg-white/5' : 'text-white'
+                              }`}
+                            >
+                              {t('video.off')}
+                            </button>
+                            {getAvailableSubtitles().length > 0 ? (
+                              getAvailableSubtitles().map(([lang, url]) => (
+                                <button
+                                  key={lang}
+                                  onClick={() => handleSubtitleChange(lang)}
+                                  className={`w-full px-4 py-2 text-sm text-left hover:bg-white/10 transition-colors ${
+                                    currentSubtitle === lang ? 'text-amber-500 bg-white/5' : 'text-white'
+                                  }`}
+                                >
+                                  {t(`video.subtitle.${lang}`) || lang.toUpperCase()}
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-4 py-2 text-sm text-white/40 italic">
+                                {t('video.noSubtitles')}
+                              </div>
+                            )}
+
+                            {/* Subtitle Size Options */}
+                            {currentSubtitle !== 'off' && (
+                              <>
+                                <div className="border-t border-white/10 mt-1 pt-1">
+                                  <div className="px-3 py-1 text-xs text-white/50 uppercase tracking-wider">{t('video.size')}</div>
+                                  {Object.keys(subtitleSizes).map((size) => (
+                                    <button
+                                      key={size}
+                                      onClick={() => handleSubtitleSizeChange(size)}
+                                      className={`w-full px-4 py-2 text-sm text-left hover:bg-white/10 transition-colors ${
+                                        subtitleSize === size ? 'text-amber-500 bg-white/5' : 'text-white'
+                                      }`}
+                                    >
+                                      {t(`video.subtitle.${size}`)}
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Fullscreen Button */}
                     <button
                       onClick={toggleFullscreen}
                       className="text-white hover:text-amber-500 transition-colors"
+                      title={t('video.fullscreen')}
                     >
                       {isFullscreen ? (
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

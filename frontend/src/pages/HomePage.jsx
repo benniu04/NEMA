@@ -4,7 +4,7 @@ import NavBar from '../components/NavBar'
 import API_BASE_URL from '../../config/api.js'
 import { useSettings } from '../context/SettingsContext'
 import { useUser } from '../context/UserContext'
-import { ChevronDown, Filter, X, Play, Info, ArrowRight } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Filter, X, Play, Info, ArrowRight } from 'lucide-react'
 
 // Testimonials from directors and filmmakers
 const testimonials = [
@@ -31,6 +31,9 @@ const HomePage = () => {
   const [featuredMovies, setFeaturedMovies] = useState([])
   const [allMovies, setAllMovies] = useState([])
   const [loading, setLoading] = useState(true)
+  const [continueWatching, setContinueWatching] = useState([])
+  const [recommendations, setRecommendations] = useState([])
+  const [recommendationType, setRecommendationType] = useState('popular')
 
   // Filter states (for authenticated users)
   const [filterOpen, setFilterOpen] = useState(false)
@@ -45,6 +48,8 @@ const HomePage = () => {
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
   const heroRef = useRef(null);
   const featuredFilmsRef = useRef(null);
+  const continueWatchingRef = useRef(null);
+  const recommendationsRef = useRef(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -83,8 +88,114 @@ const HomePage = () => {
     fetchData()
   }, [])
 
+  // Fetch continue watching data for authenticated users
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setContinueWatching([])
+      return
+    }
+
+    const fetchWatchHistory = async () => {
+      try {
+        const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken')
+        const headers = { 'Content-Type': 'application/json' }
+        if (token) headers['Authorization'] = `Bearer ${token}`
+
+        const response = await fetch(`${API_BASE_URL}/api/watch-time/history?limit=20`, {
+          credentials: 'include',
+          headers
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          // Filter for incomplete movies (< 90% watched) and dedupe by movieId
+          const seenMovies = new Set()
+          const incomplete = data.filter(session => {
+            if (!session.movieId || seenMovies.has(session.movieId._id)) return false
+            if (session.completionPercentage >= 90) return false
+            seenMovies.add(session.movieId._id)
+            return true
+          })
+          setContinueWatching(incomplete)
+        }
+      } catch (err) {
+        console.error('Failed to fetch watch history:', err)
+      }
+    }
+
+    fetchWatchHistory()
+  }, [isAuthenticated])
+
+  // Fetch recommendations for authenticated users
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setRecommendations([])
+      setRecommendationType('popular')
+      return
+    }
+
+    const fetchRecommendations = async () => {
+      try {
+        const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken')
+        const headers = { 'Content-Type': 'application/json' }
+        if (token) headers['Authorization'] = `Bearer ${token}`
+
+        const response = await fetch(`${API_BASE_URL}/api/movies/recommendations?limit=12`, {
+          credentials: 'include',
+          headers
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.length > 0) {
+            setRecommendations(data)
+            setRecommendationType(data[0]?.recommendationType || 'popular')
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch recommendations:', err)
+      }
+    }
+
+    fetchRecommendations()
+  }, [isAuthenticated])
+
   const scrollToFeatured = () => {
     featuredFilmsRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Scroll functions for continue watching carousel
+  const scrollContinueWatching = (direction) => {
+    if (continueWatchingRef.current) {
+      const scrollAmount = 400;
+      continueWatchingRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  // Scroll functions for recommendations carousel
+  const scrollRecommendations = (direction) => {
+    if (recommendationsRef.current) {
+      const scrollAmount = 400;
+      recommendationsRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  // Format time for resume display
+  const formatResumeTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    if (mins >= 60) {
+      const hrs = Math.floor(mins / 60);
+      const remainingMins = mins % 60;
+      return `${hrs}h ${remainingMins}m`;
+    }
+    return `${mins}m ${secs}s`;
   };
 
   // Intersection observer for landing page sections
@@ -195,7 +306,7 @@ const HomePage = () => {
     if (!movie) return null;
 
     return (
-      <div className="relative w-full h-[70vh] min-h-[500px] max-h-[800px]">
+      <div className="relative w-full h-[95vh] min-h-[700px] max-h-[1200px]">
         {/* Background Image */}
         <div className="absolute inset-0">
           <img
@@ -340,6 +451,217 @@ const HomePage = () => {
     </Link>
   )
 
+  // Continue Watching Card with progress bar
+  const ContinueWatchingCard = ({ session }) => {
+    const movie = session.movieId;
+    if (!movie) return null;
+
+    const resumeTime = Math.floor(session.maxTimeReached);
+    const imageUrl = movie.thumbnailUrl || movie.posterUrl;
+
+    return (
+      <Link
+        to={`/video/${movie._id}?t=${resumeTime}`}
+        className="group relative flex-shrink-0 w-[320px] aspect-video overflow-hidden bg-black/40 transform transition-all duration-300 hover:scale-[1.02]"
+      >
+        {/* Thumbnail */}
+        <img
+          src={imageUrl}
+          alt={movie.title}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+
+        {/* Play button on hover */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="relative opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <div className="relative w-14 h-14 flex items-center justify-center rounded-full bg-white/90 shadow-lg">
+              <Play className="w-6 h-6 text-black fill-current ml-0.5" />
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="absolute bottom-0 left-0 right-0 p-4">
+          {/* Progress bar */}
+          <div className="w-full h-1 bg-white/20 rounded-full mb-3 overflow-hidden">
+            <div
+              className="h-full bg-amber-500 rounded-full transition-all duration-300"
+              style={{ width: `${session.completionPercentage}%` }}
+            />
+          </div>
+
+          <h4 className="text-base font-medium text-white line-clamp-1 mb-1">{movie.title}</h4>
+          <div className="flex items-center justify-between text-xs text-white/60">
+            <span>{session.completionPercentage}% watched</span>
+            <span>{formatResumeTime(session.videoDuration - session.maxTimeReached)} left</span>
+          </div>
+        </div>
+
+        {/* Resume badge */}
+        <div className="absolute top-3 left-3 px-2 py-1 bg-black/70 backdrop-blur-sm text-xs text-white/90 flex items-center gap-1">
+          <Play className="w-3 h-3 fill-current" />
+          Resume
+        </div>
+      </Link>
+    );
+  };
+
+  // Continue Watching Section Component
+  const ContinueWatchingSection = () => {
+    if (continueWatching.length === 0) return null;
+
+    return (
+      <div className="mb-10">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-light tracking-wide text-white">
+            {t('home.continueWatching') || 'Continue Watching'}
+          </h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => scrollContinueWatching('left')}
+              className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft className="w-4 h-4 text-white/70" />
+            </button>
+            <button
+              onClick={() => scrollContinueWatching('right')}
+              className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+              aria-label="Scroll right"
+            >
+              <ChevronRight className="w-4 h-4 text-white/70" />
+            </button>
+          </div>
+        </div>
+
+        <div
+          ref={continueWatchingRef}
+          className="flex gap-4 overflow-x-auto scrollbar-hide pb-2"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {continueWatching.map((session) => (
+            <ContinueWatchingCard key={session._id} session={session} />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Recommendation Card Component
+  const RecommendationCard = ({ movie }) => {
+    if (!movie) return null;
+
+    const imageUrl = movie.thumbnailUrl || movie.posterUrl;
+
+    return (
+      <Link
+        to={`/video/${movie._id}`}
+        className="group relative flex-shrink-0 w-[280px] aspect-[2/3] overflow-hidden bg-black/40 transform transition-all duration-300 hover:scale-[1.02]"
+      >
+        {/* Poster */}
+        <img
+          src={imageUrl}
+          alt={movie.title}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+        {/* Hover content */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+          <h4 className="text-base font-medium text-white line-clamp-1 mb-1">{movie.title}</h4>
+          <div className="flex items-center gap-2 text-xs text-white/70">
+            {movie.releaseDate && (
+              <span>{new Date(movie.releaseDate).getFullYear()}</span>
+            )}
+            {movie.rating && (
+              <span className="flex items-center gap-1">
+                <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                {movie.rating.toFixed(1)}
+              </span>
+            )}
+          </div>
+          {movie.genre && movie.genre.length > 0 && (
+            <div className="flex items-center gap-1 mt-2 flex-wrap">
+              {movie.genre.slice(0, 2).map((g, i) => (
+                <span key={i} className="px-1.5 py-0.5 bg-white/10 text-[10px] text-white/80 uppercase">
+                  {g}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Play button on hover */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="relative opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <div className="relative w-14 h-14 flex items-center justify-center rounded-full bg-white/90 shadow-lg">
+              <Play className="w-6 h-6 text-black fill-current ml-0.5" />
+            </div>
+          </div>
+        </div>
+      </Link>
+    );
+  };
+
+  // Recommendations Section Component
+  const RecommendationsSection = () => {
+    if (recommendations.length === 0) return null;
+
+    const sectionTitle = recommendationType === 'personalized'
+      ? (t('home.recommendedForYou') || 'Recommended For You')
+      : (t('home.popularNow') || 'Popular Now');
+
+    return (
+      <div className="mb-10">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-xl font-light tracking-wide text-white">
+              {sectionTitle}
+            </h3>
+            {recommendationType === 'personalized' && (
+              <p className="text-xs text-white/50 mt-1">
+                {t('home.basedOnPreferences') || 'Based on your favorite genres'}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => scrollRecommendations('left')}
+              className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft className="w-4 h-4 text-white/70" />
+            </button>
+            <button
+              onClick={() => scrollRecommendations('right')}
+              className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+              aria-label="Scroll right"
+            >
+              <ChevronRight className="w-4 h-4 text-white/70" />
+            </button>
+          </div>
+        </div>
+
+        <div
+          ref={recommendationsRef}
+          className="flex gap-4 overflow-x-auto scrollbar-hide pb-2"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {recommendations.map((movie) => (
+            <RecommendationCard key={movie._id} movie={movie} />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black text-white">
@@ -377,16 +699,25 @@ const HomePage = () => {
     const gridMovies = filteredMovies.filter(m => m._id !== heroMovie?._id);
 
     return (
-      <div className="min-h-screen bg-black text-white">
+      <div className="min-h-screen bg-black text-white overflow-x-hidden">
         <NavBar />
 
-        {/* Hero Banner */}
+        {/* Hero Banner - background is full-bleed, content is constrained */}
         {heroMovie && <HeroBanner movie={heroMovie} />}
 
+        {/* Constrained content */}
         <div className="pb-12 px-6 -mt-16 relative z-10">
           <div className="max-w-7xl mx-auto">
+            {/* Continue Watching Section */}
+            <div className="pt-8">
+              <ContinueWatchingSection />
+            </div>
+
+            {/* Recommendations Section */}
+            <RecommendationsSection />
+
             {/* Filter Header */}
-            <div className="flex items-center justify-between mb-8 pt-8">
+            <div className="flex items-center justify-between mb-8 pt-4">
               <div className="flex items-center gap-4">
                 {/* Filter Dropdown Button */}
                 <div className="relative">
@@ -557,9 +888,20 @@ const HomePage = () => {
         {/* Film Grain Effect */}
         <div className="absolute inset-0 bg-[url('/film-grain.png')] opacity-[0.03] mix-blend-overlay z-10 pointer-events-none"></div>
 
-        {/* Parallax Background */}
+        {/* Parallax Background - with overscan to prevent gaps when transformed */}
         <div
-          className="absolute z-0 inset-0 bg-[url('/hero-image.png')] bg-cover bg-center opacity-60 parallax"
+          className="absolute z-0 opacity-60 parallax"
+          style={{
+            backgroundImage: "url('/hero-image.png')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            left: "-5vw",
+            right: "-5vw",
+            top: "-5vh",
+            bottom: "-5vh",
+            willChange: "transform",
+            transform: "translateZ(0)",
+          }}
         ></div>
 
         {/* Content */}
@@ -768,7 +1110,10 @@ const HomePage = () => {
       {/* Global Cinema Effects */}
       <div className="fixed inset-0 pointer-events-none z-[100] opacity-30 mix-blend-overlay bg-[url('/film-grain.png')]"></div>
       <div className="fixed inset-0 pointer-events-none z-[99] opacity-15 bg-gradient-to-br from-amber-900/20 via-transparent to-indigo-900/20"></div>
-      <div className="fixed inset-0 pointer-events-none z-[98] opacity-30 mix-blend-multiply box-shadow: inset 0 0 200px rgba(0,0,0,0.7)"></div>
+      <div
+        className="fixed inset-0 pointer-events-none z-[98] opacity-30 mix-blend-multiply"
+        style={{ boxShadow: "inset 0 0 200px rgba(0,0,0,0.7)" }}
+      ></div>
     </div>
   )
 }

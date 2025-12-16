@@ -15,6 +15,9 @@ const AdminUploadPage = lazy(() => import('./pages/AdminUploadPage'))
 const AdminLogin = lazy(() => import('./pages/AdminLogin'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage'))
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
+const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const UserProfilePage = lazy(() => import('./pages/UserProfilePage'))
 const PeoplePage = lazy(() => import('./pages/PeoplePage'))
@@ -53,6 +56,9 @@ function App() {
             {/* User Auth Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+            <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/profile/:username" element={<UserProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />

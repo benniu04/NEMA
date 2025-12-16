@@ -55,7 +55,7 @@
     "mongoose": "^8.14.2",
     "multer": "^2.0.0",
     "multer-s3": "^3.0.1",
-    "nodemailer": "^7.0.3",
+    "nodemailer": "^7.0.11",
     "nodemon": "^3.1.10",
     "pm2": "^5.3.0",
     "winston": "^3.18.3"
