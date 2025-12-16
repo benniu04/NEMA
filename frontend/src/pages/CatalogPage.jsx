@@ -4,8 +4,10 @@ import NavBar from '../components/NavBar'
 import Footer from '../components/Footer'
 import LazyImage from '../components/LazyImage'
 import API_BASE_URL from '../../config/api.js'
+import { useSettings } from '../context/SettingsContext'
 
 const CatalogPage = () => {
+  const { t } = useSettings();
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -116,7 +118,7 @@ const CatalogPage = () => {
       <div className="min-h-screen bg-black text-white">
         <NavBar />
         <div className="flex items-center justify-center h-[calc(100vh-64px)]">
-          <div className="text-amber-100/60">Loading movies...</div>
+          <div className="text-amber-100/60">{t('catalog.loadingMovies')}</div>
         </div>
       </div>
     );
@@ -148,12 +150,12 @@ const CatalogPage = () => {
           {/* Header Section */}
           <section id="catalog-header" className="text-center mb-10">
             <div className="mb-3">
-              <span className="text-amber-100/80 tracking-[0.3em] uppercase text-xs md:text-sm font-extralight">Film Collection</span>
+              <span className="text-amber-100/80 tracking-[0.3em] uppercase text-xs md:text-sm font-extralight">{t('catalog.filmCollection')}</span>
             </div>
-            <h1 className="text-5xl md:text-6xl font-light mb-3 tracking-[0.2em] uppercase">Catalog</h1>
+            <h1 className="text-5xl md:text-6xl font-light mb-3 tracking-[0.2em] uppercase">{t('catalog.title')}</h1>
             <div className="w-20 h-[1px] bg-amber-100/30 mx-auto mb-4"></div>
             <p className="text-white/90 text-base md:text-lg max-w-2xl mx-auto leading-relaxed font-light tracking-wide">
-              Browse the archive and discover your next favorite film.
+              {t('catalog.subtitle')}
             </p>
           </section>
 
@@ -170,7 +172,7 @@ const CatalogPage = () => {
                   </div>
                   <input
                     type="text"
-                    placeholder="Search..."
+                    placeholder={t('common.search') + '...'}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full bg-white/5 border border-amber-100/20 rounded-none px-3 pl-10 py-2 text-sm font-light focus:outline-none focus:border-amber-100/40 transition-colors placeholder-amber-100/30"
@@ -230,23 +232,23 @@ const CatalogPage = () => {
                     onChange={(e) => setSortBy(e.target.value)}
                     className="bg-white/5 border border-amber-100/20 rounded-none px-3 py-2 text-sm font-light focus:outline-none focus:border-amber-100/40 transition-colors"
                   >
-                    <option value="newest" className="bg-black text-white">Newest</option>
-                    <option value="oldest" className="bg-black text-white">Oldest</option>
-                    <option value="title" className="bg-black text-white">A-Z</option>
+                    <option value="newest" className="bg-black text-white">{t('catalog.newest')}</option>
+                    <option value="oldest" className="bg-black text-white">{t('catalog.oldest')}</option>
+                    <option value="title" className="bg-black text-white">{t('catalog.aToZ')}</option>
                   </select>
                 </div>
 
                 {/* Compact Status and Clear */}
                 <div className="flex items-center gap-4 text-xs">
                   <span className="text-amber-100/50 whitespace-nowrap">
-                    {filteredMovies.length} films
+                    {filteredMovies.length} {t('common.films')}
                   </span>
                   {(selectedCategory !== "All" || selectedYear !== "All" || selectedLanguage !== "All" || searchQuery) && (
                     <button
                       onClick={clearFilters}
                       className="text-amber-100/60 hover:text-amber-100 underline transition-colors whitespace-nowrap"
                     >
-                      Clear
+                      {t('common.clear')}
                     </button>
                   )}
                 </div>
@@ -260,10 +262,10 @@ const CatalogPage = () => {
             <aside className="hidden lg:block w-72 shrink-0 sticky top-24 h-fit">
               <div className="bg-white/5 border border-amber-100/10 backdrop-blur-sm p-5">
                 <div className="mb-4">
-                  <label className="block text-sm text-amber-100/60 mb-2">Search</label>
+                  <label className="block text-sm text-amber-100/60 mb-2">{t('common.search')}</label>
                   <input
                     type="text"
-                    placeholder="Search..."
+                    placeholder={t('common.search') + '...'}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full bg-white/5 border border-amber-100/20 rounded-none px-3 py-2 text-sm font-light focus:outline-none focus:border-amber-100/40 transition-colors placeholder-amber-100/30"
@@ -271,7 +273,7 @@ const CatalogPage = () => {
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm text-amber-100/60 mb-2">Category</label>
+                    <label className="block text-sm text-amber-100/60 mb-2">{t('catalog.category')}</label>
                     <select
                       value={selectedCategory}
                       onChange={(e) => setSelectedCategory(e.target.value)}
@@ -283,7 +285,7 @@ const CatalogPage = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm text-amber-100/60 mb-2">Year</label>
+                    <label className="block text-sm text-amber-100/60 mb-2">{t('catalog.year')}</label>
                     <select
                       value={selectedYear}
                       onChange={(e) => setSelectedYear(e.target.value)}
@@ -295,7 +297,7 @@ const CatalogPage = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm text-amber-100/60 mb-2">Language</label>
+                    <label className="block text-sm text-amber-100/60 mb-2">{t('catalog.language')}</label>
                     <select
                       value={selectedLanguage}
                       onChange={(e) => setSelectedLanguage(e.target.value)}
@@ -307,15 +309,15 @@ const CatalogPage = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm text-amber-100/60 mb-2">Sort</label>
+                    <label className="block text-sm text-amber-100/60 mb-2">{t('catalog.sort')}</label>
                     <select
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value)}
                       className="w-full bg-white/5 border border-amber-100/20 rounded-none px-3 py-2 text-sm font-light focus:outline-none focus:border-amber-100/40 transition-colors"
                     >
-                      <option value="newest" className="bg-black text-white">Newest</option>
-                      <option value="oldest" className="bg-black text-white">Oldest</option>
-                      <option value="title" className="bg-black text-white">A-Z</option>
+                      <option value="newest" className="bg-black text-white">{t('catalog.newest')}</option>
+                      <option value="oldest" className="bg-black text-white">{t('catalog.oldest')}</option>
+                      <option value="title" className="bg-black text-white">{t('catalog.aToZ')}</option>
                     </select>
                   </div>
                   {(selectedCategory !== "All" || selectedYear !== "All" || selectedLanguage !== "All" || searchQuery) && (
@@ -323,10 +325,10 @@ const CatalogPage = () => {
                       onClick={clearFilters}
                       className="text-amber-100/70 hover:text-amber-100 underline text-sm"
                     >
-                      Clear Filters
+                      {t('common.clearFilters')}
                     </button>
                   )}
-                  <div className="text-amber-100/50 text-xs">{filteredMovies.length} films</div>
+                  <div className="text-amber-100/50 text-xs">{filteredMovies.length} {t('common.films')}</div>
                 </div>
               </div>
             </aside>
@@ -427,7 +429,7 @@ const CatalogPage = () => {
                   ))
                 ) : (
                   <div className="col-span-full text-center py-12">
-                    <p className="text-amber-100/60 text-lg">No films found matching your criteria.</p>
+                    <p className="text-amber-100/60 text-lg">{t('catalog.noFilms')}</p>
                   </div>
                 )}
               </section>
@@ -437,7 +439,7 @@ const CatalogPage = () => {
                 <div ref={loadMoreRef} className="mt-12 text-center">
                   <div className="inline-flex items-center gap-2 text-amber-100/60">
                     <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-amber-500"></div>
-                    <span className="text-sm">Loading more films...</span>
+                    <span className="text-sm">{t('catalog.loadingMore')}</span>
                   </div>
                 </div>
               )}
@@ -445,7 +447,7 @@ const CatalogPage = () => {
               {/* Show total count */}
               {displayedCount >= sortedMovies.length && sortedMovies.length > 12 && (
                 <div className="mt-12 text-center text-amber-100/50 text-sm">
-                  Showing all {sortedMovies.length} films
+                  {t('catalog.showingAll')} {sortedMovies.length} {t('common.films')}
                 </div>
               )}
             </div>

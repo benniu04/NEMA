@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import NavBar from '../components/NavBar';
 import Footer from '../components/Footer';
@@ -7,9 +7,12 @@ import API_BASE_URL from '../config/api.js';
 
 const ProfilePage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout, updateProfile, loading, isAuthenticated, refreshUser, removeFromFavorites, followUser, unfollowUser, isFollowing: checkIsFollowing } = useUser();
-  
-  const [activeTab, setActiveTab] = useState('activity');
+
+  // Check for tab state from navigation (e.g., from Watchlist link)
+  const initialTab = location.state?.tab || 'activity';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [activities, setActivities] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [watchHistory, setWatchHistory] = useState([]);
@@ -27,15 +30,21 @@ const ProfilePage = () => {
   const [loadingSocial, setLoadingSocial] = useState(false);
   const [followActionLoading, setFollowActionLoading] = useState({});
   
-  const avatarInputRef = useRef(null);
   const bannerInputRef = useRef(null);
 
   // Redirect if not logged in
-  useEffect(() => { 
+  useEffect(() => {
     if (!loading && !isAuthenticated) {
       navigate('/login', { state: { from: { pathname: '/profile' } } });
     }
   }, [isAuthenticated, loading, navigate]);
+
+  // Update tab when navigating with state (e.g., clicking Watchlist in navbar)
+  useEffect(() => {
+    if (location.state?.tab) {
+      setActiveTab(location.state.tab);
+    }
+  }, [location.state]);
 
   // Load user data
   useEffect(() => {
@@ -406,7 +415,7 @@ const ProfilePage = () => {
           <div className="relative -mt-16 mb-8 z-10">
             <div className="flex items-end gap-6">
               {/* Avatar */}
-              <div className="relative group z-20">
+              <div className="relative z-20">
                 <div className="w-32 h-32 bg-white/5 border-4 border-black overflow-hidden shadow-xl">
                   {user.avatar ? (
                     <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
@@ -416,20 +425,6 @@ const ProfilePage = () => {
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={() => avatarInputRef.current.click()}
-                  className="absolute inset-0 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs backdrop-blur-sm"
-                  disabled={isUploading}
-                >
-                  Change
-                </button>
-                <input
-                  ref={avatarInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => handleImageUpload(e.target.files[0], 'avatar')}
-                />
               </div>
 
               {/* User Info */}

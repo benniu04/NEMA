@@ -44,7 +44,42 @@ export const upload = multer({
     files: 1
   },
   fileFilter: (req, file, cb) => {
-    logger.debug('File filter check', { mimetype: file.mimetype, size: file.size, filename: file.originalname });
+    // Allowed MIME types for security
+    const allowedMimeTypes = [
+      'video/mp4',
+      'video/quicktime',
+      'video/x-msvideo',
+      'video/webm',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/gif'
+    ];
+
+    // Allowed extensions
+    const allowedExtensions = ['.mp4', '.mov', '.avi', '.webm', '.jpg', '.jpeg', '.png', '.webp', '.gif'];
+
+    // Get file extension
+    const ext = '.' + file.originalname.split('.').pop().toLowerCase();
+
+    // Validate MIME type and extension
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      logger.warn('File upload rejected: invalid MIME type', {
+        mimetype: file.mimetype,
+        filename: file.originalname
+      });
+      return cb(new Error('Invalid file type. Only video and image files are allowed.'), false);
+    }
+
+    if (!allowedExtensions.includes(ext)) {
+      logger.warn('File upload rejected: invalid extension', {
+        extension: ext,
+        filename: file.originalname
+      });
+      return cb(new Error('Invalid file extension.'), false);
+    }
+
+    logger.debug('File filter check passed', { mimetype: file.mimetype, filename: file.originalname });
     cb(null, true);
   }
 });

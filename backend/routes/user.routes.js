@@ -1,5 +1,6 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
 import { User } from '../models/user.model.js';
 import { Activity } from '../models/activity.model.js';
 import { ENV_VARS } from '../config/envVars.js';
@@ -10,6 +11,24 @@ import logger from '../config/logger.js';
 import { verifyFirebaseToken } from '../config/firebase-admin.js';
 
 const userRoutes = express.Router();
+
+// Rate limiter for username/email enumeration protection
+const enumerationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Limit to 20 requests per 15 minutes
+  message: { message: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Rate limiter for profile lookups to prevent mass scraping
+const profileLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // Limit to 50 profile lookups per 15 minutes
+  message: { message: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 // Security logging function
 const securityLogger = (event, details, req) => {
@@ -40,11 +59,7 @@ const generateToken = (user) => {
 // ==================== REGISTRATION ====================
 
 // Register new user
-userRoutes.post('/register', (req, res, next) => {
-  // Debug: Log incoming request body
-  console.log('Registration request body:', JSON.stringify(req.body, null, 2));
-  next();
-}, validateUserRegister, async (req, res) => {
+userRoutes.post('/register', validateUserRegister, async (req, res) => {
   try {
     const { email, username, password, displayName } = req.body;
 
@@ -525,7 +540,7 @@ userRoutes.get('/watchlist', authMiddleware, async (req, res) => {
 // ==================== PUBLIC PROFILES ====================
 
 // Get public user profile by username
-userRoutes.get('/profile/:username', async (req, res) => {
+userRoutes.get('/profile/:username', profileLimiter, async (req, res) => {
   try {
     const { username } = req.params;
     
@@ -543,7 +558,7 @@ userRoutes.get('/profile/:username', async (req, res) => {
 });
 
 // Get user's public favorites by user ID
-userRoutes.get('/:userId/favorites', async (req, res) => {
+userRoutes.get('/:userId/favorites', profileLimiter, async (req, res) => {
   try {
     const { userId } = req.params;
     
@@ -577,7 +592,7 @@ userRoutes.get('/:userId/favorites', async (req, res) => {
 });
 
 // Check if username is available
-userRoutes.get('/check-username/:username', async (req, res) => {
+userRoutes.get('/check-username/:username', enumerationLimiter, async (req, res) => {
   try {
     const { username } = req.params;
     
@@ -591,7 +606,7 @@ userRoutes.get('/check-username/:username', async (req, res) => {
 });
 
 // Check if email is available
-userRoutes.get('/check-email/:email', async (req, res) => {
+userRoutes.get('/check-email/:email', enumerationLimiter, async (req, res) => {
   try {
     const { email } = req.params;
     
@@ -753,18 +768,22 @@ userRoutes.get('/activity/:username', async (req, res) => {
 userRoutes.get('/search', authMiddleware, async (req, res) => {
   try {
     const { q } = req.query;
-    
+
     if (!q || q.trim().length < 2) {
       return res.status(400).json({ message: 'Search query must be at least 2 characters' });
     }
+
+    // Escape special regex characters to prevent ReDoS and injection attacks
+    const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const sanitizedQuery = escapeRegex(q.trim());
 
     const users = await User.find({
       $and: [
         { _id: { $ne: req.user.id } }, // Exclude current user
         {
           $or: [
-            { username: { $regex: q, $options: 'i' } },
-            { displayName: { $regex: q, $options: 'i' } }
+            { username: { $regex: sanitizedQuery, $options: 'i' } },
+            { displayName: { $regex: sanitizedQuery, $options: 'i' } }
           ]
         }
       ]

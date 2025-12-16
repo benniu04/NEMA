@@ -22,14 +22,12 @@ const GoogleOAuth = ({ onSuccess, onError }) => {
         
         const result = await getRedirectResult(auth);
         if (result) {
-          console.log('Got redirect result, processing...');
           setLoading(true);
           sessionStorage.removeItem('pendingRedirect'); // Clear the flag
           await processAuthResult(result);
           setLoading(false);
         } else if (pendingRedirect === 'true') {
           // Redirect happened but no result - might be an error
-          console.log('Expected redirect result but got none');
           sessionStorage.removeItem('pendingRedirect');
           setLoading(false);
         }
@@ -50,7 +48,6 @@ const GoogleOAuth = ({ onSuccess, onError }) => {
   const processAuthResult = async (result) => {
     try {
       const user = result.user;
-      console.log('Processing auth result for user:', user.email);
 
       // Get Firebase ID token
       const idToken = await user.getIdToken();
@@ -78,20 +75,15 @@ const GoogleOAuth = ({ onSuccess, onError }) => {
       }
 
       const data = await response.json();
-      console.log('Backend authentication successful');
 
       // Store token in localStorage for mobile browsers
       if (data.token) {
         localStorage.setItem('authToken', data.token);
-        console.log('Token stored in localStorage');
       }
 
       // Call success callback
       if (onSuccess) {
-        console.log('Calling onSuccess callback');
         onSuccess(data.user);
-      } else {
-        console.warn('No onSuccess callback provided');
       }
     } catch (error) {
       console.error('Authentication processing error:', error);
@@ -109,7 +101,6 @@ const GoogleOAuth = ({ onSuccess, onError }) => {
 
       if (isMobile) {
         // Mobile: Use redirect flow (better for mobile browsers)
-        console.log('Using redirect flow for mobile');
         sessionStorage.setItem('pendingRedirect', 'true'); // Set flag before redirect
         await signInWithRedirect(auth, provider);
         // Note: The page will redirect away, result handled in useEffect

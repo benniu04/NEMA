@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useEffect } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
 import { UserProvider } from './context/UserContext'
+import { SettingsProvider } from './context/SettingsContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import { trackPageView } from './config/analytics'
 
@@ -17,6 +18,8 @@ const RegisterPage = lazy(() => import('./pages/RegisterPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const UserProfilePage = lazy(() => import('./pages/UserProfilePage'))
 const PeoplePage = lazy(() => import('./pages/PeoplePage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const WatchlistPage = lazy(() => import('./pages/WatchlistPage'))
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -37,36 +40,41 @@ function App() {
   }, [location])
 
   return (
-    <UserProvider>
-      <Suspense fallback={<LoadingFallback />}>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/catalog" element={<CatalogPage />} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/video/:id" element={<VideoPlayerPage />} />
-          
-          {/* User Auth Routes */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/profile/:username" element={<UserProfilePage />} />
-          <Route path="/people" element={<PeoplePage />} />
-          
-          {/* Admin Routes */}
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route 
-            path="/admin/upload" 
-            element={
-              <ProtectedRoute>
-                <AdminUploadPage />
-              </ProtectedRoute>
-            } 
-          />
-        </Routes>
-      </Suspense>
-    </UserProvider>
+    <SettingsProvider>
+      <UserProvider>
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/catalog" element={<CatalogPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/video/:id" element={<VideoPlayerPage />} />
+
+            {/* User Auth Routes */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/profile/:username" element={<UserProfilePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/watchlist" element={<WatchlistPage />} />
+            <Route path="/people" element={<PeoplePage />} />
+
+            {/* Admin Routes */}
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route
+              path="/admin/upload"
+              element={
+                <ProtectedRoute>
+                  <AdminUploadPage />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </Suspense>
+      </UserProvider>
+    </SettingsProvider>
   )
 }
 
 export default App
+

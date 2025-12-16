@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import { useSettings } from '../context/SettingsContext';
 import API_BASE_URL from '../config/api.js';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
   const { register, isAuthenticated, loading } = useUser();
+  const { t } = useSettings();
   
   const [formData, setFormData] = useState({
     email: '',
@@ -165,7 +167,7 @@ const RegisterPage = () => {
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
-          <p>Loading...</p>
+          <p>{t('common.loading')}</p>
         </div>
       </div>
     );
@@ -185,7 +187,7 @@ const RegisterPage = () => {
 
         {/* Register Form */}
         <div className="bg-white/[0.02] border border-white/10 p-10">
-          <h2 className="text-2xl font-light text-center mb-8 tracking-wide">Create Account</h2>
+          <h2 className="text-2xl font-light text-center mb-8 tracking-wide">{t('register.title')}</h2>
             
           {errors.submit && (
             <div className="bg-white/5 border border-white/20 text-white/90 px-4 py-3 mb-6 text-sm text-center">
@@ -208,7 +210,7 @@ const RegisterPage = () => {
                       ? 'border-white'
                       : 'border-white/20 focus:border-white'
                 }`}
-                placeholder="Email"
+                placeholder={t('register.email')}
               />
               {checkingEmail && (
                 <div className="absolute right-0 top-1/2 -translate-y-1/2">
@@ -237,7 +239,7 @@ const RegisterPage = () => {
                       ? 'border-white'
                       : 'border-white/20 focus:border-white'
                 }`}
-                placeholder="Username"
+                placeholder={t('register.username')}
               />
               {checkingUsername && (
                 <div className="absolute right-0 top-1/2 -translate-y-1/2">
@@ -267,7 +269,7 @@ const RegisterPage = () => {
                     ? 'border-white/40' 
                     : 'border-white/20 focus:border-white'
                 }`}
-                placeholder="Display Name (optional)"
+                placeholder={t('register.displayName')}
               />
               {errors.displayName && (
                 <p className="text-white/50 text-xs mt-2">{errors.displayName}</p>
@@ -288,7 +290,7 @@ const RegisterPage = () => {
                       ? 'border-white'
                       : 'border-white/20 focus:border-white'
                 }`}
-                placeholder="Password"
+                placeholder={t('register.password')}
               />
               {errors.password ? (
                 <p className="text-white/50 text-xs mt-2">{errors.password}</p>
@@ -317,7 +319,7 @@ const RegisterPage = () => {
                       ? 'border-white'
                       : 'border-white/20 focus:border-white'
                 }`}
-                placeholder="Confirm Password"
+                placeholder={t('register.confirmPassword')}
               />
               {errors.confirmPassword ? (
                 <p className="text-white/50 text-xs mt-2">{errors.confirmPassword}</p>
@@ -331,18 +333,18 @@ const RegisterPage = () => {
               disabled={isSubmitting || checkingUsername || checkingEmail}
               className="w-full bg-white text-black py-3.5 font-light tracking-wide hover:bg-white/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-8"
             >
-              {isSubmitting ? 'CREATING ACCOUNT...' : 'CREATE ACCOUNT'}
+              {isSubmitting ? t('register.creating') : t('register.create')}
             </button>
           </form>
 
           <div className="mt-8 text-center">
             <p className="text-white/40 text-sm">
-              Already have an account?{' '}
-              <Link 
+              {t('register.hasAccount')}{' '}
+              <Link
                 to="/login"
                 className="text-white hover:text-white/70 transition-colors underline underline-offset-4"
               >
-                Sign In
+                {t('nav.signIn')}
               </Link>
             </p>
           </div>
@@ -351,7 +353,7 @@ const RegisterPage = () => {
         {/* Footer Links */}
         <div className="mt-8 flex items-center justify-center gap-6 text-xs text-white/30">
           <Link to="/" className="hover:text-white/50 transition-colors">
-            Home
+            {t('nav.home')}
           </Link>
           <span>•</span>
           <Link to="/admin/login" className="hover:text-white/50 transition-colors">

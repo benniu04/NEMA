@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import { useSettings } from '../context/SettingsContext';
 import GoogleOAuth from '../components/GoogleOAuth';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, isAuthenticated, loading, refreshUser } = useUser();
+  const { t } = useSettings();
   
   const [formData, setFormData] = useState({
     login: '',
@@ -38,7 +40,7 @@ const LoginPage = () => {
     e.preventDefault();
     
     if (!formData.login || !formData.password) {
-      setError('Please enter your email/username and password');
+      setError(t('login.enterCredentials'));
       return;
     }
 
@@ -71,7 +73,7 @@ const LoginPage = () => {
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
-          <p>Loading...</p>
+          <p>{t('common.loading')}</p>
         </div>
       </div>
     );
@@ -91,7 +93,7 @@ const LoginPage = () => {
 
         {/* Login Form */}
         <div className="bg-white/[0.02] border border-white/10 p-10">
-          <h2 className="text-2xl font-light text-center mb-8 tracking-wide">Sign In</h2>
+          <h2 className="text-2xl font-light text-center mb-8 tracking-wide">{t('login.title')}</h2>
           
           {error && (
             <div className="bg-white/5 border border-white/20 text-white/90 px-4 py-3 mb-6 text-sm text-center">
@@ -107,7 +109,7 @@ const LoginPage = () => {
                 value={formData.login}
                 onChange={handleChange}
                 className="w-full bg-transparent border-b border-white/20 px-0 py-3 focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
-                placeholder="Email or Username"
+                placeholder={t('login.emailOrUsername')}
                 autoComplete="username"
               />
             </div>
@@ -119,7 +121,7 @@ const LoginPage = () => {
                 value={formData.password}
                 onChange={handleChange}
                 className="w-full bg-transparent border-b border-white/20 px-0 py-3 focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
-                placeholder="Password"
+                placeholder={t('login.password')}
                 autoComplete="current-password"
               />
             </div>
@@ -129,7 +131,7 @@ const LoginPage = () => {
               disabled={isSubmitting}
               className="w-full bg-white text-black py-3.5 font-light tracking-wide hover:bg-white/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-8"
             >
-              {isSubmitting ? 'SIGNING IN...' : 'SIGN IN'}
+              {isSubmitting ? t('login.signingIn') : t('login.signIn')}
             </button>
           </form>
 
@@ -139,7 +141,7 @@ const LoginPage = () => {
               <div className="w-full border-t border-white/10"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 text-white/40 bg-white/[0.02]">OR</span>
+              <span className="px-4 text-white/40 bg-white/[0.02]">{t('common.or')}</span>
             </div>
           </div>
 
@@ -151,12 +153,12 @@ const LoginPage = () => {
 
           <div className="mt-8 text-center">
             <p className="text-white/40 text-sm">
-              Don't have an account?{' '}
-              <Link 
+              {t('login.noAccount')}{' '}
+              <Link
                 to="/register"
                 className="text-white hover:text-white/70 transition-colors underline underline-offset-4"
               >
-                Sign Up
+                {t('nav.signUp')}
               </Link>
             </p>
           </div>
@@ -165,7 +167,7 @@ const LoginPage = () => {
         {/* Footer Links */}
         <div className="mt-8 flex items-center justify-center gap-6 text-xs text-white/30">
           <Link to="/" className="hover:text-white/50 transition-colors">
-            Home
+            {t('nav.home')}
           </Link>
           <span>•</span>
           <Link to="/admin/login" className="hover:text-white/50 transition-colors">

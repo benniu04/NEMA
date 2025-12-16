@@ -3,6 +3,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Set background color for overscroll bounce effect */
+html, body {
+  background-color: #000000;
+}
+
 /* For the background images, use Tailwind's @layer to extend with custom classes */
 @layer components {
   .featured-bg {
@@ -84,4 +89,73 @@
 .hide-scrollbar {
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
+}
+
+/* Theme CSS Variables */
+:root {
+  --theme-bg: #000000;
+  --theme-text: #ffffff;
+  --theme-accent: #f59e0b;
+  --theme-accent-hover: #d97706;
+}
+
+[data-theme="dark"] {
+  --theme-bg: #000000;
+  --theme-text: #ffffff;
+  --theme-accent: #f59e0b;
+}
+
+[data-theme="light"] {
+  --theme-bg: #ffffff;
+  --theme-text: #111827;
+  --theme-accent: #f59e0b;
+}
+
+[data-theme="midnight"] {
+  --theme-bg: #020617;
+  --theme-text: #ffffff;
+  --theme-accent: #3b82f6;
+}
+
+[data-theme="cinema"] {
+  --theme-bg: #0a0a0a;
+  --theme-text: #ffffff;
+  --theme-accent: #ef4444;
+}
+
+/* Light theme overrides */
+.light-theme {
+  --tw-bg-opacity: 1;
+  background-color: rgb(255 255 255 / var(--tw-bg-opacity));
+}
+
+.light-theme .bg-black {
+  background-color: rgb(255 255 255);
+}
+
+.light-theme .text-white {
+  color: rgb(17 24 39);
+}
+
+.light-theme .text-amber-100\/60,
+.light-theme .text-amber-100\/70,
+.light-theme .text-amber-100\/80 {
+  color: rgb(75 85 99);
+}
+
+.light-theme .bg-white\/5 {
+  background-color: rgb(0 0 0 / 0.05);
+}
+
+.light-theme .border-amber-100\/10,
+.light-theme .border-amber-100\/20 {
+  border-color: rgb(0 0 0 / 0.1);
+}
+
+.light-theme .bg-black\/50 {
+  background-color: rgb(249 250 251);
+}
+
+.light-theme .bg-black\/30 {
+  background-color: rgb(243 244 246);
 }

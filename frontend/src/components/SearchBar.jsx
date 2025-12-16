@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Search, Loader2, Sparkles, Clock3, ArrowRight, X } from 'lucide-react';
 import API_BASE_URL from '../../config/api.js';
+import { useSettings } from '../context/SettingsContext';
 
 const HISTORY_KEY = 'nema-search-history';
 
@@ -25,6 +26,7 @@ if (typeof document !== 'undefined' && !document.getElementById('search-animatio
 }
 
 const SearchBar = ({ className = '', isMobile = false }) => {
+  const { t } = useSettings();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [trending, setTrending] = useState([]);
@@ -238,7 +240,7 @@ const SearchBar = ({ className = '', isMobile = false }) => {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setOpen(true)}
-          placeholder="Search films, directors, moods..."
+          placeholder={t('search.placeholder')}
           className="w-full bg-transparent text-sm font-light text-white placeholder-amber-100/40 focus:outline-none"
         />
         {query && !loading && (
@@ -284,7 +286,7 @@ const SearchBar = ({ className = '', isMobile = false }) => {
                 value={query}
                 autoFocus
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search films, directors, moods..."
+                placeholder={t('search.placeholder')}
                 className="w-full bg-transparent text-base sm:text-lg font-light text-white placeholder-amber-100/50 focus:outline-none"
               />
               {query && !loading && (
@@ -312,9 +314,9 @@ const SearchBar = ({ className = '', isMobile = false }) => {
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-amber-100/70">
                       <Sparkles className="h-4 w-4 text-amber-200" />
-                      Results
+                      {t('search.results')}
                     </div>
-                    <span className="text-amber-100/50 text-xs">{results.length} matches</span>
+                    <span className="text-amber-100/50 text-xs">{results.length} {t('search.matches')}</span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {results.map((movie, idx) => (
@@ -355,8 +357,8 @@ const SearchBar = ({ className = '', isMobile = false }) => {
                     <div className="text-amber-100/40 mb-2">
                       <Search className="h-8 w-8 mx-auto mb-3 opacity-50" />
                     </div>
-                    <p className="text-sm text-amber-100/70">No titles matched "{query}".</p>
-                    <p className="text-xs text-amber-100/50 mt-1">Try a different search term</p>
+                    <p className="text-sm text-amber-100/70">{t('search.noResults')} "{query}".</p>
+                    <p className="text-xs text-amber-100/50 mt-1">{t('search.tryDifferent')}</p>
                   </div>
                 )
               )}
@@ -367,14 +369,14 @@ const SearchBar = ({ className = '', isMobile = false }) => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.25em] text-amber-100/60">
                       <Clock3 className="h-4 w-4" />
-                      Recent
+                      {t('search.recent')}
                     </div>
                     <button
                       onClick={clearSearchHistory}
                       className="group flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-amber-100/50 hover:text-amber-100 transition-colors"
                       aria-label="Clear search history"
                     >
-                      <span className="hidden sm:inline">Clear</span>
+                      <span className="hidden sm:inline">{t('common.clear')}</span>
                       <X className="h-3.5 w-3.5 group-hover:rotate-90 transition-transform duration-200" />
                     </button>
                   </div>
@@ -400,7 +402,7 @@ const SearchBar = ({ className = '', isMobile = false }) => {
                 <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-400">
                   <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.25em] text-amber-100/60">
                     <Sparkles className="h-4 w-4" />
-                    Trending on NEMA
+                    {t('search.trending')}
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {trending.map((movie, idx) => (
