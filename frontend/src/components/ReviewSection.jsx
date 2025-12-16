@@ -3,6 +3,7 @@ import axios from 'axios';
 import API_BASE_URL from '../config/api.js';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import { analytics } from '../config/analytics';
+import { useSettings } from '../context/SettingsContext';
 
 const Star = ({ filled }) => (
   <svg className={`w-6 h-6 ${filled ? 'text-amber-400' : 'text-gray-500'}`} fill="currentColor" viewBox="0 0 20 20">
@@ -15,6 +16,7 @@ const Star = ({ filled }) => (
 );
 
 const ReviewSection = ({ movieId, movieTitle }) => {
+  const { t } = useSettings();
   const [deviceId, setDeviceId] = useState('');
   const [nickname, setNickname] = useState('');
   const [reviews, setReviews] = useState([]);
@@ -88,17 +90,17 @@ const ReviewSection = ({ movieId, movieTitle }) => {
     } catch (error) {
       console.error('Error submitting review:', error);
       if (error.response?.status === 429) {
-        alert('Too many review submissions. Please try again later.');
+        alert(t('reviews.rateLimitError'));
       } else {
-        alert('Failed to submit review. Please try again.');
+        alert(t('reviews.submitError'));
       }
     }
   };
 
   /* delete review */
   const handleDelete = async (reviewId) => {
-    if (!window.confirm('Are you sure you want to delete your review?')) return;
-    
+    if (!window.confirm(t('reviews.deleteConfirm'))) return;
+
     try {
       // Backend uses server-side IP for authorization (no need to send deviceId)
       await axios.delete(
@@ -117,11 +119,11 @@ const ReviewSection = ({ movieId, movieTitle }) => {
     } catch (error) {
       console.error('Error deleting review:', error);
       if (error.response?.status === 403) {
-        alert('You can only delete your own reviews');
+        alert(t('reviews.deleteError'));
       } else if (error.response?.status === 429) {
-        alert('Too many delete attempts. Please try again later.');
+        alert(t('reviews.rateLimitError'));
       } else {
-        alert('Failed to delete review. Please try again.');
+        alert(t('reviews.deleteReviewError'));
       }
     }
   };
@@ -132,7 +134,7 @@ const ReviewSection = ({ movieId, movieTitle }) => {
 
   return (
     <div className="mt-16 bg-gradient-to-br from-white/5 to-white/2 backdrop-blur-sm border border-amber-100/10 rounded-lg p-8">
-      <h2 className="text-2xl font-light mb-4 text-amber-100/90">Reviews</h2>
+      <h2 className="text-2xl font-light mb-4 text-amber-100/90">{t('reviews.title')}</h2>
 
       {/* Average */}
       <div className="flex items-center mb-6">
@@ -149,14 +151,14 @@ const ReviewSection = ({ movieId, movieTitle }) => {
             </button>
           ))}
           <span className="ml-4 text-sm text-amber-100/60">
-            {stars ? `${stars}/10` : 'Click to rate'}
+            {stars ? `${stars}/10` : t('reviews.clickToRate')}
           </span>
         </div>
 
         <input
           value={nickname}
           onChange={e => setNickname(e.target.value)}
-          placeholder="Nickname (optional)"
+          placeholder={t('reviews.nicknamePlaceholder')}
           className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-2 mb-3
                      text-white placeholder-amber-100/40 focus:outline-none focus:border-amber-500"
         />
@@ -164,7 +166,7 @@ const ReviewSection = ({ movieId, movieTitle }) => {
         <textarea
           value={comment}
           onChange={e => setComment(e.target.value)}
-          placeholder="Write a short review (optional)…"
+          placeholder={t('reviews.writeReview')}
           rows="3"
           className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 mb-3
                      text-white placeholder-amber-100/40 focus:outline-none focus:border-amber-500"
@@ -175,15 +177,15 @@ const ReviewSection = ({ movieId, movieTitle }) => {
           className="px-6 py-2 bg-amber-500 text-black font-medium rounded-lg
                      hover:bg-amber-400 disabled:opacity-50"
         >
-          {myReview ? 'Update Review' : 'Submit Review'}
+          {myReview ? t('reviews.updateReview') : t('reviews.submitReview')}
         </button>
       </form>
 
       {/* List */}
       {loading ? (
-        <div className="text-amber-100/60">Loading reviews…</div>
+        <div className="text-amber-100/60">{t('reviews.loading')}</div>
       ) : reviews.length === 0 ? (
-        <div className="text-amber-100/60">No reviews yet.</div>
+        <div className="text-amber-100/60">{t('reviews.noReviews')}</div>
       ) : (
         <div className="space-y-6">
           {reviews.map(r => (

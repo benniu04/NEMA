@@ -21,14 +21,14 @@ const WatchlistPage = () => {
     e.preventDefault();
     e.stopPropagation();
 
-    const confirmRemove = window.confirm(`Remove "${movieTitle}" from your watchlist?`);
+    const confirmRemove = window.confirm(`${t('watchlist.removeConfirm')} "${movieTitle}"`);
     if (!confirmRemove) return;
 
     try {
       await removeFromWatchlist(movieId);
     } catch (error) {
       console.error('Error removing from watchlist:', error);
-      alert('Failed to remove from watchlist. Please try again.');
+      alert(t('watchlist.removeError'));
     }
   };
 
@@ -55,7 +55,7 @@ const WatchlistPage = () => {
           <div className="mb-8">
             <h1 className="text-3xl font-light tracking-wide mb-2">{t('nav.watchlist')}</h1>
             <p className="text-white/50 text-sm">
-              {watchlist.length} {watchlist.length === 1 ? 'film' : 'films'} saved to watch later
+              {watchlist.length} {watchlist.length === 1 ? t('watchlist.savedFilm') : t('watchlist.savedFilms')}
             </p>
           </div>
 
@@ -130,7 +130,7 @@ const WatchlistPage = () => {
                   <button
                     onClick={(e) => handleRemoveFromWatchlist(movie._id, movie.title, e)}
                     className="absolute top-2 right-2 p-2 bg-black/70 backdrop-blur-sm hover:bg-red-500/80 text-white/70 hover:text-white rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 z-10"
-                    title="Remove from watchlist"
+                    title={t('watchlist.remove')}
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -142,8 +142,6 @@ const WatchlistPage = () => {
           )}
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 };

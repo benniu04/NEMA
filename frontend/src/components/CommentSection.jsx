@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import API_BASE_URL from '../config/api.js';
+import { useSettings } from '../context/SettingsContext';
 
 const CommentSection = ({ videoId }) => {
+  const { t } = useSettings();
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [nickname, setNickname] = useState('');
@@ -43,7 +45,7 @@ const CommentSection = ({ videoId }) => {
       setError(null);
     } catch (error) {
       console.error('Error fetching comments:', error);
-      setError('Failed to load comments');
+      setError(t('comments.loadError'));
       setComments([]);
     } finally {
       setLoading(false);
@@ -86,7 +88,7 @@ const CommentSection = ({ videoId }) => {
       setError(null);
     } catch (error) {
       console.error('Error posting comment:', error);
-      setError('Failed to post comment');
+      setError(t('comments.postError'));
     } finally {
       setLoading(false);
     }
@@ -94,7 +96,7 @@ const CommentSection = ({ videoId }) => {
 
   // Delete comment
   const handleDelete = async (commentId) => {
-    if (!window.confirm('Are you sure you want to delete this comment?')) {
+    if (!window.confirm(t('comments.deleteConfirm'))) {
       return;
     }
 
@@ -108,19 +110,19 @@ const CommentSection = ({ videoId }) => {
     } catch (error) {
       console.error('Error deleting comment:', error);
       if (error.response?.status === 403) {
-        setError('You can only delete your own comments');
+        setError(t('comments.deleteError'));
       } else if (error.response?.status === 429) {
-        setError('Too many delete attempts. Please try again later.');
+        setError(t('comments.rateLimitError'));
       } else {
-        setError('Failed to delete comment');
+        setError(t('comments.deleteCommentError'));
       }
     }
   };
 
   return (
     <div className="mt-16 bg-gradient-to-br from-white/5 to-white/2 backdrop-blur-sm border border-amber-100/10 rounded-lg p-8">
-      <h2 className="text-2xl font-light mb-8 text-amber-100/90">Comments</h2>
-      
+      <h2 className="text-2xl font-light mb-8 text-amber-100/90">{t('comments.title')}</h2>
+
       {/* Comment Form */}
       <form onSubmit={handleSubmit} className="mb-8">
         <div className="mb-4">
@@ -128,7 +130,7 @@ const CommentSection = ({ videoId }) => {
             type="text"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
-            placeholder="Nickname (optional)"
+            placeholder={t('comments.nicknamePlaceholder')}
             className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-2 text-white placeholder-amber-100/40 focus:outline-none focus:border-amber-500 transition-colors"
           />
         </div>
@@ -136,7 +138,7 @@ const CommentSection = ({ videoId }) => {
           <textarea
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
-            placeholder="Add a comment..."
+            placeholder={t('comments.addComment')}
             rows="3"
             className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 text-white placeholder-amber-100/40 focus:outline-none focus:border-amber-500 transition-colors"
           />
@@ -146,7 +148,7 @@ const CommentSection = ({ videoId }) => {
           disabled={loading || !newComment.trim()}
           className="px-6 py-2 bg-amber-500 text-black font-medium rounded-lg hover:bg-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Posting...' : 'Post Comment'}
+          {loading ? t('comments.posting') : t('comments.postComment')}
         </button>
       </form>
 
@@ -160,9 +162,9 @@ const CommentSection = ({ videoId }) => {
       {/* Comments List */}
       <div className="space-y-6">
         {loading && comments.length === 0 ? (
-          <div className="text-amber-100/60">Loading comments...</div>
+          <div className="text-amber-100/60">{t('comments.loading')}</div>
         ) : comments.length === 0 ? (
-          <div className="text-amber-100/60">No comments yet. Be the first to comment!</div>
+          <div className="text-amber-100/60">{t('comments.noComments')}</div>
         ) : (
           comments.map((comment) => (
             <div key={comment._id} className="border-b border-amber-100/10 pb-6 last:border-0">
@@ -185,12 +187,12 @@ const CommentSection = ({ videoId }) => {
               <button
                 onClick={() => handleDelete(comment._id)}
                 className="mt-2 text-red-400/60 text-sm hover:text-red-400 transition-colors flex items-center gap-1"
-                title="Delete this comment (only works if it's yours)"
+                title={t('comments.delete')}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
-                Delete
+                {t('comments.delete')}
               </button>
             </div>
           ))

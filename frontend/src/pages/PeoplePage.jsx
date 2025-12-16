@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import { useSettings } from '../context/SettingsContext';
 import NavBar from '../components/NavBar';
 import Footer from '../components/Footer';
 import API_BASE_URL from '../config/api.js';
@@ -9,6 +10,7 @@ import { Search, Users, Sparkles, Loader2 } from 'lucide-react';
 const PeoplePage = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, loading: userLoading, followUser, unfollowUser, isFollowing } = useUser();
+  const { t } = useSettings();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -106,7 +108,7 @@ const PeoplePage = () => {
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Loading...</p>
+          <p>{t('people.loading')}</p>
         </div>
       </div>
     );
@@ -120,8 +122,8 @@ const PeoplePage = () => {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-4xl font-light mb-2">Discover People</h1>
-            <p className="text-white/60">Find and connect with film enthusiasts</p>
+            <h1 className="text-4xl font-light mb-2">{t('people.discoverPeople')}</h1>
+            <p className="text-white/60">{t('people.findConnect')}</p>
           </div>
 
           {/* Search Bar */}
@@ -133,7 +135,7 @@ const PeoplePage = () => {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by username or name..."
+                  placeholder={t('people.searchPlaceholder')}
                   className="w-full bg-transparent text-white placeholder-white/40 focus:outline-none"
                 />
                 {searching && <Loader2 className="h-5 w-5 animate-spin text-white/50" />}
@@ -145,19 +147,20 @@ const PeoplePage = () => {
               <div className="mt-4">
                 {searchResults.length > 0 ? (
                   <div className="space-y-3">
-                    <p className="text-sm text-white/50">{searchResults.length} {searchResults.length === 1 ? 'result' : 'results'}</p>
+                    <p className="text-sm text-white/50">{searchResults.length} {searchResults.length === 1 ? t('people.result') : t('people.results')}</p>
                     {searchResults.map((foundUser) => (
-                      <UserCard 
-                        key={foundUser.id} 
-                        user={foundUser} 
+                      <UserCard
+                        key={foundUser.id}
+                        user={foundUser}
                         currentUserId={user.id}
                         onFollow={handleFollow}
                         loading={followLoading[foundUser.id]}
+                        t={t}
                       />
                     ))}
                   </div>
                 ) : !searching && (
-                  <p className="text-white/40 text-center py-8">No users found</p>
+                  <p className="text-white/40 text-center py-8">{t('people.noUsersFound')}</p>
                 )}
               </div>
             )}
@@ -168,7 +171,7 @@ const PeoplePage = () => {
             <div>
               <div className="flex items-center gap-2 mb-6">
                 <Sparkles className="h-5 w-5 text-amber-500" />
-                <h2 className="text-xl font-light">Suggested For You</h2>
+                <h2 className="text-xl font-light">{t('people.suggestedForYou')}</h2>
               </div>
 
               {loadingSuggested ? (
@@ -178,36 +181,35 @@ const PeoplePage = () => {
               ) : suggestedUsers.length > 0 ? (
                 <div className="space-y-3">
                   {suggestedUsers.map((suggestedUser) => (
-                    <UserCard 
-                      key={suggestedUser.id} 
-                      user={suggestedUser} 
+                    <UserCard
+                      key={suggestedUser.id}
+                      user={suggestedUser}
                       currentUserId={user.id}
                       onFollow={handleFollow}
                       loading={followLoading[suggestedUser.id]}
+                      t={t}
                     />
                   ))}
                 </div>
               ) : (
                 <div className="text-center py-12 border border-white/10 border-dashed rounded">
                   <Users className="h-12 w-12 text-white/20 mx-auto mb-4" />
-                  <p className="text-white/40 mb-2">No suggestions yet</p>
-                  <p className="text-white/30 text-sm">Add some favorite films to get personalized recommendations</p>
+                  <p className="text-white/40 mb-2">{t('people.noSuggestions')}</p>
+                  <p className="text-white/30 text-sm">{t('people.noSuggestionsDescription')}</p>
                 </div>
               )}
             </div>
           )}
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 };
 
 // User Card Component
-const UserCard = ({ user, currentUserId, onFollow, loading }) => {
+const UserCard = ({ user, currentUserId, onFollow, loading, t }) => {
   const isCurrentUser = user.id === currentUserId;
-  
+
   return (
     <div className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all rounded">
       {/* Avatar */}
@@ -235,8 +237,8 @@ const UserCard = ({ user, currentUserId, onFollow, loading }) => {
           <p className="text-white/60 text-sm mt-1 line-clamp-1">{user.bio}</p>
         )}
         <div className="flex gap-4 mt-2 text-xs text-white/40">
-          <span>{user.stats?.followersCount || 0} followers</span>
-          <span>{user.stats?.filmsWatched || 0} films</span>
+          <span>{user.stats?.followersCount || 0} {t('people.followers')}</span>
+          <span>{user.stats?.filmsWatched || 0} {t('people.films')}</span>
         </div>
       </div>
 
@@ -251,7 +253,7 @@ const UserCard = ({ user, currentUserId, onFollow, loading }) => {
               : 'bg-amber-500 text-black hover:bg-amber-600'
           } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          {loading ? 'Loading...' : user.isFollowing ? 'Following' : 'Follow'}
+          {loading ? t('people.loading') : user.isFollowing ? t('people.following') : t('people.follow')}
         </button>
       )}
     </div>

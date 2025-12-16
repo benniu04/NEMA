@@ -9,12 +9,14 @@ import CarouselRow from '../components/CarouselRow'
 import Footer from '../components/Footer'
 import { analytics } from '../config/analytics'
 import { useUser } from '../context/UserContext'
+import { useSettings } from '../context/SettingsContext'
 
 const VideoPlayerPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, isAuthenticated, addToFavorites, removeFromFavorites, isInFavorites: checkIsInFavorites } = useUser();
+  const { t } = useSettings();
   const [movie, setMovie] = useState(null);
   const [relatedMovies, setRelatedMovies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -685,7 +687,7 @@ const VideoPlayerPage = () => {
       <div className="min-h-screen bg-black text-white">
         <NavBar />
         <div className="flex items-center justify-center h-[calc(100vh-64px)]">
-          <div className="text-amber-100/60">Loading movie...</div>
+          <div className="text-amber-100/60">{t('video.loadingMovie')}</div>
         </div>
       </div>
     );
@@ -748,7 +750,7 @@ const VideoPlayerPage = () => {
                 </video>
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gray-900">
-                  <p className="text-white/60">No video available</p>
+                  <p className="text-white/60">{t('video.noVideo')}</p>
                 </div>
               )}
               
@@ -880,7 +882,7 @@ const VideoPlayerPage = () => {
                 <div className="relative">
                   <div className="absolute -left-4 top-0 w-1 h-full bg-gradient-to-b from-amber-500 to-amber-600 rounded-full"></div>
                   <div className="pl-8">
-                    <h2 className="text-xl font-medium text-amber-100/90 mb-4 tracking-wide">Synopsis</h2>
+                    <h2 className="text-xl font-medium text-amber-100/90 mb-4 tracking-wide">{t('video.synopsis')}</h2>
                     <div className="prose prose-lg max-w-none">
                       <p className="text-gray-200 text-lg font-light tracking-wide leading-8">
                         {movie.description}
@@ -897,7 +899,7 @@ const VideoPlayerPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-gradient-to-br from-white/5 to-white/2 backdrop-blur-sm border border-amber-100/10 rounded-lg p-8">
                 <div className="space-y-6">
                   <div>
-                    <h3 className="text-amber-100/90 font-medium mb-3 text-sm uppercase tracking-wider">Genre</h3>
+                    <h3 className="text-amber-100/90 font-medium mb-3 text-sm uppercase tracking-wider">{t('video.genre')}</h3>
                     <div className="flex flex-wrap gap-2">
                       {movie.genre.map((g, index) => (
                         <span key={index} className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-100/80 text-sm">
@@ -907,14 +909,14 @@ const VideoPlayerPage = () => {
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-amber-100/90 font-medium mb-3 text-sm uppercase tracking-wider">Language</h3>
+                    <h3 className="text-amber-100/90 font-medium mb-3 text-sm uppercase tracking-wider">{t('video.language')}</h3>
                     <p className="text-gray-200 text-lg">{movie.language}</p>
                   </div>
                 </div>
-                
+
                 {movie.cast && (
                   <div>
-                    <h3 className="text-amber-100/90 font-medium mb-3 text-sm uppercase tracking-wider">Cast</h3>
+                    <h3 className="text-amber-100/90 font-medium mb-3 text-sm uppercase tracking-wider">{t('video.cast')}</h3>
                     <div className="space-y-2">
                       {movie.cast.slice(0, 5).map((actor, index) => (
                         <div key={index} className="text-gray-200 text-lg">
@@ -923,9 +925,8 @@ const VideoPlayerPage = () => {
                       ))}
                       {movie.cast.length > 5 && (
                         <div className="text-amber-100/60 text-sm italic">
-                          +{movie.cast.length - 5} more
+                          +{movie.cast.length - 5} {t('video.more')}
                         </div>
-         
                       )}
                     </div>
                   </div>
@@ -946,21 +947,21 @@ const VideoPlayerPage = () => {
                   } ${watchlistLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {watchlistLoading ? (
-                    <span>Loading...</span>
+                    <span>{t('video.loading')}</span>
                   ) : isInWatchlist ? (
                     <>
                       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
                         <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
-                      In Watchlist
+                      {t('video.inWatchlist')}
                     </>
                   ) : (
                     <>
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                       </svg>
-                      Add to Watchlist
+                      {t('video.addToWatchlist')}
                     </>
                   )}
                 </button>
@@ -976,20 +977,20 @@ const VideoPlayerPage = () => {
                   } ${favoritesLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {favoritesLoading ? (
-                    <span>Loading...</span>
+                    <span>{t('video.loading')}</span>
                   ) : isInFavoritesList ? (
                     <>
                       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
                       </svg>
-                      In Favorites
+                      {t('video.inFavorites')}
                     </>
                   ) : (
                     <>
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                       </svg>
-                      Add to Favorites
+                      {t('video.addToFavorites')}
                     </>
                   )}
                 </button>
@@ -1041,7 +1042,7 @@ const VideoPlayerPage = () => {
           </section>
 
           <section id="related-videos" className="mt-16">
-            <CarouselRow title="Related Films" movies={relatedMovies} />
+            <CarouselRow title={t('video.relatedFilms')} movies={relatedMovies} />
           </section>
           <section 
             id="comments" 
