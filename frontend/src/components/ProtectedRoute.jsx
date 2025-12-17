@@ -1,16 +1,44 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import API_BASE_URL from '../config/api.js';
 
 /**
  * Protected Route Component
- * Redirects to login if user is not authenticated
- * Works with your existing UserContext
+ * Redirects to login if user/admin is not authenticated
+ * Checks both regular user (UserContext) and admin authentication
  */
-const ProtectedRoute = ({ children, redirectTo = '/login' }) => {
-  const { user, loading } = useUser();
+const ProtectedRoute = ({ children, requireAdmin = false, redirectTo = '/login' }) => {
+  const { user, loading: userLoading } = useUser();
+  const [adminUser, setAdminUser] = useState(null);
+  const [adminLoading, setAdminLoading] = useState(true);
 
-  if (loading) {
+  // Check for admin authentication
+  useEffect(() => {
+    const checkAdminAuth = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const userData = await response.json();
+          if (userData.isAdmin) {
+            setAdminUser(userData);
+          }
+        }
+      } catch (error) {
+        console.log('No admin authentication');
+      } finally {
+        setAdminLoading(false);
+      }
+    };
+
+    checkAdminAuth();
+  }, []);
+
+  // Show loading state while checking authentication
+  if (userLoading || adminLoading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
@@ -21,12 +49,20 @@ const ProtectedRoute = ({ children, redirectTo = '/login' }) => {
     );
   }
 
-  // If not authenticated, redirect to login
-  if (!user) {
+  // Check if admin is required and if admin is authenticated
+  if (requireAdmin) {
+    if (!adminUser) {
+      return <Navigate to="/admin/login" replace />;
+    }
+    return children;
+  }
+
+  // For non-admin routes, check regular user or admin
+  if (!user && !adminUser) {
     return <Navigate to={redirectTo} replace />;
   }
 
-  // User is authenticated, render children
+  // User or admin is authenticated, render children
   return children;
 };
 

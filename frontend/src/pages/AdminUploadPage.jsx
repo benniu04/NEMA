@@ -434,9 +434,7 @@ const AdminDashboard = () => {
   );
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <NavBar />
-      
+    <div className="min-h-screen bg-black text-white">   
       {!authChecked ? (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">

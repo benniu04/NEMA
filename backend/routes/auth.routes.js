@@ -55,8 +55,8 @@ authRoutes.post('/login', validateAuth, async (req, res) => {
 
     res.cookie('adminToken', token, {
       httpOnly: true,   
-      secure: true,
-      sameSite: 'none',
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 2 * 60 * 60 * 1000
     });
 
@@ -103,8 +103,8 @@ authRoutes.post('/logout', async (req, res) => {
     
     res.clearCookie('adminToken', {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none'
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
     });
     
     res.json({ message: 'Logged out successfully' });

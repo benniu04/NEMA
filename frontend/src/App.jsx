@@ -70,7 +70,7 @@ function App() {
             <Route
               path="/admin/upload"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requireAdmin={true}>
                   <AdminUploadPage />
                 </ProtectedRoute>
               }
