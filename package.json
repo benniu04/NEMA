@@ -4,7 +4,7 @@
   "description": "",
   "main": "backend/dist/server.js",
   "scripts": {
-    "build": "cd backend && npm run build",
+    "build": "cd backend && npm install && npm run build",
     "dev": "cd backend && npm run dev",
     "start": "node --max-old-space-size=384 backend/dist/server.js",
     "start:pm2": "pm2 start ecosystem.config.cjs --env production --no-daemon",
