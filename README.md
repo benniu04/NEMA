@@ -107,24 +107,6 @@ MongoDB      AWS S3 + CloudFront
 
 ---
 
-## 📚 Documentation
-
-Additional documentation available in the repository:
-- [PROJECT_BUILD_GUIDE.md](./PROJECT_BUILD_GUIDE.md) - Development process
-- [SECURITY_CHECKLIST.md](./SECURITY_CHECKLIST.md) - Security audit
-- [PERFORMANCE_IMPROVEMENTS_SUMMARY.md](./PERFORMANCE_IMPROVEMENTS_SUMMARY.md) - Optimization details
-
----
-
-## 👥 Team
-
-**Ben Niu** - Full-Stack Development, Architecture, Deployment  
-**Alex** - Frontend Development, UI/UX Design  
-**Michael** - Backend Development, Database Design  
-**Rohan** - Testing, Security, Documentation
-
----
-
 ## 📄 License
 
 ISC
