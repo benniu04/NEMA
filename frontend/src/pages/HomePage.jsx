@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import NavBar from '../components/NavBar'
-import API_BASE_URL from '../../config/api.js'
+import API_BASE_URL from '../config/api'
 import { useSettings } from '../context/SettingsContext'
 import { useUser } from '../context/UserContext'
 import { ChevronDown, ChevronLeft, ChevronRight, Filter, X, Play, Info, ArrowRight } from 'lucide-react'

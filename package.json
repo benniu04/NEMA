@@ -2,14 +2,15 @@
   "name": "nema",
   "version": "1.0.0",
   "description": "",
-  "main": "backend/server.js",
+  "main": "backend/dist/server.js",
   "scripts": {
-    "dev": "nodemon --watch backend --watch .env backend/server.js",
-    "start": "node --max-old-space-size=384 backend/server.js",
+    "build": "cd backend && npm run build",
+    "dev": "cd backend && npm run dev",
+    "start": "node --max-old-space-size=384 backend/dist/server.js",
     "start:pm2": "pm2 start ecosystem.config.cjs --env production --no-daemon",
     "start:pm2:dev": "pm2 start ecosystem.config.cjs --env development",
     "start:balanced": "pm2-runtime start ecosystem.config.balanced.cjs --env production",
-    "start:render-lite": "node --max-old-space-size=384 backend/server.js",
+    "start:render-lite": "node --max-old-space-size=384 backend/dist/server.js",
     "stop:pm2": "pm2 stop nema-backend",
     "restart:pm2": "pm2 restart nema-backend",
     "reload:pm2": "pm2 reload nema-backend",
@@ -62,9 +63,22 @@
   },
   "devDependencies": {
     "@jest/globals": "^30.2.0",
+    "@types/bcrypt": "^5.0.2",
+    "@types/compression": "^1.7.5",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/multer": "^1.4.12",
+    "@types/multer-s3": "^3.0.3",
+    "@types/node": "^22.10.2",
+    "@types/nodemailer": "^6.4.17",
     "cross-env": "^10.1.0",
     "jest": "^30.2.0",
     "mongodb-memory-server": "^10.3.0",
-    "supertest": "^7.1.4"
+    "supertest": "^7.1.4",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
   }
 }

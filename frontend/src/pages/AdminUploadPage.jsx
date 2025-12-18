@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import NavBar from '../components/NavBar';
-import API_BASE_URL from '../config/api.js';
+import API_BASE_URL from '../config/api';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();

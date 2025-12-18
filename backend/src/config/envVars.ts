@@ -1,0 +1,72 @@
+import dotenv from 'dotenv';
+import type { EnvVars } from '../types/index.js';
+
+dotenv.config();
+
+const requiredEnvVars = [
+  'MONGO_URL', 'JWT_SECRET', 'AWS_ACCESS_KEY_ID', 
+  'AWS_SECRET_ACCESS_KEY', 'AWS_BUCKET_NAME',
+  'ADMIN_USERNAME',
+  'ADMIN_PASSWORD_HASH',
+] as const;
+
+// Optional CloudFront variables (will fallback to S3 if not provided)
+const optionalEnvVars = [
+  'CLOUDFRONT_DOMAIN',
+  'CLOUDFRONT_KEY_PAIR_ID',
+  'CLOUDFRONT_PRIVATE_KEY',
+] as const;
+
+requiredEnvVars.forEach(envVar => {
+  if (!process.env[envVar]) {
+    console.error(`Missing required environment variable: ${envVar}`);
+    process.exit(1);
+  }
+});
+
+// Warn about missing optional CloudFront variables
+if (!process.env.CLOUDFRONT_DOMAIN) {
+  console.warn('⚠️  CLOUDFRONT_DOMAIN not set. Using S3 direct URLs (slower performance).');
+}
+
+// Validate JWT secret strength
+if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
+  console.error('JWT_SECRET should be at least 32 characters long');
+  process.exit(1);
+}
+
+// Validate admin password hash format
+if (process.env.ADMIN_PASSWORD_HASH && !process.env.ADMIN_PASSWORD_HASH.startsWith('$2')) {
+  console.error('ADMIN_PASSWORD_HASH must be a bcrypt hash');
+  process.exit(1);
+}
+
+// Helper function to remove quotes from environment variables
+const removeQuotes = (str: string | undefined): string | undefined => {
+  if (!str) return str;
+  // Remove surrounding single or double quotes
+  return str.replace(/^['"]|['"]$/g, '');
+};
+
+export const ENV_VARS: EnvVars = {
+  MONGO_URL: process.env.MONGO_URL!,
+  PORT: process.env.PORT || 5000,
+  JWT_SECRET: process.env.JWT_SECRET!,
+  ADMIN_USERNAME: process.env.ADMIN_USERNAME!,
+  ADMIN_PASSWORD_HASH: process.env.ADMIN_PASSWORD_HASH!,
+  EMAIL_USER: process.env.EMAIL_USER,
+  EMAIL_PASS: process.env.EMAIL_PASS,
+  CONTACT_EMAIL: process.env.CONTACT_EMAIL,
+  AWS_REGION: process.env.AWS_REGION,
+  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID!,
+  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY!,
+  AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME!,
+  CLOUDFRONT_DOMAIN: process.env.CLOUDFRONT_DOMAIN,
+  CLOUDFRONT_KEY_PAIR_ID: process.env.CLOUDFRONT_KEY_PAIR_ID,
+  CLOUDFRONT_PRIVATE_KEY: process.env.CLOUDFRONT_PRIVATE_KEY,
+  // Firebase Admin SDK (Optional - for OAuth) - Remove quotes
+  FIREBASE_PROJECT_ID: removeQuotes(process.env.FIREBASE_PROJECT_ID),
+  FIREBASE_CLIENT_EMAIL: removeQuotes(process.env.FIREBASE_CLIENT_EMAIL),
+  FIREBASE_PRIVATE_KEY: removeQuotes(process.env.FIREBASE_PRIVATE_KEY),
+};
+

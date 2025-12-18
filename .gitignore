@@ -11,7 +11,9 @@ node_modules/
 
 # production
 /build
-/dist
+dist/
+*.js.map
+*.tsbuildinfo
 
 # misc
 .DS_Store

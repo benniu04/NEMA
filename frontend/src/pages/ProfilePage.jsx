@@ -4,7 +4,7 @@ import { useUser } from '../context/UserContext';
 import { useSettings } from '../context/SettingsContext';
 import NavBar from '../components/NavBar';
 import Footer from '../components/Footer';
-import API_BASE_URL from '../config/api.js';
+import API_BASE_URL from '../config/api';
 
 const ProfilePage = () => {
   const navigate = useNavigate();
