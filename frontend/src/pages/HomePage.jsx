@@ -456,6 +456,7 @@ const HomePage = () => {
     const movie = session.movieId;
     if (!movie) return null;
 
+
     const resumeTime = Math.floor(session.maxTimeReached);
     const imageUrl = movie.thumbnailUrl || movie.posterUrl;
 

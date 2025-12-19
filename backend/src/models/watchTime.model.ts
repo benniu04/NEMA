@@ -118,7 +118,17 @@ watchTimeSchema.index({ sessionId: 1 });
 watchTimeSchema.pre('save', function(next: CallbackWithoutResultAndOptionalError) {
   if (this.videoDuration > 0) {
     this.completionPercentage = Math.min(100, Math.round((this.maxTimeReached / this.videoDuration) * 100));
-    this.completed = this.completionPercentage >= 90; // Consider 90%+ as completed
+    
+    // Consider completed if:
+    // 1. Percentage is >= 90%
+    // 2. Remaining time is less than 60 seconds
+    const remainingTime = this.videoDuration - this.maxTimeReached;
+    this.completed = this.completionPercentage >= 90 || (remainingTime > 0 && remainingTime <= 60);
+    
+    // If marked as completed by time, ensure percentage is at least 90% for UI consistency
+    if (this.completed && this.completionPercentage < 90) {
+      this.completionPercentage = 90;
+    }
   }
   this.lastUpdatedAt = new Date();
   next();

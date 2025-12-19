@@ -141,16 +141,11 @@ const VideoPlayerPage = () => {
         // Set the first available quality as default
         const availableQualities = Object.entries(movieData.videoUrls || {}).filter(([quality, url]) => url && url.trim() !== '');
         
-        console.log('Available video qualities:', availableQualities.map(([q, url]) => ({ quality: q, url: url?.substring(0, 80) + '...' })));
-        
         if (availableQualities.length > 0) {
           // Prefer HLS if available, otherwise use first available quality
           const hlsQuality = availableQualities.find(([q]) => q === 'hls');
           const firstQuality = hlsQuality ? hlsQuality[0] : availableQualities[0][0];
-          console.log('Selected quality:', firstQuality);
           setSelectedQuality(firstQuality);
-        } else {
-          console.warn('No video qualities available for this movie');
         }
 
         // Process related movies response
@@ -262,51 +257,60 @@ const VideoPlayerPage = () => {
     };
   }, [loading, relatedMovies.length]);
 
+  // Helper to track watch time
+  const trackProgress = async (force = false) => {
+    const video = videoRef.current;
+    if (!video || !movie || !id || !sessionId || !hasTrackedStart) return;
+
+    const currentTime = video.currentTime;
+    const videoDuration = video.duration || duration;
+    
+    if (!videoDuration) return;
+
+    // Only track if time has progressed (prevent spam) or if forced (e.g. video ended)
+    if (force || Math.abs(currentTime - lastTrackedTime) >= 2) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/watch-time/track`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            movieId: id,
+            sessionId: sessionId,
+            currentTime: currentTime,
+            videoDuration: videoDuration,
+            quality: selectedQuality
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setLastTrackedTime(currentTime);
+          
+          // Track completion milestone (only once per session)
+          if (data.completionPercentage >= 90 && !hasTrackedCompletion && movie?.title) {
+            analytics.trackVideoComplete(movie.title);
+            setHasTrackedCompletion(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error tracking watch time:', error);
+      }
+    }
+  };
+
   // Track watch time periodically
   useEffect(() => {
     if (!movie || !videoRef.current || !duration || loading) return;
 
-    const video = videoRef.current;
-    
     // Track watch time every 5 seconds
-    const interval = setInterval(async () => {
-      if (!video.paused && video.currentTime > 0 && hasTrackedStart) {
-        const currentTime = video.currentTime;
-        
-        // Only track if time has progressed (prevent spam)
-        if (Math.abs(currentTime - lastTrackedTime) >= 2) {
-          try {
-            const response = await fetch(`${API_BASE_URL}/api/watch-time/track`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              credentials: 'include',
-              body: JSON.stringify({
-                movieId: id,
-                sessionId: sessionId,
-                currentTime: currentTime,
-                videoDuration: duration,
-                quality: selectedQuality
-              })
-            });
-            
-            if (response.ok) {
-              const data = await response.json();
-              setLastTrackedTime(currentTime);
-              
-              // Track completion milestone (only once per session)
-              if (data.completionPercentage >= 90 && !hasTrackedCompletion && movie?.title) {
-                analytics.trackVideoComplete(movie.title);
-                setHasTrackedCompletion(true);
-              }
-            }
-          } catch (error) {
-            console.error('Error tracking watch time:', error);
-          }
-        }
+    const interval = setInterval(() => {
+      if (!videoRef.current?.paused) {
+        trackProgress();
       }
-    }, 5000); // Track every 5 seconds
+    }, 5000);
 
     watchTimeIntervalRef.current = interval;
 
@@ -315,19 +319,45 @@ const VideoPlayerPage = () => {
       clearInterval(interval);
       watchTimeIntervalRef.current = null;
       
-      // Mark session as ended when component unmounts
-      if (hasTrackedStart && movie && id && sessionId) {
-        fetch(`${API_BASE_URL}/api/watch-time/end`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            movieId: id,
-            sessionId: sessionId
-          })
-        }).catch(err => console.error('Error ending session:', err));
+      // Send one last progress update before ending session
+      if (hasTrackedStart && videoRef.current) {
+        const finalTime = videoRef.current.currentTime;
+        const finalDuration = videoRef.current.duration || duration;
+        
+        if (finalDuration > 0) {
+          console.log('Sending final progress update:', { finalTime, finalDuration });
+          
+          // Use fetch with keepalive to ensure it reaches the server even if page is closed
+          fetch(`${API_BASE_URL}/api/watch-time/track`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            keepalive: true,
+            body: JSON.stringify({
+              movieId: id,
+              sessionId: sessionId,
+              currentTime: finalTime,
+              videoDuration: finalDuration,
+              quality: selectedQuality
+            })
+          }).then(() => {
+            // Mark session as ended
+            fetch(`${API_BASE_URL}/api/watch-time/end`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              credentials: 'include',
+              keepalive: true,
+              body: JSON.stringify({
+                movieId: id,
+                sessionId: sessionId
+              })
+            }).catch(err => console.error('Error ending session:', err));
+          }).catch(err => console.error('Error in final tracking:', err));
+        }
       }
     };
   }, [movie, id, sessionId, duration, selectedQuality, lastTrackedTime, hasTrackedStart, hasTrackedCompletion, loading]); 
@@ -418,36 +448,23 @@ const VideoPlayerPage = () => {
     
     // Wait a tick to ensure the video element is mounted
     const initializeVideo = () => {
-      console.log('Video initialization useEffect triggered', { 
-        hasVideo: !!videoRef.current,
-        hasMovie: !!movie,
-        selectedQuality,
-        videoUrl: movie?.videoUrls?.[selectedQuality]
-      });
-      
       const video = videoRef.current;
       if (!video) {
-        console.warn('useEffect: videoRef.current is null - will retry');
         // If video ref isn't ready yet, try again in the next frame
         requestAnimationFrame(initializeVideo);
         return;
       }
       if (!movie) {
-        console.warn('useEffect: movie is null');
         return;
       }
       if (!selectedQuality) {
-        console.warn('useEffect: selectedQuality is empty');
         return;
       }
 
       const videoUrl = movie.videoUrls[selectedQuality];
       if (!videoUrl) {
-        console.warn('useEffect: videoUrl is empty for quality:', selectedQuality);
         return;
       }
-      
-      console.log('useEffect: All checks passed, initializing video');
       
       // Now initialize the video (the rest of the existing code follows)
       initVideoSource(video, videoUrl);
@@ -462,10 +479,7 @@ const VideoPlayerPage = () => {
       const previousTime = resumeTime !== null ? resumeTime : video.currentTime;
       const wasPlaying = !video.paused;
       
-      console.log('initVideoSource', { resumeTime, previousTime, wasPlaying });
-
       if (selectedQuality === 'hls' || videoUrl.endsWith('.m3u8')) {
-        console.log('Loading HLS stream:', videoUrl);
         if (Hls.isSupported()) {
           hls = new Hls({
             debug: false, // Set to true for verbose HLS debugging
@@ -475,7 +489,6 @@ const VideoPlayerPage = () => {
           hls.loadSource(videoUrl);
           hls.attachMedia(video);
           hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
-            console.log('HLS manifest parsed, levels:', data.levels.length);
             video.currentTime = previousTime;
             if (wasPlaying) video.play().catch(e => console.error("Auto-play blocked:", e));
           });
@@ -484,15 +497,12 @@ const VideoPlayerPage = () => {
             if (data.fatal) {
               switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
-                  console.error('Fatal network error - trying to recover');
                   hls.startLoad();
                   break;
                 case Hls.ErrorTypes.MEDIA_ERROR:
-                  console.error('Fatal media error - trying to recover');
                   hls.recoverMediaError();
                   break;
                 default:
-                  console.error('Fatal error - cannot recover');
                   hls.destroy();
                   break;
               }
@@ -500,19 +510,14 @@ const VideoPlayerPage = () => {
           });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           // Native HLS support (Safari)
-          console.log('Using native HLS support (Safari)');
           video.src = videoUrl;
           video.currentTime = previousTime;
-        } else {
-          console.error('HLS is not supported in this browser');
         }
       } else {
         // Normal MP4 playback
-        console.log('Loading MP4 video:', videoUrl);
         video.src = videoUrl;
         video.load(); // Explicitly trigger load
         const handleLoadedMetadata = () => {
-          console.log('MP4 video loaded, duration:', video.duration);
           video.currentTime = previousTime;
           if (wasPlaying) video.play().catch(e => console.error("Auto-play blocked:", e));
           video.removeEventListener('loadedmetadata', handleLoadedMetadata);
@@ -538,35 +543,24 @@ const VideoPlayerPage = () => {
 
   const handlePlayPause = () => {
     const video = videoRef.current;
-    console.log('handlePlayPause called', { 
-      videoRef: !!video, 
-      videoSrc: video?.src,
-      selectedQuality,
-      movieVideoUrls: movie?.videoUrls
-    });
     
     if (!video) {
-      console.error('Video ref is null');
       return;
     }
     
     if (!video.src) {
-      console.error('Video src is empty - attempting to set it now');
       // Try to set the source if it's missing
       const videoUrl = movie?.videoUrls?.[selectedQuality];
       if (videoUrl) {
-        console.log('Setting video src to:', videoUrl);
         video.src = videoUrl;
         video.load();
       } else {
-        console.error('No video URL available for quality:', selectedQuality);
         return;
       }
     }
     
     if (video.paused) {
       video.play().then(() => {
-        console.log('Video playing');
         setIsPlaying(true);
       }).catch(e => {
         console.error('Play failed:', e);
@@ -949,7 +943,10 @@ const VideoPlayerPage = () => {
                   onLoadedMetadata={handleLoadedMetadata}
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => setIsPlaying(false)}
-                  onEnded={() => setIsPlaying(false)}
+                  onEnded={() => {
+                    setIsPlaying(false);
+                    trackProgress(true);
+                  }}
                   onClick={handlePlayPause}
                   onContextMenu={handleContextMenu}
                   controlsList="nodownload nofullscreen noremoteplayback"
