@@ -71,8 +71,11 @@ const generateFreshSignedUrls = async (movie: IMovie): Promise<FreshUrls> => {
   
   results.forEach(result => {
     if (result.type === 'video' && result.quality) {
-      if (!freshData.videoUrls) freshData.videoUrls = {};
-      freshData.videoUrls[result.quality] = result.url;
+      // Only add video URLs that are not empty/null
+      if (result.url && result.url.trim() !== '') {
+        if (!freshData.videoUrls) freshData.videoUrls = {};
+        freshData.videoUrls[result.quality] = result.url;
+      }
     } else if (result.type === 'poster') {
       freshData.posterUrl = result.url;
     } else if (result.type === 'thumbnail') {

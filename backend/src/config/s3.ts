@@ -171,6 +171,32 @@ export const generateCloudfrontSignedUrl = async (key: string): Promise<string> 
     const privateKey = ENV_VARS.CLOUDFRONT_PRIVATE_KEY.replace(/\\n/g, '\n');
     const dateLessThan = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
     
+    // For HLS content, we need a signed URL with a custom policy that covers
+    // all files in the HLS folder (master playlist, variant playlists, and segments)
+    if (key.includes('/hls/') && key.endsWith('master.m3u8')) {
+      // Get the HLS folder path (e.g., videos/hls/1234567890/)
+      const hlsFolderPath = key.substring(0, key.lastIndexOf('/') + 1);
+      
+      // Create a custom policy that allows access to all files in this HLS folder
+      const policy = {
+        Statement: [{
+          Resource: `https://${cloudFrontDomain}/${hlsFolderPath}*`,
+          Condition: {
+            DateLessThan: {
+              'AWS:EpochTime': Math.floor(dateLessThan.getTime() / 1000)
+            }
+          }
+        }]
+      };
+      
+      return getCloudfrontSignedUrl({
+        url, // Return the actual master.m3u8 URL
+        keyPairId: ENV_VARS.CLOUDFRONT_KEY_PAIR_ID,
+        privateKey,
+        policy: JSON.stringify(policy), // Use custom policy for wildcard access
+      });
+    }
+    
     return getCloudfrontSignedUrl({
       url,
       keyPairId: ENV_VARS.CLOUDFRONT_KEY_PAIR_ID,

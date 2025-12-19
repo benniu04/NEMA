@@ -141,9 +141,16 @@ const VideoPlayerPage = () => {
         // Set the first available quality as default
         const availableQualities = Object.entries(movieData.videoUrls || {}).filter(([quality, url]) => url && url.trim() !== '');
         
+        console.log('Available video qualities:', availableQualities.map(([q, url]) => ({ quality: q, url: url?.substring(0, 80) + '...' })));
+        
         if (availableQualities.length > 0) {
-          const firstQuality = availableQualities[0][0];
+          // Prefer HLS if available, otherwise use first available quality
+          const hlsQuality = availableQualities.find(([q]) => q === 'hls');
+          const firstQuality = hlsQuality ? hlsQuality[0] : availableQualities[0][0];
+          console.log('Selected quality:', firstQuality);
           setSelectedQuality(firstQuality);
+        } else {
+          console.warn('No video qualities available for this movie');
         }
 
         // Process related movies response
@@ -405,43 +412,122 @@ const VideoPlayerPage = () => {
     };
   }, []);
 
-  // Handle HLS initialization
+  // Handle video source initialization
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !movie || !selectedQuality) return;
+    let hls; // Declare hls outside so cleanup can access it
+    
+    // Wait a tick to ensure the video element is mounted
+    const initializeVideo = () => {
+      console.log('Video initialization useEffect triggered', { 
+        hasVideo: !!videoRef.current,
+        hasMovie: !!movie,
+        selectedQuality,
+        videoUrl: movie?.videoUrls?.[selectedQuality]
+      });
+      
+      const video = videoRef.current;
+      if (!video) {
+        console.warn('useEffect: videoRef.current is null - will retry');
+        // If video ref isn't ready yet, try again in the next frame
+        requestAnimationFrame(initializeVideo);
+        return;
+      }
+      if (!movie) {
+        console.warn('useEffect: movie is null');
+        return;
+      }
+      if (!selectedQuality) {
+        console.warn('useEffect: selectedQuality is empty');
+        return;
+      }
 
-    const videoUrl = movie.videoUrls[selectedQuality];
-    if (!videoUrl) return;
+      const videoUrl = movie.videoUrls[selectedQuality];
+      if (!videoUrl) {
+        console.warn('useEffect: videoUrl is empty for quality:', selectedQuality);
+        return;
+      }
+      
+      console.log('useEffect: All checks passed, initializing video');
+      
+      // Now initialize the video (the rest of the existing code follows)
+      initVideoSource(video, videoUrl);
+    };
+    
+    const initVideoSource = (video, videoUrl) => {
+      // Check for resume timestamp in URL - this takes priority
+      const resumeTimeParam = searchParams.get('t');
+      const resumeTime = resumeTimeParam && !isNaN(resumeTimeParam) ? parseInt(resumeTimeParam, 10) : null;
+      
+      // Use resume time from URL if available, otherwise keep current position (for quality switching)
+      const previousTime = resumeTime !== null ? resumeTime : video.currentTime;
+      const wasPlaying = !video.paused;
+      
+      console.log('initVideoSource', { resumeTime, previousTime, wasPlaying });
 
-    const previousTime = video.currentTime;
-    const wasPlaying = !video.paused;
-
-    let hls;
-
-    if (selectedQuality === 'hls' || videoUrl.endsWith('.m3u8')) {
-      if (Hls.isSupported()) {
-        hls = new Hls();
-        hls.loadSource(videoUrl);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      if (selectedQuality === 'hls' || videoUrl.endsWith('.m3u8')) {
+        console.log('Loading HLS stream:', videoUrl);
+        if (Hls.isSupported()) {
+          hls = new Hls({
+            debug: false, // Set to true for verbose HLS debugging
+            enableWorker: true,
+            lowLatencyMode: false,
+          });
+          hls.loadSource(videoUrl);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+            console.log('HLS manifest parsed, levels:', data.levels.length);
+            video.currentTime = previousTime;
+            if (wasPlaying) video.play().catch(e => console.error("Auto-play blocked:", e));
+          });
+          hls.on(Hls.Events.ERROR, (event, data) => {
+            console.error('HLS error:', data.type, data.details, data);
+            if (data.fatal) {
+              switch (data.type) {
+                case Hls.ErrorTypes.NETWORK_ERROR:
+                  console.error('Fatal network error - trying to recover');
+                  hls.startLoad();
+                  break;
+                case Hls.ErrorTypes.MEDIA_ERROR:
+                  console.error('Fatal media error - trying to recover');
+                  hls.recoverMediaError();
+                  break;
+                default:
+                  console.error('Fatal error - cannot recover');
+                  hls.destroy();
+                  break;
+              }
+            }
+          });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          // Native HLS support (Safari)
+          console.log('Using native HLS support (Safari)');
+          video.src = videoUrl;
+          video.currentTime = previousTime;
+        } else {
+          console.error('HLS is not supported in this browser');
+        }
+      } else {
+        // Normal MP4 playback
+        console.log('Loading MP4 video:', videoUrl);
+        video.src = videoUrl;
+        video.load(); // Explicitly trigger load
+        const handleLoadedMetadata = () => {
+          console.log('MP4 video loaded, duration:', video.duration);
           video.currentTime = previousTime;
           if (wasPlaying) video.play().catch(e => console.error("Auto-play blocked:", e));
-        });
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Native HLS support (Safari)
-        video.src = videoUrl;
-        video.currentTime = previousTime;
+          video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        };
+        const handleError = (e) => {
+          console.error('Video error:', video.error?.code, video.error?.message, e);
+          video.removeEventListener('error', handleError);
+        };
+        video.addEventListener('loadedmetadata', handleLoadedMetadata);
+        video.addEventListener('error', handleError);
       }
-    } else {
-      // Normal MP4 playback
-      video.src = videoUrl;
-      const handleLoadedMetadata = () => {
-        video.currentTime = previousTime;
-        if (wasPlaying) video.play().catch(e => console.error("Auto-play blocked:", e));
-        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      };
-      video.addEventListener('loadedmetadata', handleLoadedMetadata);
-    }
+    };
+    
+    // Start the initialization process
+    initializeVideo();
 
     return () => {
       if (hls) {
@@ -452,11 +538,39 @@ const VideoPlayerPage = () => {
 
   const handlePlayPause = () => {
     const video = videoRef.current;
-    if (!video || !video.src) return;
+    console.log('handlePlayPause called', { 
+      videoRef: !!video, 
+      videoSrc: video?.src,
+      selectedQuality,
+      movieVideoUrls: movie?.videoUrls
+    });
+    
+    if (!video) {
+      console.error('Video ref is null');
+      return;
+    }
+    
+    if (!video.src) {
+      console.error('Video src is empty - attempting to set it now');
+      // Try to set the source if it's missing
+      const videoUrl = movie?.videoUrls?.[selectedQuality];
+      if (videoUrl) {
+        console.log('Setting video src to:', videoUrl);
+        video.src = videoUrl;
+        video.load();
+      } else {
+        console.error('No video URL available for quality:', selectedQuality);
+        return;
+      }
+    }
     
     if (video.paused) {
-      video.play();
-      setIsPlaying(true);
+      video.play().then(() => {
+        console.log('Video playing');
+        setIsPlaying(true);
+      }).catch(e => {
+        console.error('Play failed:', e);
+      });
       
       // Track video play event
       if (movie?.title) {
