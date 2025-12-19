@@ -138,24 +138,86 @@ watchTimeRouter.post('/end', watchTimeLimiter, async (req: Request, res: Respons
 watchTimeRouter.get('/history', optionalAuthMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const limit = parseInt(req.query.limit as string) || 20;
-    const query = req.user ? { userId: req.user.id } : { deviceId: getClientIp(req) };
+    // For aggregation, we need to use ObjectId for userId
+    const query = req.user
+      ? { userId: new mongoose.Types.ObjectId(req.user.id) }
+      : { deviceId: getClientIp(req) };
 
-    const watchHistory = await WatchTime.find(query)
-      .populate('movieId', 'title director posterKey posterUrl thumbnailKey releaseDate')
-      .sort({ lastUpdatedAt: -1 })
-      .limit(limit);
+    // Use aggregation to get only the most recent session per movie
+    // This ensures we always show the latest watch state (completed or not)
+    const watchHistory = await WatchTime.aggregate([
+      { $match: query },
+      { $sort: { lastUpdatedAt: -1 } },
+      // Group by movieId and take the most recent session
+      {
+        $group: {
+          _id: '$movieId',
+          sessionId: { $first: '$_id' },
+          movieId: { $first: '$movieId' },
+          watchTime: { $first: '$watchTime' },
+          videoDuration: { $first: '$videoDuration' },
+          maxTimeReached: { $first: '$maxTimeReached' },
+          completionPercentage: { $first: '$completionPercentage' },
+          completed: { $first: '$completed' },
+          lastUpdatedAt: { $first: '$lastUpdatedAt' },
+          createdAt: { $first: '$createdAt' }
+        }
+      },
+      { $sort: { lastUpdatedAt: -1 } },
+      { $limit: limit },
+      // Lookup movie details
+      {
+        $lookup: {
+          from: 'movies',
+          localField: 'movieId',
+          foreignField: '_id',
+          as: 'movieData'
+        }
+      },
+      { $unwind: { path: '$movieData', preserveNullAndEmptyArrays: true } },
+      // Reshape to match expected format
+      {
+        $project: {
+          _id: '$sessionId',
+          movieId: {
+            _id: '$movieData._id',
+            title: '$movieData.title',
+            director: '$movieData.director',
+            posterKey: '$movieData.posterKey',
+            posterUrl: '$movieData.posterUrl',
+            thumbnailKey: '$movieData.thumbnailKey',
+            releaseDate: '$movieData.releaseDate'
+          },
+          watchTime: 1,
+          videoDuration: 1,
+          maxTimeReached: 1,
+          completionPercentage: 1,
+          completed: 1,
+          lastUpdatedAt: 1,
+          createdAt: 1
+        }
+      }
+    ]);
 
+    // Generate signed URLs for poster images
+    // Note: aggregation returns plain objects, not mongoose documents
     const historyWithUrls = await Promise.all(
-      watchHistory.map(async (session) => {
-        const sessionObj = session.toObject() as any;
-        if (sessionObj.movieId && sessionObj.movieId.posterKey) {
+      watchHistory.map(async (session: any) => {
+        if (session.movieId && session.movieId.posterKey) {
           try {
-            sessionObj.movieId.posterUrl = await generateCloudfrontSignedUrl(sessionObj.movieId.posterKey);
+            session.movieId.posterUrl = await generateCloudfrontSignedUrl(session.movieId.posterKey);
           } catch (error) {
             logger.error('Error generating poster URL:', { error: (error as Error).message });
           }
         }
-        return sessionObj;
+        if (session.movieId && session.movieId.thumbnailKey) {
+          try {
+            session.movieId.thumbnailUrl = await generateCloudfrontSignedUrl(session.movieId.thumbnailKey);
+          } catch (error) {
+            logger.error('Error generating thumbnail URL:', { error: (error as Error).message });
+          }
+        }
+        return session;
       })
     );
 
