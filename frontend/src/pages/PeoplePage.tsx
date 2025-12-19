@@ -157,9 +157,16 @@ const PeoplePage: React.FC = () => {
     const timeoutId = setTimeout(async () => {
       setSearching(true);
       try {
+        const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
         const response = await fetch(
           `${API_BASE_URL}/api/users/search?q=${encodeURIComponent(searchQuery.trim())}`,
-          { credentials: 'include' }
+          { 
+            credentials: 'include',
+            headers
+          }
         );
         if (response.ok) {
           const data = await response.json();

@@ -1,4 +1,4 @@
-import { S3Client, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import multer, { FileFilterCallback } from 'multer';
 import multerS3 from 'multer-s3';
 import { ENV_VARS } from './envVars.js';
@@ -6,6 +6,8 @@ import { getSignedUrl as getS3SignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getSignedUrl as getCloudfrontSignedUrl } from '@aws-sdk/cloudfront-signer';
 import logger from './logger.js';
 import { Request } from 'express';
+import path from 'path';
+import fs from 'fs';
 
 const s3Client = new S3Client({
   region: ENV_VARS.AWS_REGION,
@@ -14,6 +16,77 @@ const s3Client = new S3Client({
     secretAccessKey: ENV_VARS.AWS_SECRET_ACCESS_KEY
   }
 });
+
+// Disk storage for videos (to allow transcoding)
+const diskStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const uploadDir = path.join(process.cwd(), 'temp-uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (_req, file, cb) => {
+    const timestamp = Date.now();
+    const ext = path.extname(file.originalname);
+    cb(null, `video-${timestamp}${ext}`);
+  }
+});
+
+export const videoUpload = multer({
+  storage: diskStorage,
+  limits: {
+    fileSize: 3 * 1024 * 1024 * 1024, // 3GB
+    files: 1
+  },
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
+    if (file.mimetype.startsWith('video/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only video files are allowed for this endpoint.'));
+    }
+  }
+});
+
+/**
+ * Upload a local file to S3
+ */
+export const uploadFileToS3 = async (localPath: string, s3Key: string): Promise<string> => {
+  try {
+    const fileContent = fs.readFileSync(localPath);
+    // @ts-ignore - path.extname might return undefined but mime.lookup handles it
+    const contentType = (path.extname(localPath) === '.m3u8') ? 'application/x-mpegURL' : 
+                        (path.extname(localPath) === '.ts') ? 'video/MP2T' : 
+                        'application/octet-stream';
+
+    const command = new PutObjectCommand({
+      Bucket: ENV_VARS.AWS_BUCKET_NAME,
+      Key: s3Key,
+      Body: fileContent,
+      ContentType: contentType,
+    });
+
+    await s3Client.send(command);
+    return s3Key;
+  } catch (error) {
+    logger.error('Error uploading file to S3:', { error, localPath, s3Key });
+    throw error;
+  }
+};
+
+/**
+ * Upload a folder to S3
+ */
+export const uploadFolderToS3 = async (localDirPath: string, s3Prefix: string): Promise<string[]> => {
+  const files = fs.readdirSync(localDirPath);
+  const uploadPromises = files.map(file => {
+    const localFilePath = path.join(localDirPath, file);
+    const s3Key = `${s3Prefix}/${file}`;
+    return uploadFileToS3(localFilePath, s3Key);
+  });
+
+  return Promise.all(uploadPromises);
+};
 
 export const upload = multer({
   storage: multerS3({

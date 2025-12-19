@@ -114,6 +114,7 @@ export interface IUserModel {
 export interface IVideoUrls {
   '720p'?: string;
   '1080p'?: string;
+  hls?: string;
 }
 
 export interface ISubtitleUrls {

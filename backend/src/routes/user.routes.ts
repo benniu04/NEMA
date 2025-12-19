@@ -428,6 +428,151 @@ userRoutes.delete('/favorites/:movieId', authMiddleware, async (req: Authenticat
   }
 });
 
+// Search users
+userRoutes.get('/search', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const query = req.query.q as string;
+    logger.info('User search request', { query, userId: req.user?.id });
+    
+    if (!query) {
+      res.json([]);
+      return;
+    }
+
+    // Escape regex special characters to prevent injection
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // Search by username or displayName using regex for partial match
+    // We use a case-insensitive regex
+    const searchQuery = {
+      $and: [
+        { _id: { $ne: req.user!.id } }, // Exclude current user
+        {
+          $or: [
+            { username: { $regex: escapedQuery, $options: 'i' } },
+            { displayName: { $regex: escapedQuery, $options: 'i' } }
+          ]
+        }
+      ]
+    };
+    
+    logger.info('User search query', { escapedQuery, searchQuery: JSON.stringify(searchQuery) });
+    
+    const users = await User.find(searchQuery)
+      .limit(20)
+      .select('username displayName avatar bio stats followers following');
+
+    logger.info('User search results', { count: users.length, usernames: users.map(u => u.username) });
+
+    const currentUser = await User.findById(req.user!.id);
+    
+    const results = users.map(u => {
+      const userObj = u.toObject();
+      return {
+        id: userObj._id.toString(),
+        username: userObj.username,
+        displayName: userObj.displayName,
+        avatar: userObj.avatar,
+        bio: userObj.bio,
+        isFollowing: currentUser?.following.some(id => id.toString() === userObj._id.toString()),
+        stats: {
+          followersCount: userObj.followers?.length || 0,
+          filmsWatched: userObj.stats?.filmsWatched || 0
+        }
+      };
+    });
+
+    res.json(results);
+  } catch (error) {
+    logger.error('Error searching users:', error);
+    res.status(500).json({ message: 'Failed to search users' });
+  }
+});
+
+// Suggested users
+userRoutes.get('/suggested', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const currentUser = await User.findById(req.user!.id);
+    if (!currentUser) { res.status(404).json({ message: 'User not found' }); return; }
+
+    // Suggest users that are NOT currently followed and NOT the current user
+    const suggested = await User.find({
+      $and: [
+        { _id: { $ne: req.user!.id } },
+        { _id: { $nin: currentUser.following } }
+      ]
+    })
+    .limit(5)
+    .select('username displayName avatar bio stats followers following');
+
+    const results = suggested.map(u => {
+      const userObj = u.toObject();
+      return {
+        id: userObj._id.toString(),
+        username: userObj.username,
+        displayName: userObj.displayName,
+        avatar: userObj.avatar,
+        bio: userObj.bio,
+        isFollowing: false,
+        stats: {
+          followersCount: userObj.followers?.length || 0,
+          filmsWatched: userObj.stats?.filmsWatched || 0
+        }
+      };
+    });
+
+    res.json(results);
+  } catch (error) {
+    logger.error('Error getting suggested users:', error);
+    res.status(500).json({ message: 'Failed to get suggested users' });
+  }
+});
+
+// Activity Feed
+userRoutes.get('/feed', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const currentUser = await User.findById(req.user!.id);
+    if (!currentUser) { res.status(404).json({ message: 'User not found' }); return; }
+
+    // Get activities from followed users
+    const activities = await Activity.find({
+      userId: { $in: currentUser.following }
+    })
+    .sort({ createdAt: -1 })
+    .skip(offset)
+    .limit(limit + 1)
+    .populate('userId', 'username displayName avatar')
+    .populate('movieId', 'title posterUrl posterKey');
+
+    const hasMore = activities.length > limit;
+    const finalActivities = activities.slice(0, limit);
+
+    // Generate signed URLs for posters in parallel
+    const activitiesWithUrls = await Promise.all(finalActivities.map(async (activity) => {
+      const activityObj = activity.toObject() as any;
+      if (activityObj.movieId && activityObj.movieId.posterKey) {
+        try {
+          activityObj.movieId.posterUrl = await generateCloudfrontSignedUrl(activityObj.movieId.posterKey);
+        } catch (error) {
+          logger.warn('Failed to generate signed URL for feed poster', { posterKey: activityObj.movieId.posterKey });
+        }
+      }
+      return activityObj;
+    }));
+
+    res.json({
+      activities: activitiesWithUrls,
+      hasMore
+    });
+  } catch (error) {
+    logger.error('Error getting activity feed:', error);
+    res.status(500).json({ message: 'Failed to get activity feed' });
+  }
+});
+
 // Public profile
 userRoutes.get('/profile/:username', profileLimiter, async (req: Request, res: Response): Promise<void> => {
   try {

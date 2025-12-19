@@ -1,8 +1,39 @@
 import express, { Response } from 'express';
-import { upload } from '../config/s3.js';
+import { upload, videoUpload, uploadFolderToS3, uploadFileToS3 } from '../config/s3.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.middleware.js';
 import logger from '../config/logger.js';
-import type { AuthenticatedRequest, UploadedFile } from '../types/index.js';
+import type { AuthenticatedRequest } from '../types/index.js';
+import { transcodeToHLS } from '../utils/hls-transcoder.js';
+import path from 'path';
+import fs from 'fs';
+
+/**
+ * Recursively upload a directory and all its subdirectories to S3
+ */
+const uploadFolderToS3Recursive = async (localDirPath: string, s3Prefix: string): Promise<string[]> => {
+  const uploadedKeys: string[] = [];
+  
+  const uploadDir = async (dirPath: string, prefix: string) => {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      const localPath = path.join(dirPath, entry.name);
+      const s3Key = `${prefix}/${entry.name}`;
+      
+      if (entry.isDirectory()) {
+        // Recursively upload subdirectory
+        await uploadDir(localPath, s3Key.replace(`/${entry.name}`, `/${entry.name}`));
+      } else {
+        // Upload file
+        await uploadFileToS3(localPath, s3Key);
+        uploadedKeys.push(s3Key);
+      }
+    }
+  };
+  
+  await uploadDir(localDirPath, s3Prefix);
+  return uploadedKeys;
+};
 
 interface MulterRequest extends AuthenticatedRequest {
   file?: Express.Multer.File & { key?: string; location?: string };
@@ -10,29 +41,77 @@ interface MulterRequest extends AuthenticatedRequest {
 
 const uploadRoutes = express.Router();
 
-// Upload video file
+// Upload video file with adaptive bitrate HLS transcoding
 uploadRoutes.post('/video', 
   [authMiddleware, adminMiddleware],
-  upload.single('video'),
+  videoUpload.single('video'),
   async (req: MulterRequest, res: Response): Promise<void> => {
+    let tempHlsDir: string | null = null;
     try {
       if (!req.file) {
         res.status(400).json({ message: 'No file uploaded' });
         return;
       }
       
-      const quality = (req.body as { quality?: string }).quality || '720p';
+      const inputPath = req.file.path;
+      const timestamp = Date.now();
+      tempHlsDir = path.join(process.cwd(), 'temp-hls', `${timestamp}`);
       
-      logger.info('Video uploaded successfully', { key: req.file.key, quality });
+      logger.info('Starting adaptive bitrate HLS transcoding', { 
+        filename: req.file.filename,
+        size: `${(req.file.size / (1024 * 1024)).toFixed(2)} MB`
+      });
+      
+      // 1. Transcode to HLS with adaptive bitrate (multiple quality variants)
+      const { outputDir, variants } = await transcodeToHLS(inputPath, tempHlsDir);
+      
+      logger.info('Transcoding completed, uploading to S3', { 
+        variants: variants.map(v => v.resolution) 
+      });
+      
+      // 2. Upload HLS folder (including all variants) to S3
+      const s3Prefix = `videos/hls/${timestamp}`;
+      
+      // Upload the entire directory structure (master playlist + all variant folders)
+      const uploadedKeys = await uploadFolderToS3Recursive(outputDir, s3Prefix);
+      
+      const hlsMasterKey = `${s3Prefix}/master.m3u8`;
+      
+      logger.info('Video transcoded and uploaded successfully', { 
+        hlsMasterKey,
+        variants: variants.length,
+        filesUploaded: uploadedKeys.length
+      });
+      
+      // Cleanup local files
+      fs.unlinkSync(inputPath);
+      fs.rmSync(tempHlsDir, { recursive: true, force: true });
+      
       res.status(200).json({
-        message: 'File uploaded successfully',
-        key: req.file.key,
-        quality: quality
+        message: 'Video transcoded with adaptive bitrate and uploaded successfully',
+        hlsKey: hlsMasterKey,
+        variants: variants.map(v => ({
+          resolution: v.resolution,
+          bandwidth: v.bandwidth
+        })),
+        filesUploaded: uploadedKeys.length
       });
     } catch (error) {
       const err = error as Error;
-      logger.error('Error uploading video:', { error: err.message, stack: err.stack });
-      res.status(500).json({ message: 'Error uploading file' });
+      logger.error('Error in video upload/transcode process:', { error: err.message, stack: err.stack });
+      
+      // Cleanup on error
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      if (tempHlsDir && fs.existsSync(tempHlsDir)) {
+        fs.rmSync(tempHlsDir, { recursive: true, force: true });
+      }
+      
+      res.status(500).json({ 
+        message: 'Error processing video file',
+        error: err.message 
+      });
     }
   }
 );

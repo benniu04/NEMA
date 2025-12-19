@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
+import Hls from 'hls.js'
 import NavBar from '../components/NavBar'
 import API_BASE_URL from '../config/api'
 import CommentSection from '../components/CommentSection'
@@ -404,6 +405,51 @@ const VideoPlayerPage = () => {
     };
   }, []);
 
+  // Handle HLS initialization
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !movie || !selectedQuality) return;
+
+    const videoUrl = movie.videoUrls[selectedQuality];
+    if (!videoUrl) return;
+
+    const previousTime = video.currentTime;
+    const wasPlaying = !video.paused;
+
+    let hls;
+
+    if (selectedQuality === 'hls' || videoUrl.endsWith('.m3u8')) {
+      if (Hls.isSupported()) {
+        hls = new Hls();
+        hls.loadSource(videoUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.currentTime = previousTime;
+          if (wasPlaying) video.play().catch(e => console.error("Auto-play blocked:", e));
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native HLS support (Safari)
+        video.src = videoUrl;
+        video.currentTime = previousTime;
+      }
+    } else {
+      // Normal MP4 playback
+      video.src = videoUrl;
+      const handleLoadedMetadata = () => {
+        video.currentTime = previousTime;
+        if (wasPlaying) video.play().catch(e => console.error("Auto-play blocked:", e));
+        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      };
+      video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    }
+
+    return () => {
+      if (hls) {
+        hls.destroy();
+      }
+    };
+  }, [movie, selectedQuality]);
+
   const handlePlayPause = () => {
     const video = videoRef.current;
     if (!video || !video.src) return;
@@ -507,25 +553,8 @@ const VideoPlayerPage = () => {
   };
 
   const handleQualityChange = (quality) => {
-    const video = videoRef.current;
-    if (!video || !movie.videoUrls[quality]) return;
-    
-    const currentTime = video.currentTime;
-    const wasPlaying = !video.paused;
-    
     setSelectedQuality(quality);
-    video.src = movie.videoUrls[quality];
-    
-    // Wait for video to load before setting time
-    const handleLoadedData = () => {
-      video.currentTime = currentTime;
-      if (wasPlaying) {
-        video.play();
-      }
-      video.removeEventListener('loadeddata', handleLoadedData);
-    };
-    
-    video.addEventListener('loadeddata', handleLoadedData);
+    // The useEffect will handle the source change
   };
 
   // Playback speed handler
@@ -801,7 +830,6 @@ const VideoPlayerPage = () => {
               {movie && selectedQuality && movie.videoUrls[selectedQuality] ? (
                 <video
                   ref={videoRef}
-                  src={movie.videoUrls[selectedQuality]}
                   className="w-full h-full"
                   onTimeUpdate={handleTimeUpdate}
                   onLoadedMetadata={handleLoadedMetadata}

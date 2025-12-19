@@ -37,8 +37,9 @@ const movieSchema = new Schema<IMovie>({
     default: "English",
   },
   videoUrls: {
-    '720p': String,
-    '1080p': String 
+    '720p': String,     // Legacy: Direct MP4 URL
+    '1080p': String,    // Legacy: Direct MP4 URL
+    hls: String         // HLS master playlist (adaptive bitrate) - S3 key path
   },
   subtitleUrls: {
     en: String,   // English
