@@ -42,6 +42,7 @@
       "@/types/*": ["src/types/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/tests"]
 }
 
