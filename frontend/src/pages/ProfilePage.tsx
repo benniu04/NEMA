@@ -5,6 +5,7 @@ import { useSettings } from '../context/SettingsContext';
 import NavBar from '../components/NavBar';
 import Footer from '../components/Footer';
 import API_BASE_URL from '../config/api';
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
 
 // Types
 interface Movie {
@@ -94,6 +95,7 @@ const ProfilePage: React.FC = () => {
   const locationState = location.state as LocationState | null;
   const initialTab: TabKey = (locationState?.tab as TabKey) || 'activity';
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  const [deviceId, setDeviceId] = useState<string>('');
   const [activities, setActivities] = useState<Activity[]>([]);
   const [favorites, setFavorites] = useState<Movie[]>([]);
   const [watchHistory, setWatchHistory] = useState<WatchSession[]>([]);
@@ -111,6 +113,18 @@ const ProfilePage: React.FC = () => {
   const [followActionLoading, setFollowActionLoading] = useState<Record<string, boolean>>({});
 
   const bannerInputRef = useRef<HTMLInputElement>(null);
+
+  // Initialize device fingerprint for review ownership
+  useEffect(() => {
+    FingerprintJS.load()
+      .then(fp => fp.get())
+      .then(result => {
+        setDeviceId(result.visitorId);
+      })
+      .catch(error => {
+        console.error('Failed to initialize device fingerprint:', error);
+      });
+  }, []);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -130,9 +144,15 @@ const ProfilePage: React.FC = () => {
       loadActivities();
       loadFavorites();
       loadWatchHistory();
-      loadUserReviews();
     }
   }, [user]);
+
+  // Load reviews separately once deviceId is available
+  useEffect(() => {
+    if (user && deviceId) {
+      loadUserReviews();
+    }
+  }, [user, deviceId]);
 
   const loadActivities = async (): Promise<void> => {
     try {
@@ -186,8 +206,10 @@ const ProfilePage: React.FC = () => {
   };
 
   const loadUserReviews = async (): Promise<void> => {
+    if (!deviceId) return; // Wait for deviceId to be initialized
+    
     try {
-      const response = await fetch(`${API_BASE_URL}/api/reviews/user/my-reviews`, {
+      const response = await fetch(`${API_BASE_URL}/api/reviews/user/my-reviews?deviceId=${encodeURIComponent(deviceId)}`, {
         credentials: 'include'
       });
       if (response.ok) {

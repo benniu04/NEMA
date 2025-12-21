@@ -91,7 +91,13 @@ reviewRouter.get('/movie/:movieId', async (req: Request, res: Response): Promise
 
 reviewRouter.get('/user/my-reviews', async (req: Request, res: Response): Promise<void> => {
   try {
-    const deviceId = getClientIp(req);
+    const deviceId = req.query.deviceId as string;
+    
+    if (!deviceId) {
+      res.status(400).json({ message: 'Device ID is required' });
+      return;
+    }
+
     const reviews = await Review.find({ deviceId })
       .populate('movieId', 'title posterUrl posterKey director releaseDate')
       .sort({ createdAt: -1 });
@@ -120,8 +126,13 @@ reviewRouter.get('/user/my-reviews', async (req: Request, res: Response): Promis
 
 reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, optionalAuthMiddleware, validateReview, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const deviceId = getClientIp(req);
-    const { movieId, nickname, rating, comment } = req.body;
+    const { movieId, nickname, rating, comment, deviceId } = req.body;
+
+    // Validate deviceId is provided
+    if (!deviceId || typeof deviceId !== 'string') {
+      res.status(400).json({ message: 'Device ID is required' });
+      return;
+    }
 
     const existingReview = await Review.findOne({ movieId, deviceId });
     const isNewReview = !existingReview;
@@ -149,7 +160,7 @@ reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, optionalAuthMiddleware
 
     await recomputeAvg(movieId);
     clearCache();
-    logger.info('Review created/updated', { reviewId: review!._id, movieId, rating, deviceId });
+    logger.info('Review created/updated', { reviewId: review!._id, movieId, rating, deviceId: deviceId.substring(0, 8) + '...' });
     res.status(201).json(review);
   } catch (error) {
     const err = error as Error;
@@ -160,7 +171,14 @@ reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, optionalAuthMiddleware
 
 reviewRouter.delete('/:id', reviewDeleteLimiter, reviewDeleteSlow, validateReviewDelete, async (req: Request, res: Response): Promise<void> => {
   try {
-    const deviceId = getClientIp(req);
+    // Accept deviceId from query parameter (for DELETE requests)
+    const deviceId = req.query.deviceId as string;
+    
+    if (!deviceId) {
+      res.status(400).json({ message: 'Device ID is required' });
+      return;
+    }
+
     const review = await Review.findById(req.params.id);
     
     if (!review) {
@@ -169,7 +187,7 @@ reviewRouter.delete('/:id', reviewDeleteLimiter, reviewDeleteSlow, validateRevie
     }
     
     if (review.deviceId !== deviceId) {
-      logger.warn('Unauthorized review deletion attempt', { reviewId: req.params.id, attemptedFrom: deviceId, reviewOwner: review.deviceId });
+      logger.warn('Unauthorized review deletion attempt', { reviewId: req.params.id, attemptedFrom: deviceId.substring(0, 8) + '...', reviewOwner: review.deviceId.substring(0, 8) + '...' });
       res.status(403).json({ message: 'Not authorized to delete this review' });
       return;
     }
@@ -178,7 +196,7 @@ reviewRouter.delete('/:id', reviewDeleteLimiter, reviewDeleteSlow, validateRevie
     await Review.findByIdAndDelete(req.params.id);
     await recomputeAvg(movieId);
     clearCache();
-    logger.info('Review deleted', { reviewId: req.params.id, movieId, deviceId });
+    logger.info('Review deleted', { reviewId: req.params.id, movieId, deviceId: deviceId.substring(0, 8) + '...' });
     res.json({ message: 'Review deleted successfully' });
   } catch (error) {
     const err = error as Error;

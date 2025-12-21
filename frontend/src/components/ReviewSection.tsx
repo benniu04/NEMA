@@ -67,9 +67,9 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
                  : Array.isArray(data.reviews) ? data.reviews
                  : [];
       setReviews(list);
-      // Note: Can't identify "myReview" from client side anymore (uses server IP)
-      // Users will see delete button but backend enforces ownership
-      setMyReview(null);
+      // Find user's own review by deviceId
+      const mine = list.find((r: Review) => r.deviceId === deviceId);
+      setMyReview(mine || null);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching reviews:', error);
@@ -93,8 +93,8 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
           movieId, 
           nickname: nickname || 'Anonymous',
           rating: stars, 
-          comment
-          // Note: deviceId determined server-side by IP address
+          comment,
+          deviceId  // Send deviceId for ownership tracking
         },
         {
           withCredentials: true
@@ -122,9 +122,8 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
     if (!window.confirm(t('reviews.deleteConfirm'))) return;
 
     try {
-      // Backend uses server-side IP for authorization (no need to send deviceId)
       await axios.delete(
-        `${API_BASE_URL}/api/reviews/${reviewId}`,
+        `${API_BASE_URL}/api/reviews/${reviewId}?deviceId=${encodeURIComponent(deviceId)}`,
         {
           withCredentials: true
         }
@@ -216,16 +215,18 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-amber-100/60 text-sm">{new Date(r.createdAt).toLocaleDateString()}</span>
-                  {/* Delete button - backend checks IP-based ownership */}
-                  <button
-                    onClick={() => handleDelete(r._id)}
-                    className="text-red-400/60 hover:text-red-400 transition-colors"
-                    title="Delete this review (only works if it's yours)"
-                  >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  {/* Delete button - only show for user's own reviews */}
+                  {r.deviceId === deviceId && (
+                    <button
+                      onClick={() => handleDelete(r._id)}
+                      className="text-red-400/60 hover:text-red-400 transition-colors"
+                      title={t('reviews.deleteReview')}
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="flex items-center mb-1">

@@ -89,8 +89,8 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
         {
           movieId: videoId,
           content: newComment,
-          nickname: nickname || 'Anonymous'
-          // Note: deviceId determined server-side by IP address
+          nickname: nickname || 'Anonymous',
+          deviceId  // Send deviceId for ownership tracking
         },
         {
           withCredentials: true
@@ -115,8 +115,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
     }
 
     try {
-      // Backend uses server-side IP for authorization (no need to send deviceId)
-      await axios.delete(`${API_BASE_URL}/api/comments/${commentId}`, {
+      await axios.delete(`${API_BASE_URL}/api/comments/${commentId}?deviceId=${encodeURIComponent(deviceId)}`, {
         withCredentials: true
       });
       setComments(prevComments => prevComments.filter(comment => comment._id !== commentId));
@@ -197,17 +196,19 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
               </div>
               <p className="text-gray-200 leading-relaxed">{comment.content}</p>
               
-              {/* Delete button - backend checks IP-based ownership */}
-              <button
-                onClick={() => handleDelete(comment._id)}
-                className="mt-2 text-red-400/60 text-sm hover:text-red-400 transition-colors flex items-center gap-1"
-                title={t('comments.delete')}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                {t('comments.delete')}
-              </button>
+              {/* Delete button - only show for user's own comments */}
+              {comment.deviceId === deviceId && (
+                <button
+                  onClick={() => handleDelete(comment._id)}
+                  className="mt-2 text-red-400/60 text-sm hover:text-red-400 transition-colors flex items-center gap-1"
+                  title={t('comments.delete')}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  {t('comments.delete')}
+                </button>
+              )}
             </div>
           ))
         )}

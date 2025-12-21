@@ -67,13 +67,19 @@ router.get('/movie/:movieId', async (req: Request, res: Response): Promise<void>
 });
 
 router.post('/', commentPostLimiter, commentPostSlow, optionalAuthMiddleware, validateComment, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const deviceId = getClientIp(req);
+  const { movieId, nickname, content, deviceId } = req.body;
+  
+  // Validate deviceId is provided
+  if (!deviceId || typeof deviceId !== 'string') {
+    res.status(400).json({ message: 'Device ID is required' });
+    return;
+  }
   
   const comment = new Comment({
-    movieId: req.body.movieId,
+    movieId,
     deviceId,
-    nickname: req.body.nickname || 'Anonymous',
-    content: req.body.content
+    nickname: nickname || 'Anonymous',
+    content
   });
 
   try {
@@ -84,27 +90,34 @@ router.post('/', commentPostLimiter, commentPostSlow, optionalAuthMiddleware, va
         await Activity.create({
           userId: req.user.id,
           type: 'comment',
-          movieId: req.body.movieId,
+          movieId,
           commentId: newComment._id,
-          content: req.body.content
+          content
         });
       } catch (activityError) {
         logger.error('Failed to create activity for comment:', { error: (activityError as Error).message });
       }
     }
     
-    logger.info('Comment created', { commentId: newComment._id, movieId: req.body.movieId, deviceId });
+    logger.info('Comment created', { commentId: newComment._id, movieId, deviceId: deviceId.substring(0, 8) + '...' });
     res.status(201).json(newComment);
   } catch (error) {
     const err = error as Error;
-    logger.error('Error creating comment:', { error: err.message, movieId: req.body.movieId });
+    logger.error('Error creating comment:', { error: err.message, movieId });
     res.status(400).json({ message: 'Failed to create comment' });
   }
 });
 
 router.delete('/:id', commentDeleteLimiter, commentDeleteSlow, validateCommentDelete, async (req: Request, res: Response): Promise<void> => {
   try {
-    const deviceId = getClientIp(req);
+    // Accept deviceId from query parameter (for DELETE requests)
+    const deviceId = req.query.deviceId as string;
+    
+    if (!deviceId) {
+      res.status(400).json({ message: 'Device ID is required' });
+      return;
+    }
+
     const comment = await Comment.findById(req.params.id);
     
     if (!comment) {
@@ -114,10 +127,10 @@ router.delete('/:id', commentDeleteLimiter, commentDeleteSlow, validateCommentDe
     
     if (comment.deviceId === deviceId) {
       await Comment.findByIdAndDelete(req.params.id);
-      logger.info('Comment deleted', { commentId: req.params.id, deviceId });
+      logger.info('Comment deleted', { commentId: req.params.id, deviceId: deviceId.substring(0, 8) + '...' });
       res.json({ message: 'Comment deleted' });
     } else {
-      logger.warn('Unauthorized comment deletion attempt', { commentId: req.params.id, attemptedFrom: deviceId, commentOwner: comment.deviceId });
+      logger.warn('Unauthorized comment deletion attempt', { commentId: req.params.id, attemptedFrom: deviceId.substring(0, 8) + '...', commentOwner: comment.deviceId.substring(0, 8) + '...' });
       res.status(403).json({ message: 'Not authorized to delete this comment' });
     }
   } catch (error) {
