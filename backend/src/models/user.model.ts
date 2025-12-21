@@ -32,8 +32,7 @@ const userSchema = new Schema<IUser>({
   firebaseUid: {
     type: String,
     unique: true,
-    sparse: true, // Allows multiple null values
-    default: null
+    sparse: true
   },
   authProvider: {
     type: String,
@@ -149,7 +148,6 @@ const userSchema = new Schema<IUser>({
 // Index for efficient queries
 userSchema.index({ email: 1 });
 userSchema.index({ username: 1 });
-userSchema.index({ firebaseUid: 1 });
 userSchema.index({ createdAt: -1 });
 // Index for user search
 userSchema.index({ username: 'text', displayName: 'text' });

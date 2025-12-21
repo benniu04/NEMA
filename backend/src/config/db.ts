@@ -26,6 +26,21 @@ export const connectDB = async (): Promise<typeof mongoose | void> => {
 
     logger.info(`MongoDB connected successfully: ${conn.connection.host}`);
     
+    // One-time fix: drop problematic firebaseUid index if it exists
+    try {
+      const usersCollection = mongoose.connection.db?.collection('users');
+      if (usersCollection) {
+        const indexes = await usersCollection.listIndexes().toArray();
+        if (indexes.find(i => i.name === 'firebaseUid_1')) {
+          logger.info('Dropping old firebaseUid_1 index...');
+          await usersCollection.dropIndex('firebaseUid_1');
+          logger.info('Dropped successfully. Mongoose will recreate it properly.');
+        }
+      }
+    } catch (err) {
+      logger.warn('Failed to drop old firebaseUid_1 index (it might not exist or already be dropped):', (err as Error).message);
+    }
+    
     /**
      * CONNECTED EVENT
      * Fired when initial connection is established
