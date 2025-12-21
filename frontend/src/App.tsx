@@ -5,24 +5,44 @@ import { SettingsProvider } from './context/SettingsContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import { trackPageView } from './config/analytics'
 
+// Helper function to handle lazy loading errors (e.g. when a new version is deployed and old chunks are missing)
+const lazyWithRetry = (componentImport: () => Promise<any>) =>
+  lazy(async () => {
+    const pageHasBeenForceReloaded = window.localStorage.getItem('page-has-been-force-reloaded');
+
+    try {
+      const component = await componentImport();
+      window.localStorage.removeItem('page-has-been-force-reloaded');
+      return component;
+    } catch (error) {
+      if (!pageHasBeenForceReloaded) {
+        // ChunkLoadError usually happens when the hash of the file doesn't match the one on the server
+        console.error('Error loading chunk, forcing reload:', error);
+        window.localStorage.setItem('page-has-been-force-reloaded', 'true');
+        window.location.reload();
+      }
+      throw error;
+    }
+  });
+
 // Lazy load all page components for code splitting
-const HomePage = lazy(() => import('./pages/HomePage'))
-const AboutPage = lazy(() => import('./pages/AboutPage'))
-const ContactPage = lazy(() => import('./pages/ContactPage'))
-const CatalogPage = lazy(() => import('./pages/CatalogPage'))
-const VideoPlayerPage = lazy(() => import('./pages/VideoPlayerPage.tsx'))
-const AdminUploadPage = lazy(() => import('./pages/AdminUploadPage'))
-const AdminLogin = lazy(() => import('./pages/AdminLogin'))
-const LoginPage = lazy(() => import('./pages/LoginPage'))
-const RegisterPage = lazy(() => import('./pages/RegisterPage'))
-const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
-const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'))
-const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'))
-const ProfilePage = lazy(() => import('./pages/ProfilePage.tsx'))
-const UserProfilePage = lazy(() => import('./pages/UserProfilePage'))
-const PeoplePage = lazy(() => import('./pages/PeoplePage'))
-const SettingsPage = lazy(() => import('./pages/SettingsPage'))
-const WatchlistPage = lazy(() => import('./pages/WatchlistPage'))
+const HomePage = lazyWithRetry(() => import('./pages/HomePage'))
+const AboutPage = lazyWithRetry(() => import('./pages/AboutPage'))
+const ContactPage = lazyWithRetry(() => import('./pages/ContactPage'))
+const CatalogPage = lazyWithRetry(() => import('./pages/CatalogPage'))
+const VideoPlayerPage = lazyWithRetry(() => import('./pages/VideoPlayerPage'))
+const AdminUploadPage = lazyWithRetry(() => import('./pages/AdminUploadPage'))
+const AdminLogin = lazyWithRetry(() => import('./pages/AdminLogin'))
+const LoginPage = lazyWithRetry(() => import('./pages/LoginPage'))
+const RegisterPage = lazyWithRetry(() => import('./pages/RegisterPage'))
+const ForgotPasswordPage = lazyWithRetry(() => import('./pages/ForgotPasswordPage'))
+const ResetPasswordPage = lazyWithRetry(() => import('./pages/ResetPasswordPage'))
+const VerifyEmailPage = lazyWithRetry(() => import('./pages/VerifyEmailPage'))
+const ProfilePage = lazyWithRetry(() => import('./pages/ProfilePage'))
+const UserProfilePage = lazyWithRetry(() => import('./pages/UserProfilePage'))
+const PeoplePage = lazyWithRetry(() => import('./pages/PeoplePage'))
+const SettingsPage = lazyWithRetry(() => import('./pages/SettingsPage'))
+const WatchlistPage = lazyWithRetry(() => import('./pages/WatchlistPage'))
 
 // Loading fallback component
 const LoadingFallback: React.FC = () => (
