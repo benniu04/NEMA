@@ -542,13 +542,17 @@ const VideoPlayerPage: React.FC = () => {
   const handleLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>): void => {
     const target = e.target as HTMLVideoElement
     setDuration(target.duration)
-    
+
     const resumeTime = searchParams.get('t')
     if (resumeTime && !isNaN(Number(resumeTime)) && videoRef.current) {
       const timeInSeconds = parseInt(resumeTime, 10)
       if (timeInSeconds > 0 && timeInSeconds < target.duration) {
         videoRef.current.currentTime = timeInSeconds
         setCurrentTime(timeInSeconds)
+        // Mark as started when resuming from a specific time to enable tracking
+        if (!hasTrackedStart) {
+          setHasTrackedStart(true)
+        }
       }
     }
   }
@@ -860,7 +864,12 @@ const VideoPlayerPage: React.FC = () => {
                   className="w-full h-full"
                   onTimeUpdate={handleTimeUpdate}
                   onLoadedMetadata={handleLoadedMetadata}
-                  onPlay={() => setIsPlaying(true)}
+                  onPlay={() => {
+                    setIsPlaying(true)
+                    if (!hasTrackedStart) {
+                      setHasTrackedStart(true)
+                    }
+                  }}
                   onPause={() => setIsPlaying(false)}
                   onEnded={() => {
                     setIsPlaying(false)

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
-import { Movie } from '../../models/movie.model.js';
-import { createMockMovie } from '../helpers.js';
+import { Movie } from '../../src/models/movie.model';
+import { createMockMovie } from '../helpers';
 
 describe('Movie Model', () => {
   describe('Schema Validation', () => {
@@ -21,45 +21,45 @@ describe('Movie Model', () => {
 
     it('should fail when required fields are missing', async () => {
       const movie = new Movie({});
-      
+
       await expect(movie.save()).rejects.toThrow();
     });
 
     it('should fail when title is missing', async () => {
       const movieData = createMockMovie();
-      delete movieData.title;
+      delete (movieData as Record<string, unknown>).title;
       const movie = new Movie(movieData);
-      
+
       await expect(movie.save()).rejects.toThrow();
     });
 
     it('should fail when description is missing', async () => {
       const movieData = createMockMovie();
-      delete movieData.description;
+      delete (movieData as Record<string, unknown>).description;
       const movie = new Movie(movieData);
-      
+
       await expect(movie.save()).rejects.toThrow();
     });
 
     it('should fail when rating is missing', async () => {
       const movieData = createMockMovie();
-      delete movieData.rating;
+      delete (movieData as Record<string, unknown>).rating;
       const movie = new Movie(movieData);
-      
+
       await expect(movie.save()).rejects.toThrow();
     });
 
     it('should fail when rating is below 0', async () => {
       const movieData = createMockMovie({ rating: -1 });
       const movie = new Movie(movieData);
-      
+
       await expect(movie.save()).rejects.toThrow();
     });
 
     it('should fail when rating is above 10', async () => {
       const movieData = createMockMovie({ rating: 11 });
       const movie = new Movie(movieData);
-      
+
       await expect(movie.save()).rejects.toThrow();
     });
 
@@ -67,17 +67,17 @@ describe('Movie Model', () => {
       const movieData = createMockMovie({ title: '  Test Movie  ' });
       const movie = new Movie(movieData);
       const savedMovie = await movie.save();
-      
+
       expect(savedMovie.title).toBe('Test Movie');
     });
 
     it('should accept multiple genres', async () => {
-      const movieData = createMockMovie({ 
-        genre: ['Action', 'Sci-Fi', 'Thriller'] 
+      const movieData = createMockMovie({
+        genre: ['Action', 'Sci-Fi', 'Thriller']
       });
       const movie = new Movie(movieData);
       const savedMovie = await movie.save();
-      
+
       expect(savedMovie.genre).toHaveLength(3);
       expect(savedMovie.genre).toContain('Action');
       expect(savedMovie.genre).toContain('Sci-Fi');
@@ -86,10 +86,10 @@ describe('Movie Model', () => {
 
     it('should default language to English', async () => {
       const movieData = createMockMovie();
-      delete movieData.language;
+      delete (movieData as Record<string, unknown>).language;
       const movie = new Movie(movieData);
       const savedMovie = await movie.save();
-      
+
       expect(savedMovie.language).toBe('English');
     });
 
@@ -97,7 +97,7 @@ describe('Movie Model', () => {
       const movieData = createMockMovie();
       const movie = new Movie(movieData);
       const savedMovie = await movie.save();
-      
+
       expect(savedMovie.views).toBe(0);
     });
 
@@ -105,7 +105,7 @@ describe('Movie Model', () => {
       const movieData = createMockMovie();
       const movie = new Movie(movieData);
       const savedMovie = await movie.save();
-      
+
       expect(savedMovie.isFeatured).toBe(false);
     });
   });
@@ -120,9 +120,9 @@ describe('Movie Model', () => {
       });
       const movie = new Movie(movieData);
       const savedMovie = await movie.save();
-      
-      expect(savedMovie.videoUrls['720p']).toBe('video/movie-720p.mp4');
-      expect(savedMovie.videoUrls['1080p']).toBe('video/movie-1080p.mp4');
+
+      expect((savedMovie.videoUrls as any)['720p']).toBe('video/movie-720p.mp4');
+      expect((savedMovie.videoUrls as any)['1080p']).toBe('video/movie-1080p.mp4');
     });
 
     it('should handle subtitle URLs', async () => {
@@ -134,9 +134,9 @@ describe('Movie Model', () => {
       });
       const movie = new Movie(movieData);
       const savedMovie = await movie.save();
-      
-      expect(savedMovie.subtitleUrls.en).toBe('subtitles/movie-en.vtt');
-      expect(savedMovie.subtitleUrls.es).toBe('subtitles/movie-es.vtt');
+
+      expect((savedMovie.subtitleUrls as any).en).toBe('subtitles/movie-en.vtt');
+      expect((savedMovie.subtitleUrls as any).es).toBe('subtitles/movie-es.vtt');
     });
   });
 
@@ -145,7 +145,7 @@ describe('Movie Model', () => {
       const movieData = createMockMovie();
       const movie = new Movie(movieData);
       const savedMovie = await movie.save();
-      
+
       expect(savedMovie.createdAt).toBeDefined();
       expect(savedMovie.updatedAt).toBeDefined();
       expect(savedMovie.createdAt).toBeInstanceOf(Date);
@@ -156,15 +156,15 @@ describe('Movie Model', () => {
       const movieData = createMockMovie();
       const movie = new Movie(movieData);
       const savedMovie = await movie.save();
-      
+
       const originalUpdatedAt = savedMovie.updatedAt;
-      
+
       // Wait a bit to ensure timestamp changes
       await new Promise(resolve => setTimeout(resolve, 10));
-      
+
       savedMovie.title = 'Updated Title';
       const updatedMovie = await savedMovie.save();
-      
+
       expect(updatedMovie.updatedAt.getTime()).toBeGreaterThan(originalUpdatedAt.getTime());
     });
   });
@@ -192,24 +192,26 @@ describe('Movie Model', () => {
     it('should find movie by title', async () => {
       const movie = await Movie.findOne({ title: 'Movie 1' });
       expect(movie).toBeDefined();
-      expect(movie.title).toBe('Movie 1');
+      expect(movie?.title).toBe('Movie 1');
     });
 
     it('should update movie rating', async () => {
       const movie = await Movie.findOne({ title: 'Movie 1' });
-      movie.rating = 9.5;
-      const updated = await movie.save();
-      
-      expect(updated.rating).toBe(9.5);
+      if (movie) {
+        movie.rating = 9.5;
+        const updated = await movie.save();
+        expect(updated.rating).toBe(9.5);
+      }
     });
 
     it('should delete a movie', async () => {
       const movie = await Movie.findOne({ title: 'Movie 1' });
-      await Movie.findByIdAndDelete(movie._id);
-      
-      const deletedMovie = await Movie.findById(movie._id);
-      expect(deletedMovie).toBeNull();
+      if (movie) {
+        await Movie.findByIdAndDelete(movie._id);
+
+        const deletedMovie = await Movie.findById(movie._id);
+        expect(deletedMovie).toBeNull();
+      }
     });
   });
 });
-

@@ -1,11 +1,30 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import jwt from 'jsonwebtoken';
-import { authMiddleware, adminMiddleware } from '../../middleware/auth.middleware.js';
-import { ENV_VARS } from '../../config/envVars.js';
-import { generateAdminToken } from '../helpers.js';
+import { Request, Response, NextFunction } from 'express';
+import { authMiddleware, adminMiddleware } from '../../src/middleware/auth.middleware';
+import { ENV_VARS } from '../../src/config/envVars';
+import { generateAdminToken } from '../helpers';
+
+interface MockUser {
+  id: string;
+  username: string;
+  isAdmin?: boolean;
+}
+
+interface MockRequest {
+  cookies: Record<string, string>;
+  user: MockUser | null;
+}
+
+interface MockResponse {
+  status: jest.Mock;
+  json: jest.Mock;
+}
 
 describe('Auth Middleware', () => {
-  let req, res, next;
+  let req: MockRequest;
+  let res: MockResponse;
+  let next: jest.Mock;
 
   beforeEach(() => {
     req = {
@@ -13,10 +32,10 @@ describe('Auth Middleware', () => {
       user: null
     };
     res = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn().mockReturnThis()
+      status: jest.fn().mockReturnThis() as jest.Mock,
+      json: jest.fn().mockReturnThis() as jest.Mock
     };
-    next = jest.fn();
+    next = jest.fn() as jest.Mock;
   });
 
   describe('authMiddleware', () => {
@@ -24,16 +43,16 @@ describe('Auth Middleware', () => {
       const token = generateAdminToken();
       req.cookies.adminToken = token;
 
-      await authMiddleware(req, res, next);
+      await authMiddleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
 
       expect(next).toHaveBeenCalled();
       expect(req.user).toBeDefined();
-      expect(req.user.username).toBe(ENV_VARS.ADMIN_USERNAME);
-      expect(req.user.isAdmin).toBe(true);
+      expect(req.user?.username).toBe(ENV_VARS.ADMIN_USERNAME);
+      expect(req.user?.isAdmin).toBe(true);
     });
 
     it('should fail when no token provided', async () => {
-      await authMiddleware(req, res, next);
+      await authMiddleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
 
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({ message: "No token provided" });
@@ -43,7 +62,7 @@ describe('Auth Middleware', () => {
     it('should fail with invalid token', async () => {
       req.cookies.adminToken = 'invalid-token';
 
-      await authMiddleware(req, res, next);
+      await authMiddleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
 
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({ message: "Invalid token" });
@@ -52,17 +71,17 @@ describe('Auth Middleware', () => {
 
     it('should fail with expired token', async () => {
       const expiredToken = jwt.sign(
-        { 
+        {
           id: 'admin',
           username: ENV_VARS.ADMIN_USERNAME,
-          isAdmin: true 
+          isAdmin: true
         },
         ENV_VARS.JWT_SECRET,
         { expiresIn: '-1h' } // Expired 1 hour ago
       );
       req.cookies.adminToken = expiredToken;
 
-      await authMiddleware(req, res, next);
+      await authMiddleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
 
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({ message: "Invalid token" });
@@ -71,17 +90,17 @@ describe('Auth Middleware', () => {
 
     it('should fail with token signed with wrong secret', async () => {
       const wrongToken = jwt.sign(
-        { 
+        {
           id: 'admin',
           username: ENV_VARS.ADMIN_USERNAME,
-          isAdmin: true 
+          isAdmin: true
         },
         'wrong-secret',
         { expiresIn: '2h' }
       );
       req.cookies.adminToken = wrongToken;
 
-      await authMiddleware(req, res, next);
+      await authMiddleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
 
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({ message: "Invalid token" });
@@ -92,11 +111,11 @@ describe('Auth Middleware', () => {
       const token = generateAdminToken();
       req.cookies.adminToken = token;
 
-      await authMiddleware(req, res, next);
+      await authMiddleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
 
-      expect(req.user.id).toBe('admin');
-      expect(req.user.username).toBe(ENV_VARS.ADMIN_USERNAME);
-      expect(req.user.isAdmin).toBe(true);
+      expect(req.user?.id).toBe('admin');
+      expect(req.user?.username).toBe(ENV_VARS.ADMIN_USERNAME);
+      expect(req.user?.isAdmin).toBe(true);
     });
   });
 
@@ -108,18 +127,18 @@ describe('Auth Middleware', () => {
         isAdmin: true
       };
 
-      await adminMiddleware(req, res, next);
+      await adminMiddleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
 
       expect(next).toHaveBeenCalled();
       expect(res.status).not.toHaveBeenCalled();
     });
 
     it('should fail when user is not defined', async () => {
-      await adminMiddleware(req, res, next);
+      await adminMiddleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
 
       expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith({ 
-        message: "Unauthorized: Admin access required" 
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Unauthorized: Admin access required"
       });
       expect(next).not.toHaveBeenCalled();
     });
@@ -131,11 +150,11 @@ describe('Auth Middleware', () => {
         isAdmin: false
       };
 
-      await adminMiddleware(req, res, next);
+      await adminMiddleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
 
       expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith({ 
-        message: "Unauthorized: Admin access required" 
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Unauthorized: Admin access required"
       });
       expect(next).not.toHaveBeenCalled();
     });
@@ -146,7 +165,7 @@ describe('Auth Middleware', () => {
         username: 'regular-user'
       };
 
-      await adminMiddleware(req, res, next);
+      await adminMiddleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
 
       expect(res.status).toHaveBeenCalledWith(403);
       expect(next).not.toHaveBeenCalled();
@@ -159,19 +178,18 @@ describe('Auth Middleware', () => {
       req.cookies.adminToken = token;
 
       // First auth middleware
-      await authMiddleware(req, res, next);
+      await authMiddleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       expect(next).toHaveBeenCalledTimes(1);
 
       // Then admin middleware
-      await adminMiddleware(req, res, next);
+      await adminMiddleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       expect(next).toHaveBeenCalledTimes(2);
     });
 
     it('should fail at auth middleware without token', async () => {
-      await authMiddleware(req, res, next);
+      await authMiddleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       expect(next).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(401);
     });
   });
 });
-

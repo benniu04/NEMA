@@ -1,14 +1,14 @@
-import { describe, it, expect, beforeEach, beforeAll } from '@jest/globals';
-import express from 'express';
+import { describe, it, expect, beforeAll } from '@jest/globals';
+import express, { Express } from 'express';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
-import authRoutes from '../../routes/auth.routes.js';
-import { ENV_VARS } from '../../config/envVars.js';
-import { generateAdminToken } from '../helpers.js';
+import authRoutes from '../../src/routes/auth.routes';
+import { ENV_VARS } from '../../src/config/envVars';
+import { generateAdminToken } from '../helpers';
 
 // Create test app
-const createTestApp = () => {
+const createTestApp = (): Express => {
   const app = express();
   app.use(express.json());
   app.use(cookieParser());
@@ -17,7 +17,7 @@ const createTestApp = () => {
 };
 
 describe('Auth Routes', () => {
-  let app;
+  let app: Express;
 
   beforeAll(() => {
     app = createTestApp();
@@ -126,7 +126,7 @@ describe('Auth Routes', () => {
           password: testPassword
         });
 
-      const cookies = response.headers['set-cookie'];
+      const cookies = response.headers['set-cookie'] as unknown as string[];
       expect(cookies).toBeDefined();
       expect(cookies[0]).toContain('adminToken');
       expect(cookies[0]).toContain('HttpOnly');
@@ -179,10 +179,9 @@ describe('Auth Routes', () => {
       const response = await request(app)
         .post('/api/auth/logout');
 
-      const cookies = response.headers['set-cookie'];
+      const cookies = response.headers['set-cookie'] as unknown as string[];
       expect(cookies).toBeDefined();
       expect(cookies[0]).toContain('adminToken=;');
     });
   });
 });
-

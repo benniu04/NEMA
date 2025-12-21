@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
-import { useSettings } from '../context/SettingsContext';
+import { useSettings, LanguageKey } from '../context/SettingsContext';
 
 // Language configuration type
 interface LanguageConfig {
@@ -442,7 +442,7 @@ const SettingsPage: React.FC = () => {
                       {Object.entries(languages).map(([code, lang]) => (
                         <button
                           key={code}
-                          onClick={() => setLanguage(code)}
+                          onClick={() => setLanguage(code as LanguageKey)}
                           className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
                             language === code
                               ? 'border-amber-500 bg-amber-500/10'

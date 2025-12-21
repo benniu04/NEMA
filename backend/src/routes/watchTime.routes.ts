@@ -174,7 +174,7 @@ watchTimeRouter.get('/history', optionalAuthMiddleware, async (req: Authenticate
           as: 'movieData'
         }
       },
-      { $unwind: { path: '$movieData', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$movieData', preserveNullAndEmptyArrays: false } },
       // Reshape to match expected format
       {
         $project: {

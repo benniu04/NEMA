@@ -1,13 +1,14 @@
 import { describe, it, expect, beforeEach, beforeAll } from '@jest/globals';
-import express from 'express';
+import express, { Express } from 'express';
 import request from 'supertest';
-import commentsRouter from '../../routes/comments.routes.js';
-import { Comment } from '../../models/comment.model.js';
-import { Movie } from '../../models/movie.model.js';
-import { createMockMovie, createMockComment } from '../helpers.js';
+import commentsRouter from '../../src/routes/comments.routes';
+import { Comment } from '../../src/models/comment.model';
+import { Movie } from '../../src/models/movie.model';
+import { createMockMovie, createMockComment } from '../helpers';
+import { Document, Types } from 'mongoose';
 
 // Create test app
-const createTestApp = () => {
+const createTestApp = (): Express => {
   const app = express();
   app.use(express.json());
   app.use('/api/comments', commentsRouter);
@@ -15,8 +16,8 @@ const createTestApp = () => {
 };
 
 describe('Comments Routes', () => {
-  let app;
-  let testMovie;
+  let app: Express;
+  let testMovie: Document & { _id: Types.ObjectId };
 
   beforeAll(() => {
     app = createTestApp();
@@ -26,9 +27,9 @@ describe('Comments Routes', () => {
     // Clear collections
     await Comment.deleteMany({});
     await Movie.deleteMany({});
-    
+
     // Create test movie
-    testMovie = await Movie.create(createMockMovie());
+    testMovie = await Movie.create(createMockMovie()) as Document & { _id: Types.ObjectId };
   });
 
   describe('GET /api/comments/movie/:movieId', () => {
@@ -55,13 +56,13 @@ describe('Comments Routes', () => {
     });
 
     it('should return comments sorted by newest first', async () => {
-      const comment1 = await Comment.create(
+      await Comment.create(
         createMockComment(testMovie._id.toString(), { content: 'First' })
       );
-      
+
       await new Promise(resolve => setTimeout(resolve, 10));
-      
-      const comment2 = await Comment.create(
+
+      await Comment.create(
         createMockComment(testMovie._id.toString(), { content: 'Second' })
       );
 
@@ -74,8 +75,8 @@ describe('Comments Routes', () => {
     });
 
     it('should not return comments from other movies', async () => {
-      const otherMovie = await Movie.create(createMockMovie({ title: 'Other Movie' }));
-      
+      const otherMovie = await Movie.create(createMockMovie({ title: 'Other Movie' })) as Document & { _id: Types.ObjectId };
+
       await Comment.create([
         createMockComment(testMovie._id.toString(), { content: 'Comment for test movie' }),
         createMockComment(otherMovie._id.toString(), { content: 'Comment for other movie' })
@@ -232,4 +233,3 @@ describe('Comments Routes', () => {
     });
   });
 });
-

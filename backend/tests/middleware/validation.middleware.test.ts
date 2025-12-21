@@ -1,18 +1,30 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import { validateMovie, validateAuth } from '../../middleware/validation.middleware.js';
+import { Request, Response, NextFunction } from 'express';
+import { validateMovie, validateAuth } from '../../src/middleware/validation.middleware';
+
+interface MockRequest {
+  body: Record<string, unknown>;
+}
+
+interface MockResponse {
+  status: jest.Mock;
+  json: jest.Mock;
+}
 
 describe('Validation Middleware', () => {
-  let req, res, next;
+  let req: MockRequest;
+  let res: MockResponse;
+  let next: jest.Mock;
 
   beforeEach(() => {
     req = {
       body: {}
     };
     res = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn().mockReturnThis()
+      status: jest.fn().mockReturnThis() as jest.Mock,
+      json: jest.fn().mockReturnThis() as jest.Mock
     };
-    next = jest.fn();
+    next = jest.fn() as jest.Mock;
   });
 
   describe('validateMovie', () => {
@@ -28,7 +40,7 @@ describe('Validation Middleware', () => {
       req.body = validMovieData;
 
       for (const middleware of validateMovie) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(next).toHaveBeenCalled();
@@ -39,7 +51,7 @@ describe('Validation Middleware', () => {
       req.body = { ...validMovieData, title: '' };
 
       for (const middleware of validateMovie) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(res.status).toHaveBeenCalledWith(400);
@@ -54,7 +66,7 @@ describe('Validation Middleware', () => {
       req.body = { ...validMovieData, title: 'a'.repeat(201) };
 
       for (const middleware of validateMovie) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(res.status).toHaveBeenCalledWith(400);
@@ -64,7 +76,7 @@ describe('Validation Middleware', () => {
       req.body = { ...validMovieData, title: '  Test Movie  ' };
 
       for (const middleware of validateMovie) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(req.body.title).toBe('Test Movie');
@@ -74,7 +86,7 @@ describe('Validation Middleware', () => {
       req.body = { ...validMovieData, description: 'a'.repeat(1001) };
 
       for (const middleware of validateMovie) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(res.status).toHaveBeenCalledWith(400);
@@ -84,7 +96,7 @@ describe('Validation Middleware', () => {
       req.body = { ...validMovieData, director: '' };
 
       for (const middleware of validateMovie) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(res.status).toHaveBeenCalledWith(400);
@@ -94,7 +106,7 @@ describe('Validation Middleware', () => {
       req.body = { ...validMovieData, rating: -1 };
 
       for (const middleware of validateMovie) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(res.status).toHaveBeenCalledWith(400);
@@ -104,7 +116,7 @@ describe('Validation Middleware', () => {
       req.body = { ...validMovieData, rating: 11 };
 
       for (const middleware of validateMovie) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(res.status).toHaveBeenCalledWith(400);
@@ -114,7 +126,7 @@ describe('Validation Middleware', () => {
       req.body = { ...validMovieData, rating: 0 };
 
       for (const middleware of validateMovie) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(next).toHaveBeenCalled();
@@ -124,7 +136,7 @@ describe('Validation Middleware', () => {
       req.body = { ...validMovieData, rating: 10 };
 
       for (const middleware of validateMovie) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(next).toHaveBeenCalled();
@@ -134,20 +146,20 @@ describe('Validation Middleware', () => {
       req.body = { ...validMovieData, genre: 'Action' };
 
       for (const middleware of validateMovie) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('should escape HTML in inputs', async () => {
-      req.body = { 
-        ...validMovieData, 
-        title: '<script>alert("xss")</script>' 
+      req.body = {
+        ...validMovieData,
+        title: '<script>alert("xss")</script>'
       };
 
       for (const middleware of validateMovie) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(req.body.title).not.toContain('<script>');
@@ -164,7 +176,7 @@ describe('Validation Middleware', () => {
       req.body = validAuthData;
 
       for (const middleware of validateAuth) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(next).toHaveBeenCalled();
@@ -175,7 +187,7 @@ describe('Validation Middleware', () => {
       req.body = { ...validAuthData, username: 'ab' };
 
       for (const middleware of validateAuth) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(res.status).toHaveBeenCalledWith(400);
@@ -190,7 +202,7 @@ describe('Validation Middleware', () => {
       req.body = { ...validAuthData, username: 'a'.repeat(51) };
 
       for (const middleware of validateAuth) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(res.status).toHaveBeenCalledWith(400);
@@ -200,7 +212,7 @@ describe('Validation Middleware', () => {
       req.body = { ...validAuthData, password: 'Test123' };
 
       for (const middleware of validateAuth) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(res.status).toHaveBeenCalledWith(400);
@@ -210,7 +222,7 @@ describe('Validation Middleware', () => {
       req.body = { ...validAuthData, password: 'testpass123' };
 
       for (const middleware of validateAuth) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(res.status).toHaveBeenCalledWith(400);
@@ -220,7 +232,7 @@ describe('Validation Middleware', () => {
       req.body = { ...validAuthData, password: 'TESTPASS123' };
 
       for (const middleware of validateAuth) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(res.status).toHaveBeenCalledWith(400);
@@ -230,20 +242,20 @@ describe('Validation Middleware', () => {
       req.body = { ...validAuthData, password: 'TestPassword' };
 
       for (const middleware of validateAuth) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('should trim and escape username', async () => {
-      req.body = { 
-        ...validAuthData, 
-        username: '  testuser  ' 
+      req.body = {
+        ...validAuthData,
+        username: '  testuser  '
       };
 
       for (const middleware of validateAuth) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(req.body.username).toBe('testuser');
@@ -253,11 +265,10 @@ describe('Validation Middleware', () => {
       req.body = {};
 
       for (const middleware of validateAuth) {
-        await middleware(req, res, next);
+        await middleware(req as unknown as Request, res as unknown as Response, next as NextFunction);
       }
 
       expect(res.status).toHaveBeenCalledWith(400);
     });
   });
 });
-

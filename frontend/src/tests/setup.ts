@@ -1,6 +1,7 @@
 import { expect, afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import * as matchers from '@testing-library/jest-dom/matchers';
+import '@testing-library/jest-dom';
 
 // Extend Vitest's expect method with jest-dom matchers
 expect.extend(matchers);
@@ -13,7 +14,7 @@ afterEach(() => {
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: (query) => ({
+  value: (query: string): MediaQueryList => ({
     matches: false,
     media: query,
     onchange: null,
@@ -21,25 +22,32 @@ Object.defineProperty(window, 'matchMedia', {
     removeListener: () => {},
     addEventListener: () => {},
     removeEventListener: () => {},
-    dispatchEvent: () => {},
+    dispatchEvent: () => false,
   }),
 });
 
 // Mock IntersectionObserver
-global.IntersectionObserver = class IntersectionObserver {
+class MockIntersectionObserver implements IntersectionObserver {
+  readonly root: Element | null = null;
+  readonly rootMargin: string = '';
+  readonly thresholds: ReadonlyArray<number> = [];
+
   constructor() {}
-  disconnect() {}
-  observe() {}
-  takeRecords() {
+  disconnect(): void {}
+  observe(): void {}
+  takeRecords(): IntersectionObserverEntry[] {
     return [];
   }
-  unobserve() {}
-};
+  unobserve(): void {}
+}
+
+global.IntersectionObserver = MockIntersectionObserver;
 
 // Suppress console errors for cleaner test output (optional)
+const originalConsoleError = console.error;
 global.console = {
   ...console,
-  error: (...args) => {
+  error: (...args: unknown[]): void => {
     const message = args[0];
     // Only suppress React warnings, not actual errors
     if (
@@ -49,7 +57,6 @@ global.console = {
     ) {
       return;
     }
-    console.error(...args);
+    originalConsoleError(...args);
   },
 };
-

@@ -5,7 +5,7 @@ import { jest } from '@jest/globals';
 
 dotenv.config();
 
-let mongoServer;
+let mongoServer: MongoMemoryServer;
 
 // Set test environment variables
 process.env.NODE_ENV = 'test';
@@ -48,6 +48,7 @@ afterEach(async () => {
 });
 
 // Suppress console logs during tests (optional)
+const originalConsole = { ...console };
 global.console = {
   ...console,
   log: jest.fn(),
@@ -55,5 +56,4 @@ global.console = {
   info: jest.fn(),
   warn: jest.fn(),
   error: jest.fn(),
-};
-
+} as Console;

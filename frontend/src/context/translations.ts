@@ -1,113 +1,10 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+// Type for translation keys
+export type TranslationKey = string;
+export type TranslationDictionary = Record<TranslationKey, string>;
+export type LanguageCode = 'en' | 'es' | 'fr' | 'de' | 'zh' | 'ja' | 'ko' | 'pt';
 
-const SettingsContext = createContext(null);
-
-export const useSettings = () => {
-  const context = useContext(SettingsContext);
-  if (!context) {
-    throw new Error('useSettings must be used within a SettingsProvider');
-  }
-  return context;
-};
-
-// Available themes
-export const themes = {
-  dark: {
-    id: 'dark',
-    name: 'Dark',
-    description: 'Default dark theme',
-    colors: {
-      background: 'bg-black',
-      text: 'text-white',
-      accent: 'amber'
-    }
-  },
-  light: {
-    id: 'light',
-    name: 'Light',
-    description: 'Light mode theme',
-    colors: {
-      background: 'bg-white',
-      text: 'text-gray-900',
-      accent: 'amber'
-    }
-  },
-  midnight: {
-    id: 'midnight',
-    name: 'Midnight',
-    description: 'Deep blue dark theme',
-    colors: {
-      background: 'bg-slate-950',
-      text: 'text-white',
-      accent: 'blue'
-    }
-  },
-  cinema: {
-    id: 'cinema',
-    name: 'Cinema',
-    description: 'Classic cinema red accent',
-    colors: {
-      background: 'bg-neutral-950',
-      text: 'text-white',
-      accent: 'red'
-    }
-  }
-};
-
-// Available languages
-export const languages = {
-  en: {
-    code: 'en',
-    name: 'English',
-    nativeName: 'English',
-    flag: '🇺🇸'
-  },
-  es: {
-    code: 'es',
-    name: 'Spanish',
-    nativeName: 'Español',
-    flag: '🇪🇸'
-  },
-  fr: {
-    code: 'fr',
-    name: 'French',
-    nativeName: 'Français',
-    flag: '🇫🇷'
-  },
-  de: {
-    code: 'de',
-    name: 'German',
-    nativeName: 'Deutsch',
-    flag: '🇩🇪'
-  },
-  zh: {
-    code: 'zh',
-    name: 'Chinese',
-    nativeName: '中文',
-    flag: '🇨🇳'
-  },
-  ja: {
-    code: 'ja',
-    name: 'Japanese',
-    nativeName: '日本語',
-    flag: '🇯🇵'
-  },
-  ko: {
-    code: 'ko',
-    name: 'Korean',
-    nativeName: '한국어',
-    flag: '🇰🇷'
-  },
-  pt: {
-    code: 'pt',
-    name: 'Portuguese',
-    nativeName: 'Português',
-    flag: '🇧🇷'
-  }
-};
-
-// Translation strings
-const translations = {
+// Translation strings - extracted from SettingsContext for maintainability
+export const translations: Record<LanguageCode, TranslationDictionary> = {
   en: {
     // Navigation
     'nav.home': 'Home',
@@ -368,12 +265,6 @@ const translations = {
     // About Page
     'about.title': 'About',
     'about.subtitle': 'Learn more about NEMA',
-    // Profile Page
-    'profile.title': 'Profile',
-    'profile.editProfile': 'Edit Profile',
-    'profile.followers': 'Followers',
-    'profile.following': 'Following',
-    'profile.posts': 'Posts',
     // Video Player
     'video.play': 'Play',
     'video.pause': 'Pause',
@@ -697,11 +588,6 @@ const translations = {
     'contact.sending': 'Enviando...',
     'about.title': 'Acerca de',
     'about.subtitle': 'Conoce más sobre NEMA',
-    'profile.title': 'Perfil',
-    'profile.editProfile': 'Editar Perfil',
-    'profile.followers': 'Seguidores',
-    'profile.following': 'Siguiendo',
-    'profile.posts': 'Publicaciones',
     'video.play': 'Reproducir',
     'video.pause': 'Pausar',
     'video.mute': 'Silenciar',
@@ -1023,11 +909,6 @@ const translations = {
     'contact.sending': 'Envoi...',
     'about.title': 'À propos',
     'about.subtitle': 'En savoir plus sur NEMA',
-    'profile.title': 'Profil',
-    'profile.editProfile': 'Modifier le Profil',
-    'profile.followers': 'Abonnés',
-    'profile.following': 'Abonnements',
-    'profile.posts': 'Publications',
     'video.play': 'Lecture',
     'video.pause': 'Pause',
     'video.mute': 'Couper le son',
@@ -1349,11 +1230,6 @@ const translations = {
     'contact.sending': 'Senden...',
     'about.title': 'Über uns',
     'about.subtitle': 'Erfahren Sie mehr über NEMA',
-    'profile.title': 'Profil',
-    'profile.editProfile': 'Profil Bearbeiten',
-    'profile.followers': 'Follower',
-    'profile.following': 'Folge ich',
-    'profile.posts': 'Beiträge',
     'video.play': 'Abspielen',
     'video.pause': 'Pause',
     'video.mute': 'Stumm',
@@ -1675,11 +1551,6 @@ const translations = {
     'contact.sending': '发送中...',
     'about.title': '关于',
     'about.subtitle': '了解更多关于NEMA',
-    'profile.title': '个人资料',
-    'profile.editProfile': '编辑资料',
-    'profile.followers': '粉丝',
-    'profile.following': '关注',
-    'profile.posts': '帖子',
     'video.play': '播放',
     'video.pause': '暂停',
     'video.mute': '静音',
@@ -2001,11 +1872,6 @@ const translations = {
     'contact.sending': '送信中...',
     'about.title': '概要',
     'about.subtitle': 'NEMAについてもっと知る',
-    'profile.title': 'プロフィール',
-    'profile.editProfile': 'プロフィールを編集',
-    'profile.followers': 'フォロワー',
-    'profile.following': 'フォロー中',
-    'profile.posts': '投稿',
     'video.play': '再生',
     'video.pause': '一時停止',
     'video.mute': 'ミュート',
@@ -2327,11 +2193,6 @@ const translations = {
     'contact.sending': '보내는 중...',
     'about.title': '소개',
     'about.subtitle': 'NEMA에 대해 더 알아보기',
-    'profile.title': '프로필',
-    'profile.editProfile': '프로필 편집',
-    'profile.followers': '팔로워',
-    'profile.following': '팔로잉',
-    'profile.posts': '게시물',
     'video.play': '재생',
     'video.pause': '일시정지',
     'video.mute': '음소거',
@@ -2653,11 +2514,6 @@ const translations = {
     'contact.sending': 'Enviando...',
     'about.title': 'Sobre',
     'about.subtitle': 'Saiba mais sobre o NEMA',
-    'profile.title': 'Perfil',
-    'profile.editProfile': 'Editar Perfil',
-    'profile.followers': 'Seguidores',
-    'profile.following': 'Seguindo',
-    'profile.posts': 'Publicações',
     'video.play': 'Reproduzir',
     'video.pause': 'Pausar',
     'video.mute': 'Mudo',
@@ -2731,75 +2587,3 @@ const translations = {
     'comments.deleteCommentError': 'Falha ao excluir comentário',
   }
 };
-
-export const SettingsProvider = ({ children }) => {
-  const [theme, setThemeState] = useState(() => {
-    const saved = localStorage.getItem('theme');
-    return saved && themes[saved] ? saved : 'dark';
-  });
-
-  const [language, setLanguageState] = useState(() => {
-    const saved = localStorage.getItem('language');
-    return saved && languages[saved] ? saved : 'en';
-  });
-
-  // Apply theme to document
-  useEffect(() => {
-    localStorage.setItem('theme', theme);
-    document.documentElement.setAttribute('data-theme', theme);
-
-    // Apply theme class to body
-    const themeConfig = themes[theme];
-    document.body.className = '';
-
-    if (theme === 'light') {
-      document.body.classList.add('light-theme');
-    } else {
-      document.body.classList.remove('light-theme');
-    }
-  }, [theme]);
-
-  // Save language preference
-  useEffect(() => {
-    localStorage.setItem('language', language);
-    document.documentElement.lang = language;
-  }, [language]);
-
-  const setTheme = (newTheme) => {
-    if (themes[newTheme]) {
-      setThemeState(newTheme);
-    }
-  };
-
-  const setLanguage = (newLanguage) => {
-    if (languages[newLanguage]) {
-      setLanguageState(newLanguage);
-    }
-  };
-
-  // Translation function
-  const t = (key) => {
-    const langTranslations = translations[language] || translations.en;
-    return langTranslations[key] || translations.en[key] || key;
-  };
-
-  const value = {
-    theme,
-    setTheme,
-    themes,
-    currentTheme: themes[theme],
-    language,
-    setLanguage,
-    languages,
-    currentLanguage: languages[language],
-    t
-  };
-
-  return (
-    <SettingsContext.Provider value={value}>
-      {children}
-    </SettingsContext.Provider>
-  );
-};
-
-export default SettingsContext;

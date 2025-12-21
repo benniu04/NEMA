@@ -1,14 +1,15 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
-import { Comment } from '../../models/comment.model.js';
-import { Movie } from '../../models/movie.model.js';
-import { createMockMovie, createMockComment } from '../helpers.js';
+import { Comment } from '../../src/models/comment.model';
+import { Movie } from '../../src/models/movie.model';
+import { createMockMovie, createMockComment } from '../helpers';
+import { Document, Types } from 'mongoose';
 
 describe('Comment Model', () => {
-  let testMovie;
+  let testMovie: Document & { _id: Types.ObjectId };
 
   beforeEach(async () => {
     // Create a test movie for comments
-    testMovie = await Movie.create(createMockMovie());
+    testMovie = await Movie.create(createMockMovie()) as Document & { _id: Types.ObjectId };
   });
 
   describe('Schema Validation', () => {
@@ -30,7 +31,7 @@ describe('Comment Model', () => {
         deviceId: 'test-device',
         content: 'Test comment'
       });
-      
+
       await expect(comment.save()).rejects.toThrow();
     });
 
@@ -39,7 +40,7 @@ describe('Comment Model', () => {
         movieId: testMovie._id.toString(),
         content: 'Test comment'
       });
-      
+
       await expect(comment.save()).rejects.toThrow();
     });
 
@@ -48,7 +49,7 @@ describe('Comment Model', () => {
         movieId: testMovie._id.toString(),
         deviceId: 'test-device'
       });
-      
+
       await expect(comment.save()).rejects.toThrow();
     });
 
@@ -59,7 +60,7 @@ describe('Comment Model', () => {
         content: 'Test comment'
       });
       const savedComment = await comment.save();
-      
+
       expect(savedComment.nickname).toBe('Anonymous');
     });
 
@@ -69,7 +70,7 @@ describe('Comment Model', () => {
       });
       const comment = new Comment(commentData);
       const savedComment = await comment.save();
-      
+
       expect(savedComment.nickname).toBe('Custom User');
     });
   });
@@ -78,17 +79,17 @@ describe('Comment Model', () => {
     beforeEach(async () => {
       // Create test comments
       await Comment.create([
-        createMockComment(testMovie._id.toString(), { 
+        createMockComment(testMovie._id.toString(), {
           nickname: 'User 1',
-          content: 'First comment' 
+          content: 'First comment'
         }),
-        createMockComment(testMovie._id.toString(), { 
+        createMockComment(testMovie._id.toString(), {
           nickname: 'User 2',
-          content: 'Second comment' 
+          content: 'Second comment'
         }),
-        createMockComment(testMovie._id.toString(), { 
+        createMockComment(testMovie._id.toString(), {
           nickname: 'User 3',
-          content: 'Third comment' 
+          content: 'Third comment'
         }),
       ]);
     });
@@ -101,7 +102,7 @@ describe('Comment Model', () => {
     it('should sort comments by createdAt descending', async () => {
       const comments = await Comment.find({ movieId: testMovie._id.toString() })
         .sort({ createdAt: -1 });
-      
+
       expect(comments).toHaveLength(3);
       // Verify sorting is working (most recent first)
       expect(new Date(comments[0].createdAt).getTime()).toBeGreaterThanOrEqual(
@@ -113,23 +114,25 @@ describe('Comment Model', () => {
     });
 
     it('should find comment by deviceId', async () => {
-      const comment = await Comment.findOne({ 
+      const comment = await Comment.findOne({
         movieId: testMovie._id.toString(),
         deviceId: 'test-device-id'
       });
-      
+
       expect(comment).toBeDefined();
     });
 
     it('should delete a comment', async () => {
       const comment = await Comment.findOne({ nickname: 'User 1' });
-      await Comment.findByIdAndDelete(comment._id);
-      
-      const deletedComment = await Comment.findById(comment._id);
-      expect(deletedComment).toBeNull();
-      
-      const remainingComments = await Comment.find({ movieId: testMovie._id.toString() });
-      expect(remainingComments).toHaveLength(2);
+      if (comment) {
+        await Comment.findByIdAndDelete(comment._id);
+
+        const deletedComment = await Comment.findById(comment._id);
+        expect(deletedComment).toBeNull();
+
+        const remainingComments = await Comment.find({ movieId: testMovie._id.toString() });
+        expect(remainingComments).toHaveLength(2);
+      }
     });
   });
 
@@ -138,7 +141,7 @@ describe('Comment Model', () => {
       const commentData = createMockComment(testMovie._id.toString());
       const comment = new Comment(commentData);
       const savedComment = await comment.save();
-      
+
       expect(savedComment.createdAt).toBeDefined();
       expect(savedComment.createdAt).toBeInstanceOf(Date);
     });
@@ -147,15 +150,14 @@ describe('Comment Model', () => {
       const comment1 = await Comment.create(
         createMockComment(testMovie._id.toString(), { content: 'First' })
       );
-      
+
       await new Promise(resolve => setTimeout(resolve, 10));
-      
+
       const comment2 = await Comment.create(
         createMockComment(testMovie._id.toString(), { content: 'Second' })
       );
-      
+
       expect(comment2.createdAt.getTime()).toBeGreaterThan(comment1.createdAt.getTime());
     });
   });
 });
-

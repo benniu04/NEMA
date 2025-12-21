@@ -1,16 +1,16 @@
 import { describe, it, expect, beforeEach, beforeAll } from '@jest/globals';
-import express from 'express';
+import express, { Express } from 'express';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
-import moviesRoutes from '../../routes/movies.routes.js';
-import { Movie } from '../../models/movie.model.js';
+import moviesRoutes from '../../src/routes/movies.routes.ts';
+import { Movie } from '../../src/models/movie.model.js';
 import { generateAdminToken, createMockMovie } from '../helpers.js';
 
 // Note: S3 mocking with ES modules is complex
 // These tests verify the route logic, actual S3 integration is tested separately
 
 // Create test app
-const createTestApp = () => {
+const createTestApp = (): Express => {
   const app = express();
   app.use(express.json());
   app.use(cookieParser());
@@ -19,8 +19,8 @@ const createTestApp = () => {
 };
 
 describe('Movies Routes', () => {
-  let app;
-  let adminToken;
+  let app: Express;
+  let adminToken: string;
 
   beforeAll(() => {
     app = createTestApp();
@@ -47,7 +47,7 @@ describe('Movies Routes', () => {
         createMockMovie({ title: 'Movie 2' }),
         createMockMovie({ title: 'Movie 3' })
       ]);
-      
+
       // Verify movies were created
       expect(movies).toHaveLength(3);
 
@@ -211,7 +211,7 @@ describe('Movies Routes', () => {
       expect(response.body.title).toBe('Updated Title');
 
       const updatedMovie = await Movie.findById(movie._id);
-      expect(updatedMovie.title).toBe('Updated Title');
+      expect(updatedMovie?.title).toBe('Updated Title');
     });
 
     it('should fail without authentication', async () => {
@@ -269,4 +269,3 @@ describe('Movies Routes', () => {
     });
   });
 });
-
