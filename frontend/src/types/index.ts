@@ -56,12 +56,15 @@ export interface PublicUser {
 export interface VideoUrls {
   '720p'?: string;
   '1080p'?: string;
+  'hls'?: string;
+  [key: string]: string | undefined;
 }
 
 export interface SubtitleUrls {
   en?: string;
   es?: string;
   fr?: string;
+  [key: string]: string | undefined;
 }
 
 export interface Movie {

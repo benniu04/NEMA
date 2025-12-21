@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, ChangeEvent } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { useSettings } from '../context/SettingsContext';
@@ -6,49 +6,124 @@ import NavBar from '../components/NavBar';
 import Footer from '../components/Footer';
 import API_BASE_URL from '../config/api';
 
-const ProfilePage = () => {
+// Types
+interface Movie {
+  _id: string;
+  title: string;
+  posterUrl?: string;
+  director?: string;
+  releaseDate: string;
+}
+
+interface Activity {
+  _id: string;
+  type: 'review' | 'comment' | 'watchlist_add' | 'favorite_add' | 'watched';
+  movieId?: Movie;
+  rating?: number;
+  createdAt: string;
+}
+
+interface WatchSession {
+  _id: string;
+  movieId: Movie;
+  completed: boolean;
+  completionPercentage: number;
+  maxTimeReached?: number;
+  videoDuration: number;
+  lastUpdatedAt: string;
+}
+
+interface Review {
+  _id: string;
+  movieId: Movie;
+  rating: number;
+  comment?: string;
+  nickname?: string;
+  createdAt: string;
+}
+
+interface SocialUser {
+  id: string;
+  username: string;
+  displayName?: string;
+  avatar?: string;
+  isFollowing?: boolean;
+}
+
+interface User {
+  id?: string;
+  _id?: string;
+  username: string;
+  displayName?: string;
+  avatar?: string;
+  banner?: string;
+  bio?: string;
+  watchlist?: Movie[];
+  stats?: {
+    filmsWatched?: number;
+    reviewsWritten?: number;
+    followersCount?: number;
+    followingCount?: number;
+  };
+}
+
+interface LocationState {
+  tab?: string;
+}
+
+interface SocialModalProps {
+  title: string;
+  emptyMessage: string;
+  users: SocialUser[];
+  loading: boolean;
+  onClose: () => void;
+  onFollowAction: (userId: string, isFollowing: boolean) => Promise<void>;
+  followActionLoading: Record<string, boolean>;
+  currentUserId?: string;
+  t: (key: string) => string;
+}
+
+type TabKey = 'activity' | 'films' | 'reviews' | 'watchlist';
+
+const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout, updateProfile, loading, isAuthenticated, refreshUser, removeFromFavorites, followUser, unfollowUser, isFollowing: checkIsFollowing } = useUser();
+  const { user, logout, updateProfile, loading, isAuthenticated, refreshUser, removeFromFavorites, followUser, unfollowUser } = useUser();
   const { t } = useSettings();
 
-  // Check for tab state from navigation (e.g., from Watchlist link)
-  const initialTab = location.state?.tab || 'activity';
-  const [activeTab, setActiveTab] = useState(initialTab);
-  const [activities, setActivities] = useState([]);
-  const [favorites, setFavorites] = useState([]);
-  const [watchHistory, setWatchHistory] = useState([]);
-  const [userReviews, setUserReviews] = useState([]);
+  const locationState = location.state as LocationState | null;
+  const initialTab: TabKey = (locationState?.tab as TabKey) || 'activity';
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [favorites, setFavorites] = useState<Movie[]>([]);
+  const [watchHistory, setWatchHistory] = useState<WatchSession[]>([]);
+  const [userReviews, setUserReviews] = useState<Review[]>([]);
   const [isEditingBio, setIsEditingBio] = useState(false);
   const [bio, setBio] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [removingFavorite, setRemovingFavorite] = useState(null);
-  
-  // Social modal state
+  const [removingFavorite, setRemovingFavorite] = useState<string | null>(null);
+
   const [showFollowersModal, setShowFollowersModal] = useState(false);
   const [showFollowingModal, setShowFollowingModal] = useState(false);
-  const [followers, setFollowers] = useState([]);
-  const [following, setFollowing] = useState([]);
+  const [followers, setFollowers] = useState<SocialUser[]>([]);
+  const [following, setFollowing] = useState<SocialUser[]>([]);
   const [loadingSocial, setLoadingSocial] = useState(false);
-  const [followActionLoading, setFollowActionLoading] = useState({});
-  
-  const bannerInputRef = useRef(null);
+  const [followActionLoading, setFollowActionLoading] = useState<Record<string, boolean>>({});
 
-  // Redirect if not logged in
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       navigate('/login', { state: { from: { pathname: '/profile' } } });
     }
   }, [isAuthenticated, loading, navigate]);
 
-  // Update tab when navigating with state (e.g., clicking Watchlist in navbar)
   useEffect(() => {
-    if (location.state?.tab) {
-      setActiveTab(location.state.tab);
+    if (locationState?.tab) {
+      setActiveTab(locationState.tab as TabKey);
     }
-  }, [location.state]);
+  }, [locationState]);
 
-  // Load user data
   useEffect(() => {
     if (user) {
       setBio(user.bio || '');
@@ -59,7 +134,7 @@ const ProfilePage = () => {
     }
   }, [user]);
 
-  const loadActivities = async () => {
+  const loadActivities = async (): Promise<void> => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/users/activity?limit=10`, {
         credentials: 'include'
@@ -73,7 +148,7 @@ const ProfilePage = () => {
     }
   };
 
-  const loadFavorites = async () => {
+  const loadFavorites = async (): Promise<void> => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/users/favorites`, {
         credentials: 'include'
@@ -87,15 +162,14 @@ const ProfilePage = () => {
     }
   };
 
-  const loadWatchHistory = async () => {
+  const loadWatchHistory = async (): Promise<void> => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/watch-time/history?limit=50`, {
         credentials: 'include'
       });
       if (response.ok) {
-        const data = await response.json();
-        // Group by movie and get the latest session for each
-        const movieMap = new Map();
+        const data: WatchSession[] = await response.json();
+        const movieMap = new Map<string, WatchSession>();
         data.forEach(session => {
           if (session.movieId) {
             const existingSession = movieMap.get(session.movieId._id);
@@ -111,7 +185,7 @@ const ProfilePage = () => {
     }
   };
 
-  const loadUserReviews = async () => {
+  const loadUserReviews = async (): Promise<void> => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/reviews/user/my-reviews`, {
         credentials: 'include'
@@ -125,21 +199,17 @@ const ProfilePage = () => {
     }
   };
 
-  const loadFollowers = async () => {
+  const loadFollowers = async (): Promise<void> => {
     if (!user) return;
     setLoadingSocial(true);
     try {
       const userId = user.id || user._id;
-      console.log('Loading followers for user:', userId);
       const response = await fetch(`${API_BASE_URL}/api/users/${userId}/followers`, {
         credentials: 'include'
       });
       if (response.ok) {
         const data = await response.json();
-        console.log('Followers loaded:', data.length);
         setFollowers(data);
-      } else {
-        console.error('Failed to fetch followers:', response.status);
       }
     } catch (error) {
       console.error('Failed to load followers:', error);
@@ -148,21 +218,17 @@ const ProfilePage = () => {
     }
   };
 
-  const loadFollowing = async () => {
+  const loadFollowing = async (): Promise<void> => {
     if (!user) return;
     setLoadingSocial(true);
     try {
       const userId = user.id || user._id;
-      console.log('Loading following for user:', userId);
       const response = await fetch(`${API_BASE_URL}/api/users/${userId}/following`, {
         credentials: 'include'
       });
       if (response.ok) {
         const data = await response.json();
-        console.log('Following loaded:', data.length);
         setFollowing(data);
-      } else {
-        console.error('Failed to fetch following:', response.status);
       }
     } catch (error) {
       console.error('Failed to load following:', error);
@@ -171,39 +237,35 @@ const ProfilePage = () => {
     }
   };
 
-  const handleShowFollowers = async () => {
+  const handleShowFollowers = async (): Promise<void> => {
     setShowFollowersModal(true);
     await loadFollowers();
   };
 
-  const handleShowFollowing = async () => {
+  const handleShowFollowing = async (): Promise<void> => {
     setShowFollowingModal(true);
     await loadFollowing();
   };
 
-  const handleFollowAction = async (userId, currentlyFollowing) => {
+  const handleFollowAction = async (userId: string, currentlyFollowing: boolean): Promise<void> => {
     setFollowActionLoading(prev => ({ ...prev, [userId]: true }));
-    
+
     try {
-      const result = currentlyFollowing 
+      const result = currentlyFollowing
         ? await unfollowUser(userId)
         : await followUser(userId);
-      
+
       if (result.success) {
-        // Update local lists
-        setFollowers(prev => prev.map(u => 
+        setFollowers(prev => prev.map(u =>
           u.id === userId ? { ...u, isFollowing: !currentlyFollowing } : u
         ));
-        
-        // If unfollowing, remove from following list
+
         if (currentlyFollowing) {
           setFollowing(prev => prev.filter(u => u.id !== userId));
         }
-        
-        // Refresh user data to update counts
+
         await refreshUser();
-        
-        // Reload the following list if the modal is open and we just followed someone
+
         if (!currentlyFollowing && showFollowingModal) {
           await loadFollowing();
         }
@@ -217,30 +279,28 @@ const ProfilePage = () => {
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = async (): Promise<void> => {
     await logout();
     navigate('/');
   };
 
-  const handleBioSave = async () => {
+  const handleBioSave = async (): Promise<void> => {
     const result = await updateProfile({ bio });
     if (result.success) {
       setIsEditingBio(false);
     }
   };
 
-  const handleImageUpload = async (file, type) => {
+  const handleImageUpload = async (file: File | undefined, type: 'avatar' | 'banner'): Promise<void> => {
     if (!file) return;
 
-    // Validate image resolution for banner
     if (type === 'banner') {
       const img = new Image();
       const objectUrl = URL.createObjectURL(file);
-      
+
       img.onload = async () => {
         URL.revokeObjectURL(objectUrl);
-        
-        // Check if resolution is below recommended
+
         if (img.width < 1500 || img.height < 500) {
           const proceed = window.confirm(
             `⚠️ ${t('profile.imageResolutionWarning')}\n\n` +
@@ -249,12 +309,9 @@ const ProfilePage = () => {
             `${t('profile.imageBlurryWarning')}`
           );
 
-          if (!proceed) {
-            return;
-          }
+          if (!proceed) return;
         }
 
-        // Proceed with upload
         await performUpload(file, type);
       };
 
@@ -262,15 +319,14 @@ const ProfilePage = () => {
         URL.revokeObjectURL(objectUrl);
         alert(t('profile.failedToLoadImage'));
       };
-      
+
       img.src = objectUrl;
     } else {
-      // For avatar, upload directly
       await performUpload(file, type);
     }
   };
 
-  const performUpload = async (file, type) => {
+  const performUpload = async (file: File, type: 'avatar' | 'banner'): Promise<void> => {
     setIsUploading(true);
     const formData = new FormData();
     formData.append(type, file);
@@ -297,44 +353,32 @@ const ProfilePage = () => {
     }
   };
 
-  const getActivityIcon = (type) => {
+  const getActivityIcon = (type: Activity['type']): string => {
     switch (type) {
-      case 'review':
-        return '★';
-      case 'comment':
-        return '💬';
-      case 'watchlist_add':
-        return '📌';
-      case 'favorite_add':
-        return '❤️';
-      case 'watched':
-        return '✓';
-      default:
-        return '•';
+      case 'review': return '★';
+      case 'comment': return '💬';
+      case 'watchlist_add': return '📌';
+      case 'favorite_add': return '❤️';
+      case 'watched': return '✓';
+      default: return '•';
     }
   };
 
-  const getActivityText = (activity) => {
+  const getActivityText = (activity: Activity): string => {
     const movieTitle = activity.movieId?.title;
     switch (activity.type) {
-      case 'review':
-        return `${t('profile.activityReviewed')} ${movieTitle}`;
-      case 'comment':
-        return `${t('profile.activityCommented')} ${movieTitle}`;
-      case 'watchlist_add':
-        return `${t('profile.activityAddedToWatchlist')} ${movieTitle}`;
-      case 'favorite_add':
-        return `${t('profile.activityAddedToFavorites')} ${movieTitle}`;
-      case 'watched':
-        return `${t('profile.activityWatched')} ${movieTitle}`;
-      default:
-        return '';
+      case 'review': return `${t('profile.activityReviewed')} ${movieTitle}`;
+      case 'comment': return `${t('profile.activityCommented')} ${movieTitle}`;
+      case 'watchlist_add': return `${t('profile.activityAddedToWatchlist')} ${movieTitle}`;
+      case 'favorite_add': return `${t('profile.activityAddedToFavorites')} ${movieTitle}`;
+      case 'watched': return `${t('profile.activityWatched')} ${movieTitle}`;
+      default: return '';
     }
   };
 
-  const handleRemoveFavorite = async (movieId, movieTitle, e) => {
-    e.preventDefault(); // Prevent navigation to movie page
-    
+  const handleRemoveFavorite = async (movieId: string, movieTitle: string, e: React.MouseEvent): Promise<void> => {
+    e.preventDefault();
+
     const confirmRemove = window.confirm(`${t('profile.removeFavoriteConfirm')} "${movieTitle}"`);
     if (!confirmRemove) return;
 
@@ -342,7 +386,6 @@ const ProfilePage = () => {
     try {
       const result = await removeFromFavorites(movieId);
       if (result.success) {
-        // Refresh favorites list
         await loadFavorites();
       } else {
         alert(result.error || t('profile.removeFavoriteError'));
@@ -366,21 +409,18 @@ const ProfilePage = () => {
     );
   }
 
+  const typedUser = user as User;
+
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
       <NavBar />
-      
+
       <main className="flex-grow">
         {/* Banner */}
         <div className="relative h-64 bg-white/5 group">
-          {user.banner ? (
+          {typedUser.banner ? (
             <>
-              <img 
-                src={user.banner} 
-                alt="Banner" 
-                className="w-full h-full object-cover object-center"
-              />
-              {/* Dimming overlay */}
+              <img src={typedUser.banner} alt="Banner" className="w-full h-full object-cover object-center" />
               <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/60"></div>
             </>
           ) : (
@@ -392,13 +432,12 @@ const ProfilePage = () => {
           )}
           <div className="absolute bottom-4 right-4 z-10 group/button">
             <button
-              onClick={() => bannerInputRef.current.click()}
+              onClick={() => bannerInputRef.current?.click()}
               className="px-3 py-1.5 bg-black/70 text-white text-sm border border-white/20 hover:bg-black/90 transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm"
               disabled={isUploading}
             >
               {isUploading ? t('profile.uploading') : t('profile.changeBanner')}
             </button>
-            {/* Resolution warning tooltip */}
             <div className="absolute top-full right-0 mt-2 w-64 px-3 py-2 bg-black/95 border border-amber-500/30 text-xs text-white/80 opacity-0 group-hover/button:opacity-100 pointer-events-none transition-opacity backdrop-blur-sm">
               <p className="font-medium text-amber-500 mb-1">💡 {t('profile.bannerRecommended')}</p>
               <p>{t('profile.bannerTip')}</p>
@@ -409,7 +448,7 @@ const ProfilePage = () => {
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={(e) => handleImageUpload(e.target.files[0], 'banner')}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => handleImageUpload(e.target.files?.[0], 'banner')}
           />
         </div>
 
@@ -417,46 +456,37 @@ const ProfilePage = () => {
           {/* Profile Header */}
           <div className="relative -mt-16 mb-8 z-10">
             <div className="flex items-end gap-6">
-              {/* Avatar */}
               <div className="relative z-20">
                 <div className="w-32 h-32 bg-white/5 border-4 border-black overflow-hidden shadow-xl">
-                  {user.avatar ? (
-                    <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
+                  {typedUser.avatar ? (
+                    <img src={typedUser.avatar} alt={typedUser.displayName} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-4xl font-light text-white/40">
-                      {user.displayName?.charAt(0).toUpperCase() || user.username?.charAt(0).toUpperCase()}
+                      {typedUser.displayName?.charAt(0).toUpperCase() || typedUser.username?.charAt(0).toUpperCase()}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* User Info */}
               <div className="flex-1 pb-2">
-                <h1 className="text-3xl font-light mb-1">{user.displayName || user.username}</h1>
-                <p className="text-white/50 text-sm mb-3">@{user.username}</p>
-                
-                {/* Stats */}
+                <h1 className="text-3xl font-light mb-1">{typedUser.displayName || typedUser.username}</h1>
+                <p className="text-white/50 text-sm mb-3">@{typedUser.username}</p>
+
                 <div className="flex gap-6 text-sm">
                   <div>
-                    <span className="text-white font-medium">{user.stats?.filmsWatched || 0}</span>
+                    <span className="text-white font-medium">{typedUser.stats?.filmsWatched || 0}</span>
                     <span className="text-white/50 ml-1">{t('profile.films')}</span>
                   </div>
                   <div>
-                    <span className="text-white font-medium">{user.stats?.reviewsWritten || 0}</span>
+                    <span className="text-white font-medium">{typedUser.stats?.reviewsWritten || 0}</span>
                     <span className="text-white/50 ml-1">{t('profile.reviews')}</span>
                   </div>
-                  <button
-                    onClick={handleShowFollowers}
-                    className="hover:text-white transition-colors cursor-pointer"
-                  >
-                    <span className="text-white font-medium">{user.stats?.followersCount || 0}</span>
+                  <button onClick={handleShowFollowers} className="hover:text-white transition-colors cursor-pointer">
+                    <span className="text-white font-medium">{typedUser.stats?.followersCount || 0}</span>
                     <span className="text-white/50 ml-1">{t('profile.followers')}</span>
                   </button>
-                  <button
-                    onClick={handleShowFollowing}
-                    className="hover:text-white transition-colors cursor-pointer"
-                  >
-                    <span className="text-white font-medium">{user.stats?.followingCount || 0}</span>
+                  <button onClick={handleShowFollowing} className="hover:text-white transition-colors cursor-pointer">
+                    <span className="text-white font-medium">{typedUser.stats?.followingCount || 0}</span>
                     <span className="text-white/50 ml-1">{t('profile.following')}</span>
                   </button>
                 </div>
@@ -484,17 +514,11 @@ const ProfilePage = () => {
                   placeholder={t('profile.tellAboutYourself')}
                 />
                 <div className="flex gap-2 mt-2">
-                  <button
-                    onClick={handleBioSave}
-                    className="px-4 py-1.5 bg-white text-black text-sm hover:bg-white/90 transition-colors"
-                  >
+                  <button onClick={handleBioSave} className="px-4 py-1.5 bg-white text-black text-sm hover:bg-white/90 transition-colors">
                     {t('profile.save')}
                   </button>
                   <button
-                    onClick={() => {
-                      setBio(user.bio || '');
-                      setIsEditingBio(false);
-                    }}
+                    onClick={() => { setBio(typedUser.bio || ''); setIsEditingBio(false); }}
                     className="px-4 py-1.5 border border-white/20 text-sm hover:border-white/40 transition-colors"
                   >
                     {t('profile.cancel')}
@@ -537,27 +561,13 @@ const ProfilePage = () => {
               ) : (
                 <div className="grid grid-cols-5 gap-4">
                   {favorites.slice(0, 5).map((movie) => (
-                    <div 
-                      key={movie._id} 
-                      className="relative group cursor-pointer"
-                    >
-                      {/* Container with lift effect */}
+                    <div key={movie._id} className="relative group cursor-pointer">
                       <div className="transform transition-all duration-300 ease-out group-hover:-translate-y-2">
-                        <Link 
-                          to={`/video/${movie._id}`}
-                          className="block relative"
-                        >
-                          {/* Border glow effect */}
+                        <Link to={`/video/${movie._id}`} className="block relative">
                           <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 via-amber-500 to-amber-500 rounded opacity-0 group-hover:opacity-75 blur transition-all duration-500"></div>
-                          
-                          {/* Main poster container */}
                           <div className="relative aspect-[2/3] bg-white/5 overflow-hidden rounded shadow-lg group-hover:shadow-2xl group-hover:shadow-rose-500/20 transition-all duration-300">
                             {movie.posterUrl ? (
-                              <img 
-                                src={movie.posterUrl} 
-                                alt={movie.title}
-                                className="w-full h-full object-cover transition-all duration-500 ease-out group-hover:scale-110"
-                              />
+                              <img src={movie.posterUrl} alt={movie.title} className="w-full h-full object-cover transition-all duration-500 ease-out group-hover:scale-110" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-white/20">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -565,13 +575,9 @@ const ProfilePage = () => {
                                 </svg>
                               </div>
                             )}
-                            
-                            {/* Subtle gradient overlay */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                           </div>
                         </Link>
-                        
-                        {/* Remove button - slides in from right */}
                         <button
                           onClick={(e) => handleRemoveFavorite(movie._id, movie.title, e)}
                           disabled={removingFavorite === movie._id}
@@ -589,8 +595,6 @@ const ProfilePage = () => {
                             </svg>
                           )}
                         </button>
-
-                        {/* Movie title - slides up from bottom */}
                         <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black via-black/95 to-transparent transform translate-y-full group-hover:translate-y-0 transition-all duration-300 ease-out rounded-b z-10">
                           <p className="text-white text-sm font-medium truncate">{movie.title}</p>
                         </div>
@@ -605,30 +609,22 @@ const ProfilePage = () => {
           {/* Tabs */}
           <div className="border-b border-white/10 mb-8">
             <div className="flex gap-8">
-              {[
-                { key: 'activity', label: t('profile.activity') },
-                { key: 'films', label: t('profile.filmsTab') },
-                { key: 'reviews', label: t('profile.reviewsTab') },
-                { key: 'watchlist', label: t('profile.watchlistTab') }
-              ].map((tab) => (
+              {([
+                { key: 'activity' as TabKey, label: t('profile.activity') },
+                { key: 'films' as TabKey, label: t('profile.filmsTab') },
+                { key: 'reviews' as TabKey, label: t('profile.reviewsTab') },
+                { key: 'watchlist' as TabKey, label: t('profile.watchlistTab') }
+              ]).map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`pb-3 text-sm uppercase tracking-wider transition-colors relative ${
-                    activeTab === tab.key
-                      ? 'text-white'
-                      : 'text-white/40 hover:text-white/60'
-                  }`}
+                  className={`pb-3 text-sm uppercase tracking-wider transition-colors relative ${activeTab === tab.key ? 'text-white' : 'text-white/40 hover:text-white/60'}`}
                 >
                   {tab.label}
                   {tab.key === 'reviews' && userReviews.length > 0 && (
-                    <span className="ml-2 px-1.5 py-0.5 bg-white/10 text-white/60 text-xs rounded">
-                      {userReviews.length}
-                    </span>
+                    <span className="ml-2 px-1.5 py-0.5 bg-white/10 text-white/60 text-xs rounded">{userReviews.length}</span>
                   )}
-                  {activeTab === tab.key && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white"></div>
-                  )}
+                  {activeTab === tab.key && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white"></div>}
                 </button>
               ))}
             </div>
@@ -645,27 +641,17 @@ const ProfilePage = () => {
                     <div className="text-2xl">{getActivityIcon(activity.type)}</div>
                     <div className="flex-1">
                       <p className="text-white/70 text-sm">
-                        <span className="text-white">{user.displayName || user.username}</span>{' '}
+                        <span className="text-white">{typedUser.displayName || typedUser.username}</span>{' '}
                         {getActivityText(activity)}
                       </p>
                       <p className="text-white/40 text-xs mt-1">
-                        {new Date(activity.createdAt).toLocaleDateString('en-US', { 
-                          month: 'short', 
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
+                        {new Date(activity.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </p>
-                      {activity.rating && (
-                        <p className="text-white/60 text-sm mt-2">★ {activity.rating}/10</p>
-                      )}
+                      {activity.rating && <p className="text-white/60 text-sm mt-2">★ {activity.rating}/10</p>}
                     </div>
                     {activity.movieId?.posterUrl && (
                       <Link to={`/video/${activity.movieId._id}`}>
-                        <img 
-                          src={activity.movieId.posterUrl} 
-                          alt={activity.movieId.title}
-                          className="w-12 h-16 object-cover hover:opacity-80 transition-opacity"
-                        />
+                        <img src={activity.movieId.posterUrl} alt={activity.movieId.title} className="w-12 h-16 object-cover hover:opacity-80 transition-opacity" />
                       </Link>
                     )}
                   </div>
@@ -679,27 +665,18 @@ const ProfilePage = () => {
               {watchHistory.length === 0 ? (
                 <div className="text-center py-12">
                   <p className="text-white/30 mb-4">{t('profile.noFilmsWatched')}</p>
-                  <Link
-                    to="/catalog"
-                    className="inline-block px-6 py-2 bg-white text-black hover:bg-white/90 transition-colors"
-                  >
+                  <Link to="/catalog" className="inline-block px-6 py-2 bg-white text-black hover:bg-white/90 transition-colors">
                     {t('profile.browseFilms')}
                   </Link>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {watchHistory.map((session) => {
-                    // Calculate display percentage - show 100% if completed
                     const displayPercentage = session.completed ? 100 : Math.round(session.completionPercentage);
-                    // Calculate resume timestamp (convert percentage to seconds)
                     const resumeTime = session.maxTimeReached || (session.videoDuration * (session.completionPercentage / 100));
-                    
+
                     return (
-                      <div
-                        key={session._id}
-                        className="flex gap-4 p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all group relative"
-                      >
-                        {/* Resume badge */}
+                      <div key={session._id} className="flex gap-4 p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all group relative">
                         {!session.completed && session.completionPercentage > 5 && (
                           <div className="absolute top-2 left-2 px-2 py-1 bg-amber-500 text-black text-xs font-medium rounded flex items-center gap-1 z-10">
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -708,18 +685,10 @@ const ProfilePage = () => {
                             {t('profile.resume')}
                           </div>
                         )}
-                        
-                        {/* Poster - Clickable */}
-                        <Link 
-                          to={`/video/${session.movieId._id}${!session.completed && resumeTime > 0 ? `?t=${Math.floor(resumeTime)}` : ''}`}
-                          className="w-20 h-28 flex-shrink-0 bg-white/5 overflow-hidden relative block"
-                        >
+
+                        <Link to={`/video/${session.movieId._id}${!session.completed && resumeTime > 0 ? `?t=${Math.floor(resumeTime)}` : ''}`} className="w-20 h-28 flex-shrink-0 bg-white/5 overflow-hidden relative block">
                           {session.movieId.posterUrl ? (
-                            <img 
-                              src={session.movieId.posterUrl} 
-                              alt={session.movieId.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            />
+                            <img src={session.movieId.posterUrl} alt={session.movieId.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-white/20">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -729,58 +698,35 @@ const ProfilePage = () => {
                           )}
                         </Link>
 
-                        {/* Info */}
                         <div className="flex-1 min-w-0">
-                          <Link 
-                            to={`/video/${session.movieId._id}${!session.completed && resumeTime > 0 ? `?t=${Math.floor(resumeTime)}` : ''}`}
-                            className="block"
-                          >
-                            <h3 className="text-white font-medium mb-1 group-hover:text-amber-500 transition-colors truncate">
-                              {session.movieId.title}
-                            </h3>
+                          <Link to={`/video/${session.movieId._id}${!session.completed && resumeTime > 0 ? `?t=${Math.floor(resumeTime)}` : ''}`} className="block">
+                            <h3 className="text-white font-medium mb-1 group-hover:text-amber-500 transition-colors truncate">{session.movieId.title}</h3>
                           </Link>
-                          <p className="text-white/50 text-sm mb-3">
-                            {session.movieId.director} • {new Date(session.movieId.releaseDate).getFullYear()}
-                          </p>
-                          
-                          {/* Progress Bar */}
+                          <p className="text-white/50 text-sm mb-3">{session.movieId.director} • {new Date(session.movieId.releaseDate).getFullYear()}</p>
+
                           <div className="space-y-1">
                             <div className="flex justify-between text-xs text-white/50">
                               <span>{session.completed ? t('profile.completed') : `${displayPercentage}% ${t('profile.watched')}`}</span>
                               <span>{displayPercentage}%</span>
                             </div>
                             <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full transition-all ${
-                                  session.completed ? 'bg-green-500' : 'bg-amber-500'
-                                }`}
-                                style={{ width: `${displayPercentage}%` }}
-                              />
+                              <div className={`h-full rounded-full transition-all ${session.completed ? 'bg-green-500' : 'bg-amber-500'}`} style={{ width: `${displayPercentage}%` }} />
                             </div>
                           </div>
 
-                          {/* Last watched */}
                           <p className="text-white/40 text-xs mt-2">
-                            {t('profile.lastWatched')} {new Date(session.lastUpdatedAt).toLocaleDateString('en-US', { 
-                              month: 'short', 
-                              day: 'numeric',
-                              year: 'numeric'
-                            })}
+                            {t('profile.lastWatched')} {new Date(session.lastUpdatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                           </p>
                         </div>
 
-                        {/* Action buttons */}
                         <div className="flex-shrink-0 flex flex-col items-end gap-2">
                           {session.completed ? (
                             <>
-                              {/* Completion badge */}
                               <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
                                 <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
                               </div>
-                              
-                              {/* Rewatch button */}
                               <Link
                                 to={`/video/${session.movieId._id}?t=0`}
                                 onClick={(e) => e.stopPropagation()}
@@ -813,33 +759,19 @@ const ProfilePage = () => {
               {userReviews.length === 0 ? (
                 <div className="text-center py-12">
                   <p className="text-white/30 mb-4">{t('profile.noReviews')}</p>
-                  <Link
-                    to="/catalog"
-                    className="inline-block px-6 py-2 bg-white text-black hover:bg-white/90 transition-colors"
-                  >
+                  <Link to="/catalog" className="inline-block px-6 py-2 bg-white text-black hover:bg-white/90 transition-colors">
                     {t('profile.browseFilmsToReview')}
                   </Link>
                 </div>
               ) : (
                 <div className="space-y-6">
                   {userReviews.map((review) => (
-                    <div
-                      key={review._id}
-                      className="bg-white/5 border border-white/10 hover:border-white/20 transition-all p-6 rounded"
-                    >
+                    <div key={review._id} className="bg-white/5 border border-white/10 hover:border-white/20 transition-all p-6 rounded">
                       <div className="flex gap-4">
-                        {/* Poster */}
-                        <Link 
-                          to={`/video/${review.movieId._id}`}
-                          className="flex-shrink-0 group"
-                        >
+                        <Link to={`/video/${review.movieId._id}`} className="flex-shrink-0 group">
                           <div className="w-24 h-36 bg-white/5 overflow-hidden rounded">
                             {review.movieId.posterUrl ? (
-                              <img 
-                                src={review.movieId.posterUrl} 
-                                alt={review.movieId.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              />
+                              <img src={review.movieId.posterUrl} alt={review.movieId.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-white/20">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -850,23 +782,15 @@ const ProfilePage = () => {
                           </div>
                         </Link>
 
-                        {/* Review Content */}
                         <div className="flex-1 min-w-0">
-                          {/* Movie Title & Rating */}
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex-1">
-                              <Link 
-                                to={`/video/${review.movieId._id}`}
-                                className="text-white font-medium text-lg hover:text-amber-500 transition-colors inline-block"
-                              >
+                              <Link to={`/video/${review.movieId._id}`} className="text-white font-medium text-lg hover:text-amber-500 transition-colors inline-block">
                                 {review.movieId.title}
                               </Link>
-                              <p className="text-white/50 text-sm mt-1">
-                                {review.movieId.director} • {new Date(review.movieId.releaseDate).getFullYear()}
-                              </p>
+                              <p className="text-white/50 text-sm mt-1">{review.movieId.director} • {new Date(review.movieId.releaseDate).getFullYear()}</p>
                             </div>
-                            
-                            {/* Rating Badge */}
+
                             <div className="flex items-center gap-2 bg-amber-500/20 border border-amber-500/40 px-3 py-1.5 rounded">
                               <svg className="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
                                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -876,25 +800,13 @@ const ProfilePage = () => {
                             </div>
                           </div>
 
-                          {/* Review Text */}
-                          {review.comment && (
-                            <p className="text-white/70 leading-relaxed mb-3 whitespace-pre-wrap">
-                              {review.comment}
-                            </p>
-                          )}
+                          {review.comment && <p className="text-white/70 leading-relaxed mb-3 whitespace-pre-wrap">{review.comment}</p>}
 
-                          {/* Review Meta */}
                           <div className="flex items-center gap-4 text-xs text-white/40">
                             <span>
-                              {t('profile.reviewed')} {new Date(review.createdAt).toLocaleDateString('en-US', {
-                                month: 'long',
-                                day: 'numeric',
-                                year: 'numeric'
-                              })}
+                              {t('profile.reviewed')} {new Date(review.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                             </span>
-                            {review.nickname && review.nickname !== 'Anonymous' && (
-                              <span>{t('profile.by')} {review.nickname}</span>
-                            )}
+                            {review.nickname && review.nickname !== 'Anonymous' && <span>{t('profile.by')} {review.nickname}</span>}
                           </div>
                         </div>
                       </div>
@@ -907,33 +819,22 @@ const ProfilePage = () => {
 
           {activeTab === 'watchlist' && (
             <div className="pb-12">
-              {(!user.watchlist || user.watchlist.length === 0) ? (
+              {(!typedUser.watchlist || typedUser.watchlist.length === 0) ? (
                 <div className="text-center py-12">
                   <p className="text-white/30 mb-4">{t('profile.watchlistEmpty')}</p>
-                  <Link
-                    to="/catalog"
-                    className="inline-block px-6 py-2 bg-white text-black hover:bg-white/90 transition-colors"
-                  >
+                  <Link to="/catalog" className="inline-block px-6 py-2 bg-white text-black hover:bg-white/90 transition-colors">
                     {t('profile.browseFilms')}
                   </Link>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {user.watchlist
-                    .filter(movie => movie && typeof movie === 'object' && movie._id) // Only render populated movie objects
+                  {typedUser.watchlist
+                    .filter((movie): movie is Movie => movie != null && typeof movie === 'object' && '_id' in movie)
                     .map((movie) => (
-                      <Link 
-                        key={movie._id}
-                        to={`/video/${movie._id}`}
-                        className="group"
-                      >
+                      <Link key={movie._id} to={`/video/${movie._id}`} className="group">
                         <div className="aspect-[2/3] bg-white/5 overflow-hidden mb-2">
                           {movie.posterUrl ? (
-                            <img 
-                              src={movie.posterUrl} 
-                              alt={movie.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            />
+                            <img src={movie.posterUrl} alt={movie.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-white/20">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -942,9 +843,7 @@ const ProfilePage = () => {
                             </div>
                           )}
                         </div>
-                        <p className="text-sm text-white/70 group-hover:text-white transition-colors truncate">
-                          {movie.title || t('profile.untitled')}
-                        </p>
+                        <p className="text-sm text-white/70 group-hover:text-white transition-colors truncate">{movie.title || t('profile.untitled')}</p>
                       </Link>
                     ))}
                 </div>
@@ -956,7 +855,6 @@ const ProfilePage = () => {
 
       <Footer />
 
-      {/* Followers Modal */}
       {showFollowersModal && (
         <SocialModal
           title={t('profile.followers')}
@@ -966,12 +864,11 @@ const ProfilePage = () => {
           onClose={() => setShowFollowersModal(false)}
           onFollowAction={handleFollowAction}
           followActionLoading={followActionLoading}
-          currentUserId={user.id}
+          currentUserId={typedUser.id}
           t={t}
         />
       )}
 
-      {/* Following Modal */}
       {showFollowingModal && (
         <SocialModal
           title={t('profile.following')}
@@ -981,7 +878,7 @@ const ProfilePage = () => {
           onClose={() => setShowFollowingModal(false)}
           onFollowAction={handleFollowAction}
           followActionLoading={followActionLoading}
-          currentUserId={user.id}
+          currentUserId={typedUser.id}
           t={t}
         />
       )}
@@ -989,32 +886,31 @@ const ProfilePage = () => {
   );
 };
 
-// Social Modal Component
-const SocialModal = ({ title, emptyMessage, users, loading, onClose, onFollowAction, followActionLoading, currentUserId, t }) => {
+const SocialModal: React.FC<SocialModalProps> = ({
+  title,
+  emptyMessage,
+  users,
+  loading,
+  onClose,
+  onFollowAction,
+  followActionLoading,
+  currentUserId,
+  t
+}) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-        onClick={onClose}
-      ></div>
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose}></div>
 
-      {/* Modal */}
       <div className="relative bg-black border border-white/20 rounded-lg w-full max-w-md max-h-[80vh] flex flex-col mx-4">
-        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           <h2 className="text-lg font-medium text-white">{title}</h2>
-          <button
-            onClick={onClose}
-            className="text-white/60 hover:text-white transition-colors"
-          >
+          <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
@@ -1028,12 +924,7 @@ const SocialModal = ({ title, emptyMessage, users, loading, onClose, onFollowAct
             <div className="space-y-3">
               {users.map((user) => (
                 <div key={user.id} className="flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded transition-colors">
-                  {/* Avatar */}
-                  <Link
-                    to={`/profile/${user.username}`}
-                    onClick={onClose}
-                    className="flex-shrink-0"
-                  >
+                  <Link to={`/profile/${user.username}`} onClick={onClose} className="flex-shrink-0">
                     <div className="w-12 h-12 rounded-full bg-white/10 overflow-hidden">
                       {user.avatar ? (
                         <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
@@ -1045,13 +936,8 @@ const SocialModal = ({ title, emptyMessage, users, loading, onClose, onFollowAct
                     </div>
                   </Link>
 
-                  {/* User Info */}
                   <div className="flex-1 min-w-0">
-                    <Link
-                      to={`/profile/${user.username}`}
-                      onClick={onClose}
-                      className="block group"
-                    >
+                    <Link to={`/profile/${user.username}`} onClick={onClose} className="block group">
                       <p className="text-white font-medium group-hover:text-amber-500 transition-colors truncate">
                         {user.displayName || user.username}
                       </p>
@@ -1059,10 +945,9 @@ const SocialModal = ({ title, emptyMessage, users, loading, onClose, onFollowAct
                     <p className="text-white/50 text-sm truncate">@{user.username}</p>
                   </div>
 
-                  {/* Follow Button */}
                   {user.id !== currentUserId && (
                     <button
-                      onClick={() => onFollowAction(user.id, user.isFollowing)}
+                      onClick={() => onFollowAction(user.id, user.isFollowing || false)}
                       disabled={followActionLoading[user.id]}
                       className={`px-4 py-1.5 text-sm font-medium rounded transition-all ${
                         user.isFollowing

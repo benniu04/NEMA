@@ -1,74 +1,169 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import NavBar from '../components/NavBar';
 import API_BASE_URL from '../config/api';
 
-const AdminDashboard = () => {
+// Type Definitions
+interface VideoUrls {
+  '720p': string;
+  '1080p': string;
+}
+
+interface SubtitleUrls {
+  en: string;
+  es: string;
+  fr: string;
+  de: string;
+  zh: string;
+  ja: string;
+  ko: string;
+  pt: string;
+}
+
+interface Movie {
+  _id: string;
+  title: string;
+  description: string;
+  rating: number;
+  releaseDate: string;
+  genre: string | string[];
+  director: string;
+  cast: string | string[];
+  language: string;
+  videoUrls: VideoUrls;
+  subtitleUrls?: SubtitleUrls;
+  thumbnailUrl: string;
+  posterUrl: string;
+  thumbnailKey?: string;
+  posterKey?: string;
+  isFeatured: boolean;
+  tags: string | string[];
+  createdAt?: string;
+  updatedAt?: string;
+  __v?: number;
+}
+
+interface FormData {
+  title: string;
+  description: string;
+  rating: number;
+  releaseDate: string;
+  genre: string;
+  director: string;
+  cast: string;
+  language: string;
+  videoUrls: VideoUrls;
+  subtitleUrls: SubtitleUrls;
+  thumbnailUrl: string;
+  posterUrl: string;
+  thumbnailKey?: string;
+  posterKey?: string;
+  isFeatured: boolean;
+  tags: string;
+}
+
+interface UploadProgress {
+  'video-720p': number;
+  'video-1080p': number;
+  thumbnail: number;
+  poster: number;
+}
+
+interface Analytics {
+  topGenres: [string, number][];
+  topDirectors: [string, number][];
+  languageCount: Record<string, number>;
+  avgRating: string | number;
+  highRatedMovies: number;
+  recentMovies: number;
+  yearCount: Record<number, number>;
+  moviesWithVideo: number;
+  movies720p: number;
+  movies1080p: number;
+}
+
+interface UserData {
+  isAdmin: boolean;
+  [key: string]: unknown;
+}
+
+interface UploadResponse {
+  key: string;
+  message?: string;
+}
+
+type TabKey = 'overview' | 'upload' | 'manage';
+type UploadType = 'video' | 'thumbnail' | 'poster';
+type VideoQuality = '720p' | '1080p';
+type SubtitleLang = keyof SubtitleUrls;
+
+const INITIAL_FORM_DATA: FormData = {
+  title: '',
+  description: '',
+  rating: 0,
+  releaseDate: '',
+  genre: '',
+  director: '',
+  cast: '',
+  language: 'English',
+  videoUrls: { '720p': '', '1080p': '' },
+  subtitleUrls: {
+    en: '', es: '', fr: '', de: '',
+    zh: '', ja: '', ko: '', pt: ''
+  },
+  thumbnailUrl: '',
+  posterUrl: '',
+  isFeatured: false,
+  tags: ''
+};
+
+const SUBTITLE_LANGUAGES: Record<SubtitleLang, string> = {
+  en: 'English',
+  es: 'Spanish',
+  fr: 'French',
+  de: 'German',
+  zh: 'Chinese',
+  ja: 'Japanese',
+  ko: 'Korean',
+  pt: 'Portuguese'
+};
+
+const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('overview');
-  const [movies, setMovies] = useState([]);
-  const [editingMovie, setEditingMovie] = useState(null);
+  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [movies, setMovies] = useState<Movie[]>([]);
+  const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    rating: 0,
-    releaseDate: '',
-    genre: '',
-    director: '',
-    cast: '',
-    language: 'English',
-    videoUrls: {
-      '720p': '',
-      '1080p': ''
-    },
-    subtitleUrls: {
-      en: '',
-      es: '',
-      fr: '',
-      de: '',
-      zh: '',
-      ja: '',
-      ko: '',
-      pt: ''
-    },
-    thumbnailUrl: '',
-    posterUrl: '',
-    isFeatured: false,
-    tags: ''
-  });
+  const [formData, setFormData] = useState<FormData>(INITIAL_FORM_DATA);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState({
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress>({
     'video-720p': 0,
     'video-1080p': 0,
-    'thumbnail': 0,
-    'poster': 0
+    thumbnail: 0,
+    poster: 0
   });
 
-  // Check authentication using httpOnly cookies
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkAuth = async (): Promise<void> => {
       try {
         const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
           credentials: 'include'
         });
-        
+
         if (response.ok) {
-          const userData = await response.json();
+          const userData: UserData = await response.json();
           if (userData.isAdmin) {
             setAuthChecked(true);
             fetchMovies();
             return;
           }
         }
-        
-        // Not authenticated, redirect to login
         navigate('/admin/login');
-      } catch (error) {
-        console.error('Auth check failed:', error);
+      } catch (err) {
+        console.error('Auth check failed:', err);
         navigate('/admin/login');
       }
     };
@@ -76,71 +171,45 @@ const AdminDashboard = () => {
     checkAuth();
   }, [navigate]);
 
-  const fetchMovies = async (bustCache = false) => {
+  const fetchMovies = async (bustCache = false): Promise<void> => {
     try {
       setLoading(true);
-      
-      // Add cache-busting parameter to force fresh data after updates
-      const url = bustCache 
+      const url = bustCache
         ? `${API_BASE_URL}/api/movies?_t=${Date.now()}`
         : `${API_BASE_URL}/api/movies`;
-      
-      console.log('Fetching movies from:', url);
-      
-      const response = await fetch(url, {
-        // Force no-cache for admin to always get fresh data
-        cache: 'no-cache'
-      });
-      console.log('Response status:', response.status);
-      
+
+      const response = await fetch(url, { cache: 'no-cache' });
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
-      const data = await response.json();
-      console.log('Fetched movies:', data);
-      
+
+      const data: Movie[] = await response.json();
       setMovies(data);
     } catch (err) {
-      console.error('Error fetching movies:', err);
-      setError(`Failed to load movies: ${err.message}`);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to load movies: ${message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      title: '',
-      description: '',
-      rating: 0,
-      releaseDate: '',
-      genre: '',
-      director: '',
-      cast: '',
-      language: 'English',
-      videoUrls: { '720p': '', '1080p': '' },
-      thumbnailUrl: '',
-      posterUrl: '',
-      isFeatured: false,
-      tags: ''
-    });
+  const resetForm = (): void => {
+    setFormData(INITIAL_FORM_DATA);
     setEditingMovie(null);
     setError('');
     setSuccess('');
   };
 
-  const handleCancelEdit = () => {
+  const handleCancelEdit = (): void => {
     resetForm();
     setActiveTab('manage');
   };
 
-  // Analytics functions
-  const getAnalytics = () => {
+  const getAnalytics = (): Analytics | null => {
     if (movies.length === 0) return null;
 
-    // Genre analysis
-    const genreCount = {};
+    const genreCount: Record<string, number> = {};
     movies.forEach(movie => {
       if (Array.isArray(movie.genre)) {
         movie.genre.forEach(g => {
@@ -149,40 +218,42 @@ const AdminDashboard = () => {
       }
     });
     const topGenres = Object.entries(genreCount)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 5);
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5) as [string, number][];
 
-    // Director analysis
-    const directorCount = {};
+    const directorCount: Record<string, number> = {};
     movies.forEach(movie => {
       directorCount[movie.director] = (directorCount[movie.director] || 0) + 1;
     });
     const topDirectors = Object.entries(directorCount)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 3);
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 3) as [string, number][];
 
-    // Language analysis
-    const languageCount = {};
+    const languageCount: Record<string, number> = {};
     movies.forEach(movie => {
       languageCount[movie.language] = (languageCount[movie.language] || 0) + 1;
     });
 
-    // Rating analysis
-    const ratings = movies.map(m => parseFloat(m.rating)).filter(r => !isNaN(r));
-    const avgRating = ratings.length > 0 ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : 0;
-    const highRatedMovies = movies.filter(m => parseFloat(m.rating) >= 8).length;
+    const ratings = movies.map(m => parseFloat(String(m.rating))).filter(r => !isNaN(r));
+    const avgRating = ratings.length > 0
+      ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
+      : 0;
+    const highRatedMovies = movies.filter(m => parseFloat(String(m.rating)) >= 8).length;
 
-    // Release year analysis
     const currentYear = new Date().getFullYear();
-    const recentMovies = movies.filter(m => new Date(m.releaseDate).getFullYear() >= currentYear - 2).length;
-    const yearCount = {};
+    const recentMovies = movies.filter(
+      m => new Date(m.releaseDate).getFullYear() >= currentYear - 2
+    ).length;
+
+    const yearCount: Record<number, number> = {};
     movies.forEach(movie => {
       const year = new Date(movie.releaseDate).getFullYear();
       yearCount[year] = (yearCount[year] || 0) + 1;
     });
 
-    // Quality analysis
-    const moviesWithVideo = movies.filter(m => m.videoUrls?.['720p'] || m.videoUrls?.['1080p']).length;
+    const moviesWithVideo = movies.filter(
+      m => m.videoUrls?.['720p'] || m.videoUrls?.['1080p']
+    ).length;
     const movies720p = movies.filter(m => m.videoUrls?.['720p']).length;
     const movies1080p = movies.filter(m => m.videoUrls?.['1080p']).length;
 
@@ -202,25 +273,30 @@ const AdminDashboard = () => {
 
   const analytics = getAnalytics();
 
-  const handleEdit = (movie) => {
+  const handleEdit = (movie: Movie): void => {
     setEditingMovie(movie);
     setFormData({
-      ...movie,
-      genre: Array.isArray(movie.genre) ? movie.genre.join(', ') : movie.genre,
-      cast: Array.isArray(movie.cast) ? movie.cast.join(', ') : movie.cast,
-      tags: Array.isArray(movie.tags) ? movie.tags.join(', ') : movie.tags,
+      title: movie.title,
+      description: movie.description,
+      rating: movie.rating,
       releaseDate: new Date(movie.releaseDate).toISOString().split('T')[0],
-      // Preserve existing URLs
+      genre: Array.isArray(movie.genre) ? movie.genre.join(', ') : movie.genre,
+      director: movie.director,
+      cast: Array.isArray(movie.cast) ? movie.cast.join(', ') : movie.cast,
+      language: movie.language,
       videoUrls: movie.videoUrls || { '720p': '', '1080p': '' },
+      subtitleUrls: movie.subtitleUrls || INITIAL_FORM_DATA.subtitleUrls,
       thumbnailUrl: movie.thumbnailUrl || '',
       posterUrl: movie.posterUrl || '',
       thumbnailKey: movie.thumbnailKey || '',
-      posterKey: movie.posterKey || ''
+      posterKey: movie.posterKey || '',
+      isFeatured: movie.isFeatured,
+      tags: Array.isArray(movie.tags) ? movie.tags.join(', ') : movie.tags
     });
     setActiveTab('upload');
   };
 
-  const handleDelete = async (movieId) => {
+  const handleDelete = async (movieId: string): Promise<void> => {
     if (!window.confirm('Are you sure you want to delete this movie?')) return;
 
     try {
@@ -230,22 +306,35 @@ const AdminDashboard = () => {
       });
 
       if (!response.ok) throw new Error('Failed to delete movie');
-      
+
       setSuccess('Movie deleted successfully');
-      fetchMovies(true); // Bust cache to get fresh data
-    } catch (err) {
+      fetchMovies(true);
+    } catch {
       setError('Failed to delete movie');
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ): void => {
+    const target = e.target as HTMLInputElement;
+    const { name, value, type } = target;
+    const checked = type === 'checkbox' ? target.checked : undefined;
+
     if (name.includes('.')) {
       const [parent, child] = name.split('.');
-      setFormData(prev => ({
-        ...prev,
-        [parent]: { ...prev[parent], [child]: value }
-      }));
+      
+      if (parent === 'videoUrls') {
+        setFormData(prev => ({
+          ...prev,
+          videoUrls: { ...prev.videoUrls, [child]: value }
+        }));
+      } else if (parent === 'subtitleUrls') {
+        setFormData(prev => ({
+          ...prev,
+          subtitleUrls: { ...prev.subtitleUrls, [child as keyof SubtitleUrls]: value }
+        }));
+      }
     } else {
       setFormData(prev => ({
         ...prev,
@@ -254,12 +343,11 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
-    // Validation
     const hasVideo = formData.videoUrls['720p'] || formData.videoUrls['1080p'];
     if (!hasVideo) {
       setError('Please upload at least one video file (720p or 1080p) before submitting.');
@@ -279,29 +367,24 @@ const AdminDashboard = () => {
     setLoading(true);
 
     try {
-      const { createdAt, updatedAt, _id, __v, ...cleanFormData } = formData;
-      
-      // Determine if we're editing or creating
-      const url = editingMovie 
+      const url = editingMovie
         ? `${API_BASE_URL}/api/movies/${editingMovie._id}`
         : `${API_BASE_URL}/api/movies`;
-      
+
       const method = editingMovie ? 'PUT' : 'POST';
-      
+
       const response = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(cleanFormData)
+        body: JSON.stringify(formData)
       });
 
       const responseText = await response.text();
-      let data;
+      let data: { message?: string };
       try {
         data = JSON.parse(responseText);
-      } catch (parseError) {
+      } catch {
         throw new Error(`Server returned invalid response: ${responseText}`);
       }
 
@@ -309,72 +392,80 @@ const AdminDashboard = () => {
         throw new Error(data.message || `Server error: ${response.status}`);
       }
 
-      setSuccess(editingMovie ? 'Movie updated successfully! Redirecting...' : 'Movie uploaded successfully! Redirecting...');
-      
+      setSuccess(
+        editingMovie
+          ? 'Movie updated successfully! Redirecting...'
+          : 'Movie uploaded successfully! Redirecting...'
+      );
+
       setTimeout(() => {
         resetForm();
-        fetchMovies(true); // Bust cache to get fresh data
+        fetchMovies(true);
         setActiveTab('manage');
         setSuccess('');
       }, 1500);
-
     } catch (err) {
-      setError(`Failed to ${editingMovie ? 'update' : 'add'} movie: ${err.message}`);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to ${editingMovie ? 'update' : 'add'} movie: ${message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleFileUpload = async (file, type, quality) => {
+  const handleFileUpload = async (
+    file: File | undefined,
+    type: UploadType,
+    quality?: VideoQuality
+  ): Promise<void> => {
     if (!file) return;
-    
+
     setUploading(true);
     const progressKey = type === 'video' ? `video-${quality}` : type;
     setUploadProgress(prev => ({ ...prev, [progressKey]: 0 }));
 
     try {
-      const formData = new FormData();
+      const uploadFormData = new FormData();
       const endpoint = type === 'video' ? 'video' : 'image';
-      formData.append(type === 'video' ? 'video' : 'image', file);
-      if (type === 'video') formData.append('quality', quality);
-      if (type === 'image') formData.append('type', type === 'thumbnail' ? 'thumbnail' : 'poster');
+      uploadFormData.append(type === 'video' ? 'video' : 'image', file);
+      if (type === 'video' && quality) uploadFormData.append('quality', quality);
+      if (type !== 'video') uploadFormData.append('type', type);
 
       const response = await fetch(`${API_BASE_URL}/api/upload/${endpoint}`, {
         method: 'POST',
         credentials: 'include',
-        body: formData
+        body: uploadFormData
       });
 
       const responseText = await response.text();
-      const data = JSON.parse(responseText);
+      const data: UploadResponse = JSON.parse(responseText);
 
       if (!response.ok) throw new Error(data.message || 'Upload failed');
-      
-      if (type === 'video') {
+
+      if (type === 'video' && quality) {
         setFormData(prev => ({
           ...prev,
           videoUrls: { ...prev.videoUrls, [quality]: data.key }
         }));
       } else {
         const keyField = type === 'thumbnail' ? 'thumbnailKey' : 'posterKey';
-        setFormData(prev => ({
-          ...prev,
-          [keyField]: data.key
-        }));
+        setFormData(prev => ({ ...prev, [keyField]: data.key }));
       }
 
       setUploadProgress(prev => ({ ...prev, [progressKey]: 100 }));
       setSuccess(`${type === 'video' ? 'Video' : type} uploaded successfully!`);
-    } catch (error) {
-      setError(`Failed to upload ${type}: ${error.message}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to upload ${type}: ${message}`);
       setUploadProgress(prev => ({ ...prev, [progressKey]: 0 }));
     } finally {
       setUploading(false);
     }
   };
 
-  // Handle subtitle file upload
-  const handleSubtitleUpload = async (file, lang) => {
+  const handleSubtitleUpload = async (
+    file: File | undefined,
+    lang: SubtitleLang
+  ): Promise<void> => {
     if (!file) return;
 
     setUploading(true);
@@ -390,7 +481,7 @@ const AdminDashboard = () => {
         body: uploadFormData
       });
 
-      const data = await response.json();
+      const data: UploadResponse = await response.json();
 
       if (!response.ok) throw new Error(data.message || 'Subtitle upload failed');
 
@@ -400,26 +491,33 @@ const AdminDashboard = () => {
       }));
 
       setSuccess(`${lang.toUpperCase()} subtitle uploaded successfully!`);
-    } catch (error) {
-      setError(`Failed to upload subtitle: ${error.message}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to upload subtitle: ${message}`);
     } finally {
       setUploading(false);
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = async (): Promise<void> => {
     try {
       await fetch(`${API_BASE_URL}/api/auth/logout`, {
         method: 'POST',
         credentials: 'include'
       });
-    } catch (error) {
-      console.error('Logout error:', error);
+    } catch (err) {
+      console.error('Logout error:', err);
     }
     navigate('/admin/login');
   };
 
-  const TabButton = ({ tabKey, label, icon }) => (
+  interface TabButtonProps {
+    tabKey: TabKey;
+    label: string;
+    icon: React.ReactNode;
+  }
+
+  const TabButton: React.FC<TabButtonProps> = ({ tabKey, label, icon }) => (
     <button
       onClick={() => setActiveTab(tabKey)}
       className={`flex items-center gap-3 px-6 py-3 rounded-lg transition-all ${
@@ -434,7 +532,7 @@ const AdminDashboard = () => {
   );
 
   return (
-    <div className="min-h-screen bg-black text-white">   
+    <div className="min-h-screen bg-black text-white">
       {!authChecked ? (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
@@ -466,27 +564,27 @@ const AdminDashboard = () => {
 
             {/* Navigation Tabs */}
             <div className="flex flex-wrap gap-4 mb-8 border-b border-amber-100/20 pb-6">
-              <TabButton 
-                tabKey="overview" 
-                label="Overview" 
+              <TabButton
+                tabKey="overview"
+                label="Overview"
                 icon={
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 }
               />
-              <TabButton 
-                tabKey="upload" 
-                label={editingMovie ? "Edit Movie" : "Upload New"} 
+              <TabButton
+                tabKey="upload"
+                label={editingMovie ? 'Edit Movie' : 'Upload New'}
                 icon={
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                 }
               />
-              <TabButton 
-                tabKey="manage" 
-                label="Manage Movies" 
+              <TabButton
+                tabKey="manage"
+                label="Manage Movies"
                 icon={
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -507,7 +605,7 @@ const AdminDashboard = () => {
                 </div>
               </div>
             )}
-            
+
             {success && (
               <div className="bg-green-500/20 border border-green-500/50 text-green-200 px-4 py-3 rounded-lg mb-6">
                 <div className="flex items-center gap-2">
@@ -537,7 +635,7 @@ const AdminDashboard = () => {
                   <div className="bg-white/5 border border-amber-100/20 rounded-lg p-6">
                     <h3 className="text-lg font-medium text-amber-100/90 mb-2">Recent Uploads</h3>
                     <p className="text-3xl font-light">
-                      {movies.filter(m => new Date(m.createdAt || m.releaseDate) > new Date(Date.now() - 30*24*60*60*1000)).length}
+                      {movies.filter(m => new Date(m.createdAt || m.releaseDate) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length}
                     </p>
                     <p className="text-xs text-amber-100/40 mt-1">In last 30 days</p>
                   </div>
@@ -674,7 +772,7 @@ const AdminDashboard = () => {
                       value={formData.description}
                       onChange={handleChange}
                       required
-                      rows="4"
+                      rows={4}
                       className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 focus:outline-none focus:border-amber-500 transition-colors"
                     />
                   </div>
@@ -688,7 +786,7 @@ const AdminDashboard = () => {
                       <input
                         type="file"
                         accept="video/*"
-                        onChange={(e) => handleFileUpload(e.target.files[0], 'video', '720p')}
+                        onChange={(e) => handleFileUpload(e.target.files?.[0], 'video', '720p')}
                         className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 focus:outline-none focus:border-amber-500 transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-amber-500/20 file:text-amber-100"
                       />
                       {formData.videoUrls['720p'] && <p className="text-xs text-green-400 mt-1">✓ 720p video ready</p>}
@@ -701,7 +799,7 @@ const AdminDashboard = () => {
                       <input
                         type="file"
                         accept="video/*"
-                        onChange={(e) => handleFileUpload(e.target.files[0], 'video', '1080p')}
+                        onChange={(e) => handleFileUpload(e.target.files?.[0], 'video', '1080p')}
                         className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 focus:outline-none focus:border-amber-500 transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-amber-500/20 file:text-amber-100"
                       />
                       {formData.videoUrls['1080p'] && <p className="text-xs text-green-400 mt-1">✓ 1080p video ready</p>}
@@ -712,13 +810,13 @@ const AdminDashboard = () => {
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => handleFileUpload(e.target.files[0], 'thumbnail')}
+                        onChange={(e) => handleFileUpload(e.target.files?.[0], 'thumbnail')}
                         className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 focus:outline-none focus:border-amber-500 transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-amber-500/20 file:text-amber-100"
                       />
-                      {uploadProgress['thumbnail'] > 0 && uploadProgress['thumbnail'] < 100 && (
+                      {uploadProgress.thumbnail > 0 && uploadProgress.thumbnail < 100 && (
                         <div className="mt-2">
                           <div className="w-full bg-gray-700 rounded-full h-2">
-                            <div className="bg-amber-500 h-2 rounded-full transition-all" style={{ width: `${uploadProgress['thumbnail']}%` }}></div>
+                            <div className="bg-amber-500 h-2 rounded-full transition-all" style={{ width: `${uploadProgress.thumbnail}%` }}></div>
                           </div>
                           <p className="text-xs text-amber-100/60 mt-1">Uploading thumbnail...</p>
                         </div>
@@ -731,13 +829,13 @@ const AdminDashboard = () => {
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => handleFileUpload(e.target.files[0], 'poster')}
+                        onChange={(e) => handleFileUpload(e.target.files?.[0], 'poster')}
                         className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 focus:outline-none focus:border-amber-500 transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-amber-500/20 file:text-amber-100"
                       />
-                      {uploadProgress['poster'] > 0 && uploadProgress['poster'] < 100 && (
+                      {uploadProgress.poster > 0 && uploadProgress.poster < 100 && (
                         <div className="mt-2">
                           <div className="w-full bg-gray-700 rounded-full h-2">
-                            <div className="bg-amber-500 h-2 rounded-full transition-all" style={{ width: `${uploadProgress['poster']}%` }}></div>
+                            <div className="bg-amber-500 h-2 rounded-full transition-all" style={{ width: `${uploadProgress.poster}%` }}></div>
                           </div>
                           <p className="text-xs text-amber-100/60 mt-1">Uploading poster...</p>
                         </div>
@@ -750,16 +848,7 @@ const AdminDashboard = () => {
                   <div className="border-t border-amber-100/10 pt-6 mt-6">
                     <h3 className="text-lg font-medium text-amber-100 mb-4">Subtitles (VTT files)</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {Object.entries({
-                        en: 'English',
-                        es: 'Spanish',
-                        fr: 'French',
-                        de: 'German',
-                        zh: 'Chinese',
-                        ja: 'Japanese',
-                        ko: 'Korean',
-                        pt: 'Portuguese'
-                      }).map(([lang, label]) => (
+                      {(Object.entries(SUBTITLE_LANGUAGES) as [SubtitleLang, string][]).map(([lang, label]) => (
                         <div key={lang}>
                           <label className="block text-sm font-medium text-amber-100/60 mb-2">
                             {label} {formData.subtitleUrls?.[lang] && <span className="text-green-400">✓</span>}
@@ -767,7 +856,7 @@ const AdminDashboard = () => {
                           <input
                             type="file"
                             accept=".vtt,.srt"
-                            onChange={(e) => handleSubtitleUpload(e.target.files[0], lang)}
+                            onChange={(e) => handleSubtitleUpload(e.target.files?.[0], lang)}
                             className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition-colors file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:bg-amber-500/20 file:text-amber-100 file:text-xs"
                           />
                           {formData.subtitleUrls?.[lang] && (
@@ -807,10 +896,10 @@ const AdminDashboard = () => {
                           : 'bg-amber-500 text-black hover:bg-amber-400'
                       }`}
                     >
-                      {loading 
-                        ? (editingMovie ? 'Updating Movie...' : 'Saving Movie...') 
-                        : uploading 
-                          ? 'Uploading Files...' 
+                      {loading
+                        ? (editingMovie ? 'Updating Movie...' : 'Saving Movie...')
+                        : uploading
+                          ? 'Uploading Files...'
                           : (editingMovie ? 'Save Changes' : 'Add Movie')
                       }
                     </button>
@@ -852,7 +941,7 @@ const AdminDashboard = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {movies.map((movie) => (
                       <div key={movie._id} className="bg-white/5 border border-amber-100/20 rounded-lg overflow-hidden">
-                        <div 
+                        <div
                           className="h-48 bg-cover bg-center"
                           style={{ backgroundImage: `url(${movie.thumbnailUrl})` }}
                         />
