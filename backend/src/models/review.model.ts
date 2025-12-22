@@ -14,7 +14,7 @@ const reviewSchema = new Schema<IReview>({
   movieId: { type: Schema.Types.ObjectId, ref: 'Movie', required: true },
   deviceId: { type: String, required: true },
   nickname: { type: String, default: 'Anonymous' },
-  rating: { type: Number, required: true, min: 1, max: 10 },
+  rating: { type: Number, required: true, min: 1, max: 5 },
   comment: { type: String, default: '' },
 }, { timestamps: true });
 
@@ -37,7 +37,7 @@ reviewSchema.index({ deviceId: 1 });
 reviewSchema.index({ createdAt: -1 });
 
 // 5. High-rated reviews (for filtering)
-// Query: Review.find({ rating: { $gte: 8 } })
+// Query: Review.find({ rating: { $gte: 4 } })
 reviewSchema.index({ rating: -1, createdAt: -1 });
 
 // Note: Compound indexes are used left-to-right

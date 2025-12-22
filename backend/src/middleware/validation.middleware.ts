@@ -16,7 +16,7 @@ export const validateMovie: ValidationMiddleware = [
   body('title').trim().isLength({ min: 1, max: 200 }).escape(),
   body('description').trim().isLength({ max: 1000 }).escape(),
   body('director').trim().isLength({ min: 1, max: 100 }).escape(),
-  body('rating').isFloat({ min: 0, max: 10 }),
+  body('rating').isFloat({ min: 0, max: 5 }),
   body('genre').isArray().custom((genres: unknown[]) => {
     return genres.every(genre => typeof genre === 'string' && genre.length <= 50);
   }),
@@ -100,8 +100,8 @@ export const validateReview: ValidationMiddleware = [
     .escape()
     .withMessage('Movie ID is required'),
   body('rating')
-    .isInt({ min: 1, max: 10 })
-    .withMessage('Rating must be between 1 and 10'),
+    .isInt({ min: 1, max: 5 })
+    .withMessage('Rating must be between 1 and 5'),
   body('comment')
     .optional()
     .trim()

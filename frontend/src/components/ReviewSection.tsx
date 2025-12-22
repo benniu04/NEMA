@@ -157,20 +157,20 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
 
       {/* Average */}
       <div className="flex items-center mb-6">
-        {[...Array(10)].map((_, i) => <Star key={i} filled={i < Math.round(Number(avg))} />)}
-        <span className="ml-2 text-amber-100/80">{avg}/10 ({reviews.length})</span>
+        {[...Array(5)].map((_, i) => <Star key={i} filled={i < Math.round(Number(avg))} />)}
+        <span className="ml-2 text-amber-100/80">{avg}/5 ({reviews.length})</span>
       </div>
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="mb-10">
         <div className="flex items-center mb-4">
-          {[...Array(10)].map((_, i) => (
+          {[...Array(5)].map((_, i) => (
             <button key={i} type="button" onClick={() => setStars(i + 1)}>
               <Star filled={i < stars} />
             </button>
           ))}
           <span className="ml-4 text-sm text-amber-100/60">
-            {stars ? `${stars}/10` : t('reviews.clickToRate')}
+            {stars ? `${stars}/5` : t('reviews.clickToRate')}
           </span>
         </div>
 
@@ -230,8 +230,8 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
                 </div>
               </div>
               <div className="flex items-center mb-1">
-                {[...Array(10)].map((_, i) => <Star key={i} filled={i < r.rating} />)}
-                <span className="ml-2 text-amber-100/80">{r.rating}/10</span>
+                {[...Array(5)].map((_, i) => <Star key={i} filled={i < r.rating} />)}
+                <span className="ml-2 text-amber-100/80">{r.rating}/5</span>
               </div>
               {r.comment && <p className="text-gray-200">{r.comment}</p>}
             </div>
