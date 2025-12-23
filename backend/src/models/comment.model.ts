@@ -3,8 +3,12 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IComment extends Document {
   movieId: string;
   deviceId: string;
+  userId?: string; // For authenticated users
   nickname: string;
   content: string;
+  parentId?: string; // For nested replies
+  isEdited: boolean;
+  editedAt?: Date;
   createdAt: Date;
 }
 
@@ -17,6 +21,11 @@ const commentSchema = new Schema<IComment>({
     type: String,
     required: true
   },
+  userId: {
+    type: String,
+    default: null,
+    index: true // Index for fetching user's comments
+  },
   nickname: {
     type: String,
     default: 'Anonymous'
@@ -24,6 +33,19 @@ const commentSchema = new Schema<IComment>({
   content: {
     type: String,
     required: true
+  },
+  parentId: {
+    type: String,
+    default: null,
+    index: true // Index for fetching replies
+  },
+  isEdited: {
+    type: Boolean,
+    default: false
+  },
+  editedAt: {
+    type: Date,
+    default: null
   },
   createdAt: {
     type: Date,

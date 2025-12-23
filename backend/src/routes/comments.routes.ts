@@ -67,7 +67,7 @@ router.get('/movie/:movieId', async (req: Request, res: Response): Promise<void>
 });
 
 router.post('/', commentPostLimiter, commentPostSlow, optionalAuthMiddleware, validateComment, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const { movieId, nickname, content, deviceId } = req.body;
+  const { movieId, nickname, content, deviceId, parentId } = req.body;
   
   // Validate deviceId is provided
   if (!deviceId || typeof deviceId !== 'string') {
@@ -78,8 +78,10 @@ router.post('/', commentPostLimiter, commentPostSlow, optionalAuthMiddleware, va
   const comment = new Comment({
     movieId,
     deviceId,
+    userId: req.user?.id || null, // Save userId if authenticated
     nickname: nickname || 'Anonymous',
-    content
+    content,
+    parentId: parentId || null
   });
 
   try {
@@ -108,29 +110,109 @@ router.post('/', commentPostLimiter, commentPostSlow, optionalAuthMiddleware, va
   }
 });
 
-router.delete('/:id', commentDeleteLimiter, commentDeleteSlow, validateCommentDelete, async (req: Request, res: Response): Promise<void> => {
+router.put('/:id', commentPostLimiter, commentPostSlow, optionalAuthMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { content, deviceId } = req.body;
+
+    if (!deviceId || typeof deviceId !== 'string') {
+      res.status(400).json({ message: 'Device ID is required' });
+      return;
+    }
+
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
+      res.status(400).json({ message: 'Content is required' });
+      return;
+    }
+
+    const comment = await Comment.findById(req.params.id);
+
+    if (!comment) {
+      res.status(404).json({ message: 'Comment not found' });
+      return;
+    }
+
+    // Authorization logic:
+    // - If comment has userId (authenticated comment), check userId matches
+    // - If comment has no userId (anonymous comment), check deviceId matches AND user is not authenticated
+    let isAuthorized = false;
+
+    if (comment.userId) {
+      // Authenticated comment - require matching userId
+      isAuthorized = req.user?.id === comment.userId;
+    } else {
+      // Anonymous comment - require matching deviceId AND user must not be authenticated
+      isAuthorized = comment.deviceId === deviceId && !req.user;
+    }
+
+    if (!isAuthorized) {
+      logger.warn('Unauthorized comment edit attempt', {
+        commentId: req.params.id,
+        attemptedFrom: deviceId.substring(0, 8) + '...',
+        commentOwner: comment.deviceId.substring(0, 8) + '...',
+        commentUserId: comment.userId ? comment.userId.substring(0, 8) + '...' : 'anonymous',
+        currentUserId: req.user?.id ? req.user.id.substring(0, 8) + '...' : 'not authenticated'
+      });
+      res.status(403).json({ message: 'Not authorized to edit this comment' });
+      return;
+    }
+
+    // Update comment
+    comment.content = content.trim();
+    comment.isEdited = true;
+    comment.editedAt = new Date();
+
+    const updatedComment = await comment.save();
+    logger.info('Comment edited', { commentId: req.params.id, deviceId: deviceId.substring(0, 8) + '...' });
+    res.json(updatedComment);
+  } catch (error) {
+    const err = error as Error;
+    logger.error('Error editing comment:', { error: err.message, commentId: req.params.id });
+    res.status(500).json({ message: 'Failed to edit comment' });
+  }
+});
+
+router.delete('/:id', commentDeleteLimiter, commentDeleteSlow, optionalAuthMiddleware, validateCommentDelete, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     // Accept deviceId from query parameter (for DELETE requests)
     const deviceId = req.query.deviceId as string;
-    
+
     if (!deviceId) {
       res.status(400).json({ message: 'Device ID is required' });
       return;
     }
 
     const comment = await Comment.findById(req.params.id);
-    
+
     if (!comment) {
       res.status(404).json({ message: 'Comment not found' });
       return;
     }
-    
-    if (comment.deviceId === deviceId) {
+
+    // Authorization logic:
+    // - If comment has userId (authenticated comment), check userId matches
+    // - If comment has no userId (anonymous comment), check deviceId matches AND user is not authenticated
+    let isAuthorized = false;
+
+    if (comment.userId) {
+      // Authenticated comment - require matching userId
+      isAuthorized = req.user?.id === comment.userId;
+    } else {
+      // Anonymous comment - require matching deviceId AND user must not be authenticated
+      isAuthorized = comment.deviceId === deviceId && !req.user;
+    }
+
+    if (isAuthorized) {
       await Comment.findByIdAndDelete(req.params.id);
       logger.info('Comment deleted', { commentId: req.params.id, deviceId: deviceId.substring(0, 8) + '...' });
       res.json({ message: 'Comment deleted' });
     } else {
-      logger.warn('Unauthorized comment deletion attempt', { commentId: req.params.id, attemptedFrom: deviceId.substring(0, 8) + '...', commentOwner: comment.deviceId.substring(0, 8) + '...' });
+      logger.warn('Unauthorized comment deletion attempt', {
+        commentId: req.params.id,
+        attemptedFrom: deviceId.substring(0, 8) + '...',
+        commentOwner: comment.deviceId.substring(0, 8) + '...',
+        commentUserId: comment.userId ? comment.userId.substring(0, 8) + '...' : 'anonymous',
+        currentUserId: req.user?.id ? req.user.id.substring(0, 8) + '...' : 'not authenticated'
+      });
       res.status(403).json({ message: 'Not authorized to delete this comment' });
     }
   } catch (error) {
