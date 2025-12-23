@@ -4,6 +4,7 @@ import SearchBar from './SearchBar';
 import NotificationDropdown from './NotificationDropdown';
 import { useUser } from '../context/UserContext';
 import { useSettings } from '../context/SettingsContext';
+import { useMessaging } from '../context/MessagingContext';
 
 interface NavItem {
   name: string;
@@ -18,6 +19,7 @@ const NavBar: React.FC = () => {
   const location = useLocation();
   const { user, isAuthenticated, logout, loading } = useUser();
   const { t } = useSettings();
+  const { unreadCount: messageUnreadCount } = useMessaging();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -121,6 +123,21 @@ const NavBar: React.FC = () => {
               <div className="w-8 h-8 rounded-full bg-white/10 animate-pulse"></div>
             ) : isAuthenticated ? (
               <>
+                {/* Messages Icon */}
+                <Link
+                  to="/messages"
+                  className="relative p-2 hover:bg-white/10 rounded-full transition-colors"
+                  title="Messages"
+                >
+                  <svg className="w-5 h-5 text-amber-100/80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                  {messageUnreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-amber-500 text-black text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                      {messageUnreadCount > 99 ? '99+' : messageUnreadCount}
+                    </span>
+                  )}
+                </Link>
                 <NotificationDropdown />
                 <div className="relative user-menu-container">
                 <button

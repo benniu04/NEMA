@@ -3,6 +3,7 @@ import { Routes, Route, useLocation } from 'react-router-dom'
 import { UserProvider } from './context/UserContext'
 import { SettingsProvider } from './context/SettingsContext'
 import { NotificationProvider } from './context/NotificationContext'
+import { MessagingProvider } from './context/MessagingContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import { trackPageView } from './config/analytics'
 
@@ -44,6 +45,8 @@ const UserProfilePage = lazyWithRetry(() => import('./pages/UserProfilePage'))
 const PeoplePage = lazyWithRetry(() => import('./pages/PeoplePage'))
 const SettingsPage = lazyWithRetry(() => import('./pages/SettingsPage'))
 const WatchlistPage = lazyWithRetry(() => import('./pages/WatchlistPage'))
+const MessagesPage = lazyWithRetry(() => import('./pages/MessagesPage'))
+const NotificationsPage = lazyWithRetry(() => import('./pages/NotificationsPage'))
 
 // Loading fallback component
 const LoadingFallback: React.FC = () => (
@@ -67,6 +70,7 @@ const App: React.FC = () => {
     <SettingsProvider>
       <UserProvider>
         <NotificationProvider>
+          <MessagingProvider>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
             <Route path="/" element={<HomePage />} />
@@ -86,6 +90,8 @@ const App: React.FC = () => {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/watchlist" element={<WatchlistPage />} />
             <Route path="/people" element={<PeoplePage />} />
+            <Route path="/messages" element={<MessagesPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
 
             {/* Admin Routes */}
             <Route path="/admin/login" element={<AdminLogin />} />
@@ -99,6 +105,7 @@ const App: React.FC = () => {
             />
             </Routes>
           </Suspense>
+          </MessagingProvider>
         </NotificationProvider>
       </UserProvider>
     </SettingsProvider>

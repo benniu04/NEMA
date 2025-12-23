@@ -49,6 +49,34 @@ export const initializeSocket = (server: HTTPServer): SocketIOServer => {
       logger.info(`Socket ${socket.id} left room movie:${movieId}`);
     });
 
+    // Join a conversation room for real-time messaging
+    socket.on('join-conversation', (conversationId: string) => {
+      socket.join(`conversation:${conversationId}`);
+      logger.info(`Socket ${socket.id} joined conversation:${conversationId}`);
+    });
+
+    // Leave a conversation room
+    socket.on('leave-conversation', (conversationId: string) => {
+      socket.leave(`conversation:${conversationId}`);
+      logger.info(`Socket ${socket.id} left conversation:${conversationId}`);
+    });
+
+    // Typing indicator - start
+    socket.on('typing:start', (data: { conversationId: string; userId: string }) => {
+      socket.to(`conversation:${data.conversationId}`).emit('typing:start', {
+        conversationId: data.conversationId,
+        userId: data.userId
+      });
+    });
+
+    // Typing indicator - stop
+    socket.on('typing:stop', (data: { conversationId: string; userId: string }) => {
+      socket.to(`conversation:${data.conversationId}`).emit('typing:stop', {
+        conversationId: data.conversationId,
+        userId: data.userId
+      });
+    });
+
     socket.on('disconnect', () => {
       logger.info(`Socket disconnected: ${socket.id}`);
     });
