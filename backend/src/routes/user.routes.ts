@@ -410,7 +410,16 @@ userRoutes.post('/favorites/:movieId', authMiddleware, async (req: Authenticated
     user.favoriteFilms.push(req.params.movieId as any);
     await user.save();
     await Activity.create({ userId: req.user!.id, type: 'favorite_add', movieId: req.params.movieId });
-    res.json({ message: 'Added to favorites', favorites: user.favoriteFilms });
+    // Populate favorites with movie details and generate signed URLs
+    const populatedUser = await User.findById(req.user!.id).populate('favoriteFilms', 'title posterKey posterUrl director rating releaseDate');
+    const favoritesWithUrls = await Promise.all((populatedUser?.favoriteFilms || []).map(async (movie: any) => {
+      const movieObj = movie.toObject();
+      if (movieObj.posterKey) {
+        try { movieObj.posterUrl = await generateCloudfrontSignedUrl(movieObj.posterKey); } catch {}
+      }
+      return movieObj;
+    }));
+    res.json({ message: 'Added to favorites', favorites: favoritesWithUrls });
   } catch (error) {
     res.status(500).json({ message: 'Failed to add to favorites' });
   }
@@ -422,7 +431,16 @@ userRoutes.delete('/favorites/:movieId', authMiddleware, async (req: Authenticat
     if (!user) { res.status(404).json({ message: 'User not found' }); return; }
     user.favoriteFilms = user.favoriteFilms.filter(id => id.toString() !== req.params.movieId);
     await user.save();
-    res.json({ message: 'Removed from favorites', favorites: user.favoriteFilms });
+    // Populate favorites with movie details and generate signed URLs
+    const populatedUser = await User.findById(req.user!.id).populate('favoriteFilms', 'title posterKey posterUrl director rating releaseDate');
+    const favoritesWithUrls = await Promise.all((populatedUser?.favoriteFilms || []).map(async (movie: any) => {
+      const movieObj = movie.toObject();
+      if (movieObj.posterKey) {
+        try { movieObj.posterUrl = await generateCloudfrontSignedUrl(movieObj.posterKey); } catch {}
+      }
+      return movieObj;
+    }));
+    res.json({ message: 'Removed from favorites', favorites: favoritesWithUrls });
   } catch (error) {
     res.status(500).json({ message: 'Failed to remove from favorites' });
   }
@@ -523,7 +541,38 @@ userRoutes.get('/suggested', authMiddleware, async (req: AuthenticatedRequest, r
   }
 });
 
-// Activity Feed
+// Current user's own activity
+userRoutes.get('/activity', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    // Get the current user's own activities
+    const activities = await Activity.find({ userId: req.user!.id })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate('movieId', 'title posterUrl posterKey');
+
+    // Generate signed URLs for posters
+    const activitiesWithUrls = await Promise.all(activities.map(async (activity) => {
+      const activityObj = activity.toObject() as any;
+      if (activityObj.movieId && activityObj.movieId.posterKey) {
+        try {
+          activityObj.movieId.posterUrl = await generateCloudfrontSignedUrl(activityObj.movieId.posterKey);
+        } catch (error) {
+          logger.warn('Failed to generate signed URL for activity poster', { posterKey: activityObj.movieId.posterKey });
+        }
+      }
+      return activityObj;
+    }));
+
+    res.json({ activities: activitiesWithUrls });
+  } catch (error) {
+    logger.error('Error getting user activity:', error);
+    res.status(500).json({ message: 'Failed to get activity' });
+  }
+});
+
+// Activity Feed (from followed users)
 userRoutes.get('/feed', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const limit = parseInt(req.query.limit as string) || 20;

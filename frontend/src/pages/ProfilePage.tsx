@@ -147,6 +147,14 @@ const ProfilePage: React.FC = () => {
     }
   }, [user]);
 
+  // Reload favorites when favoriteFilms changes
+  useEffect(() => {
+    if (user) {
+      loadFavorites();
+      loadActivities(); // Also reload activities in case favorites were added
+    }
+  }, [user?.favoriteFilms?.length]);
+
   // Load reviews separately once deviceId is available
   useEffect(() => {
     if (user && deviceId) {
@@ -168,17 +176,10 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  const loadFavorites = async (): Promise<void> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/favorites`, {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setFavorites(data.favorites);
-      }
-    } catch (error) {
-      console.error('Failed to load favorites:', error);
+  const loadFavorites = (): void => {
+    // Use favoriteFilms from user context (already populated via /api/users/me)
+    if (user?.favoriteFilms) {
+      setFavorites(user.favoriteFilms as Movie[]);
     }
   };
 
@@ -206,8 +207,8 @@ const ProfilePage: React.FC = () => {
   };
 
   const loadUserReviews = async (): Promise<void> => {
-    if (!deviceId) return; // Wait for deviceId to be initialized
-    
+    if (!deviceId) return;
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/reviews/user/my-reviews?deviceId=${encodeURIComponent(deviceId)}`, {
         credentials: 'include'
@@ -495,14 +496,6 @@ const ProfilePage: React.FC = () => {
                 <p className="text-white/50 text-sm mb-3">@{typedUser.username}</p>
 
                 <div className="flex gap-6 text-sm">
-                  <div>
-                    <span className="text-white font-medium">{typedUser.stats?.filmsWatched || 0}</span>
-                    <span className="text-white/50 ml-1">{t('profile.films')}</span>
-                  </div>
-                  <div>
-                    <span className="text-white font-medium">{typedUser.stats?.reviewsWritten || 0}</span>
-                    <span className="text-white/50 ml-1">{t('profile.reviews')}</span>
-                  </div>
                   <button onClick={handleShowFollowers} className="hover:text-white transition-colors cursor-pointer">
                     <span className="text-white font-medium">{typedUser.stats?.followersCount || 0}</span>
                     <span className="text-white/50 ml-1">{t('profile.followers')}</span>
@@ -818,7 +811,7 @@ const ProfilePage: React.FC = () => {
                                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                               </svg>
                               <span className="text-amber-500 font-bold text-lg">{review.rating}</span>
-                              <span className="text-white/40 text-sm">/10</span>
+                              <span className="text-white/40 text-sm">/5</span>
                             </div>
                           </div>
 
