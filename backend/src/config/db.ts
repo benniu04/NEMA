@@ -9,8 +9,8 @@ export const connectDB = async (): Promise<typeof mongoose | void> => {
       retryWrites: true,            // Automatically retry failed writes
       w: 'majority',                // Write concern: wait for majority of nodes
 
-      maxPoolSize: 10,              // Maximum 10 concurrent connections
-      minPoolSize: 5,               // Keep 5 connections always ready
+      maxPoolSize: 20,              // Maximum 10 concurrent connections
+      minPoolSize: 10,               // Keep 5 connections always ready
 
       socketTimeoutMS: 45000,       // Close sockets after 45s of inactivity
       serverSelectionTimeoutMS: 5000,  // Fail fast if can't select server in 5s
