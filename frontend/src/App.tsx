@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useEffect } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
 import { UserProvider } from './context/UserContext'
 import { SettingsProvider } from './context/SettingsContext'
+import { NotificationProvider } from './context/NotificationContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import { trackPageView } from './config/analytics'
 
@@ -65,8 +66,9 @@ const App: React.FC = () => {
   return (
     <SettingsProvider>
       <UserProvider>
-        <Suspense fallback={<LoadingFallback />}>
-          <Routes>
+        <NotificationProvider>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/catalog" element={<CatalogPage />} />
@@ -95,8 +97,9 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               }
             />
-          </Routes>
-        </Suspense>
+            </Routes>
+          </Suspense>
+        </NotificationProvider>
       </UserProvider>
     </SettingsProvider>
   )

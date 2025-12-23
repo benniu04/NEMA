@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import SearchBar from './SearchBar';
+import NotificationDropdown from './NotificationDropdown';
 import { useUser } from '../context/UserContext';
 import { useSettings } from '../context/SettingsContext';
 
@@ -115,11 +116,13 @@ const NavBar: React.FC = () => {
           </div>
 
           {/* User Auth Section - Desktop */}
-          <div className="hidden md:flex items-center ml-4">
+          <div className="hidden md:flex items-center ml-4 gap-2">
             {loading ? (
               <div className="w-8 h-8 rounded-full bg-white/10 animate-pulse"></div>
             ) : isAuthenticated ? (
-              <div className="relative user-menu-container">
+              <>
+                <NotificationDropdown />
+                <div className="relative user-menu-container">
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-amber-100/20 hover:border-amber-100/40 transition-colors"
@@ -193,6 +196,7 @@ const NavBar: React.FC = () => {
                   </div>
                 )}
               </div>
+              </>
             ) : (
               <div className="flex items-center gap-3">
                 <Link
