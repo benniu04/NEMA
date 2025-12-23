@@ -662,7 +662,7 @@ const ProfilePage: React.FC = () => {
                       <p className="text-white/40 text-xs mt-1">
                         {new Date(activity.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </p>
-                      {activity.rating && <p className="text-white/60 text-sm mt-2">★ {activity.rating}/10</p>}
+                      {activity.rating && <p className="text-white/60 text-sm mt-2">★ {activity.rating}/5</p>}
                     </div>
                     {activity.movieId?.posterUrl && (
                       <Link to={`/video/${activity.movieId._id}`}>

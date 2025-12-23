@@ -629,7 +629,7 @@ userRoutes.get('/profile/:username', profileLimiter, async (req: Request, res: R
 });
 
 // Get user's followers list by userId
-userRoutes.get('/:userId/followers', profileLimiter, async (req: Request, res: Response): Promise<void> => {
+userRoutes.get('/:userId/followers', optionalAuthMiddleware, profileLimiter, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const user = await User.findById(req.params.userId)
       .populate('followers', 'username displayName avatar bio stats');
@@ -639,12 +639,17 @@ userRoutes.get('/:userId/followers', profileLimiter, async (req: Request, res: R
       return;
     }
 
+    // Get current user's following list to check isFollowing status
+    const currentUser = req.user ? await User.findById(req.user.id) : null;
+    const currentUserFollowing = currentUser?.following?.map((id: any) => id.toString()) || [];
+
     const followers = (user.followers as any[]).map((follower: any) => ({
       id: follower._id.toString(),
       username: follower.username,
       displayName: follower.displayName,
       avatar: follower.avatar,
       bio: follower.bio,
+      isFollowing: currentUserFollowing.includes(follower._id.toString()),
       stats: {
         followersCount: follower.followers?.length || 0,
         filmsWatched: follower.stats?.filmsWatched || 0
@@ -659,7 +664,7 @@ userRoutes.get('/:userId/followers', profileLimiter, async (req: Request, res: R
 });
 
 // Get user's following list by userId
-userRoutes.get('/:userId/following', profileLimiter, async (req: Request, res: Response): Promise<void> => {
+userRoutes.get('/:userId/following', optionalAuthMiddleware, profileLimiter, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const user = await User.findById(req.params.userId)
       .populate('following', 'username displayName avatar bio stats');
@@ -669,12 +674,17 @@ userRoutes.get('/:userId/following', profileLimiter, async (req: Request, res: R
       return;
     }
 
+    // Get current user's following list to check isFollowing status
+    const currentUser = req.user ? await User.findById(req.user.id) : null;
+    const currentUserFollowing = currentUser?.following?.map((id: any) => id.toString()) || [];
+
     const following = (user.following as any[]).map((followedUser: any) => ({
       id: followedUser._id.toString(),
       username: followedUser.username,
       displayName: followedUser.displayName,
       avatar: followedUser.avatar,
       bio: followedUser.bio,
+      isFollowing: currentUserFollowing.includes(followedUser._id.toString()),
       stats: {
         followersCount: followedUser.followers?.length || 0,
         filmsWatched: followedUser.stats?.filmsWatched || 0
@@ -689,7 +699,7 @@ userRoutes.get('/:userId/following', profileLimiter, async (req: Request, res: R
 });
 
 // Get user's followers list by username
-userRoutes.get('/profile/:username/followers', profileLimiter, async (req: Request, res: Response): Promise<void> => {
+userRoutes.get('/profile/:username/followers', optionalAuthMiddleware, profileLimiter, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const user = await User.findOne({ username: req.params.username })
       .populate('followers', 'username displayName avatar bio stats');
@@ -699,12 +709,17 @@ userRoutes.get('/profile/:username/followers', profileLimiter, async (req: Reque
       return;
     }
 
+    // Get current user's following list to check isFollowing status
+    const currentUser = req.user ? await User.findById(req.user.id) : null;
+    const currentUserFollowing = currentUser?.following?.map((id: any) => id.toString()) || [];
+
     const followers = (user.followers as any[]).map((follower: any) => ({
       id: follower._id.toString(),
       username: follower.username,
       displayName: follower.displayName,
       avatar: follower.avatar,
       bio: follower.bio,
+      isFollowing: currentUserFollowing.includes(follower._id.toString()),
       stats: {
         followersCount: follower.followers?.length || 0,
         filmsWatched: follower.stats?.filmsWatched || 0
@@ -719,7 +734,7 @@ userRoutes.get('/profile/:username/followers', profileLimiter, async (req: Reque
 });
 
 // Get user's following list
-userRoutes.get('/profile/:username/following', profileLimiter, async (req: Request, res: Response): Promise<void> => {
+userRoutes.get('/profile/:username/following', optionalAuthMiddleware, profileLimiter, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const user = await User.findOne({ username: req.params.username })
       .populate('following', 'username displayName avatar bio stats');
@@ -729,12 +744,17 @@ userRoutes.get('/profile/:username/following', profileLimiter, async (req: Reque
       return;
     }
 
+    // Get current user's following list to check isFollowing status
+    const currentUser = req.user ? await User.findById(req.user.id) : null;
+    const currentUserFollowing = currentUser?.following?.map((id: any) => id.toString()) || [];
+
     const following = (user.following as any[]).map((followedUser: any) => ({
       id: followedUser._id.toString(),
       username: followedUser.username,
       displayName: followedUser.displayName,
       avatar: followedUser.avatar,
       bio: followedUser.bio,
+      isFollowing: currentUserFollowing.includes(followedUser._id.toString()),
       stats: {
         followersCount: followedUser.followers?.length || 0,
         filmsWatched: followedUser.stats?.filmsWatched || 0
