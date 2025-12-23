@@ -432,8 +432,7 @@ userRoutes.delete('/favorites/:movieId', authMiddleware, async (req: Authenticat
 userRoutes.get('/search', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const query = req.query.q as string;
-    logger.info('User search request', { query, userId: req.user?.id });
-    
+
     if (!query) {
       res.json([]);
       return;
@@ -455,14 +454,10 @@ userRoutes.get('/search', authMiddleware, async (req: AuthenticatedRequest, res:
         }
       ]
     };
-    
-    logger.info('User search query', { escapedQuery, searchQuery: JSON.stringify(searchQuery) });
-    
+
     const users = await User.find(searchQuery)
       .limit(20)
       .select('username displayName avatar bio stats followers following');
-
-    logger.info('User search results', { count: users.length, usernames: users.map(u => u.username) });
 
     const currentUser = await User.findById(req.user!.id);
     
@@ -584,6 +579,126 @@ userRoutes.get('/profile/:username', profileLimiter, async (req: Request, res: R
   }
 });
 
+// Get user's followers list by userId
+userRoutes.get('/:userId/followers', profileLimiter, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = await User.findById(req.params.userId)
+      .populate('followers', 'username displayName avatar bio stats');
+
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    const followers = (user.followers as any[]).map((follower: any) => ({
+      id: follower._id.toString(),
+      username: follower.username,
+      displayName: follower.displayName,
+      avatar: follower.avatar,
+      bio: follower.bio,
+      stats: {
+        followersCount: follower.followers?.length || 0,
+        filmsWatched: follower.stats?.filmsWatched || 0
+      }
+    }));
+
+    res.json(followers);
+  } catch (error) {
+    logger.error('Error getting followers:', error);
+    res.status(500).json({ message: 'Failed to get followers' });
+  }
+});
+
+// Get user's following list by userId
+userRoutes.get('/:userId/following', profileLimiter, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = await User.findById(req.params.userId)
+      .populate('following', 'username displayName avatar bio stats');
+
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    const following = (user.following as any[]).map((followedUser: any) => ({
+      id: followedUser._id.toString(),
+      username: followedUser.username,
+      displayName: followedUser.displayName,
+      avatar: followedUser.avatar,
+      bio: followedUser.bio,
+      stats: {
+        followersCount: followedUser.followers?.length || 0,
+        filmsWatched: followedUser.stats?.filmsWatched || 0
+      }
+    }));
+
+    res.json(following);
+  } catch (error) {
+    logger.error('Error getting following:', error);
+    res.status(500).json({ message: 'Failed to get following' });
+  }
+});
+
+// Get user's followers list by username
+userRoutes.get('/profile/:username/followers', profileLimiter, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = await User.findOne({ username: req.params.username })
+      .populate('followers', 'username displayName avatar bio stats');
+
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    const followers = (user.followers as any[]).map((follower: any) => ({
+      id: follower._id.toString(),
+      username: follower.username,
+      displayName: follower.displayName,
+      avatar: follower.avatar,
+      bio: follower.bio,
+      stats: {
+        followersCount: follower.followers?.length || 0,
+        filmsWatched: follower.stats?.filmsWatched || 0
+      }
+    }));
+
+    res.json(followers);
+  } catch (error) {
+    logger.error('Error getting followers:', error);
+    res.status(500).json({ message: 'Failed to get followers' });
+  }
+});
+
+// Get user's following list
+userRoutes.get('/profile/:username/following', profileLimiter, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = await User.findOne({ username: req.params.username })
+      .populate('following', 'username displayName avatar bio stats');
+
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    const following = (user.following as any[]).map((followedUser: any) => ({
+      id: followedUser._id.toString(),
+      username: followedUser.username,
+      displayName: followedUser.displayName,
+      avatar: followedUser.avatar,
+      bio: followedUser.bio,
+      stats: {
+        followersCount: followedUser.followers?.length || 0,
+        filmsWatched: followedUser.stats?.filmsWatched || 0
+      }
+    }));
+
+    res.json(following);
+  } catch (error) {
+    logger.error('Error getting following:', error);
+    res.status(500).json({ message: 'Failed to get following' });
+  }
+});
+
 // Check username/email availability
 userRoutes.get('/check-username/:username', enumerationLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
@@ -619,6 +734,21 @@ userRoutes.post('/follow/:userId', authMiddleware, async (req: AuthenticatedRequ
     currentUser!.following.push(userId as any);
     targetUser.followers.push(req.user!.id as any);
     await Promise.all([currentUser!.save(), targetUser.save()]);
+
+    // Create notification for the followed user
+    try {
+      const { createNotification } = await import('./notifications.routes.js');
+      await createNotification({
+        userId: userId,
+        type: 'follow',
+        title: 'New Follower',
+        message: `${currentUser!.displayName || currentUser!.username} started following you`,
+        relatedUserId: req.user!.id
+      });
+    } catch (notifError) {
+      // Log but don't fail the request
+      console.error('Failed to create follow notification:', notifError);
+    }
 
     res.json({ message: 'Successfully followed user', following: currentUser!.following, followingCount: currentUser!.following.length });
   } catch (error) {

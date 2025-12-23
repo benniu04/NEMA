@@ -7,6 +7,7 @@ import { validateComment, validateCommentDelete } from '../middleware/validation
 import { optionalAuthMiddleware } from '../middleware/auth.middleware.js';
 import logger from '../config/logger.js';
 import type { AuthenticatedRequest } from '../types/index.js';
+import { getIO } from '../config/socket.js';
 
 const router = express.Router();
 
@@ -86,7 +87,7 @@ router.post('/', commentPostLimiter, commentPostSlow, optionalAuthMiddleware, va
 
   try {
     const newComment = await comment.save();
-    
+
     if (req.user) {
       try {
         await Activity.create({
@@ -100,7 +101,16 @@ router.post('/', commentPostLimiter, commentPostSlow, optionalAuthMiddleware, va
         logger.error('Failed to create activity for comment:', { error: (activityError as Error).message });
       }
     }
-    
+
+    // Emit socket event for real-time update
+    try {
+      const io = getIO();
+      io.to(`movie:${movieId}`).emit('comment:new', newComment);
+      logger.info('Socket event emitted: comment:new', { commentId: newComment._id, movieId });
+    } catch (socketError) {
+      logger.error('Failed to emit socket event:', { error: (socketError as Error).message });
+    }
+
     logger.info('Comment created', { commentId: newComment._id, movieId, deviceId: deviceId.substring(0, 8) + '...' });
     res.status(201).json(newComment);
   } catch (error) {
@@ -162,6 +172,16 @@ router.put('/:id', commentPostLimiter, commentPostSlow, optionalAuthMiddleware, 
     comment.editedAt = new Date();
 
     const updatedComment = await comment.save();
+
+    // Emit socket event for real-time update
+    try {
+      const io = getIO();
+      io.to(`movie:${comment.movieId}`).emit('comment:edited', updatedComment);
+      logger.info('Socket event emitted: comment:edited', { commentId: req.params.id, movieId: comment.movieId });
+    } catch (socketError) {
+      logger.error('Failed to emit socket event:', { error: (socketError as Error).message });
+    }
+
     logger.info('Comment edited', { commentId: req.params.id, deviceId: deviceId.substring(0, 8) + '...' });
     res.json(updatedComment);
   } catch (error) {
@@ -202,7 +222,18 @@ router.delete('/:id', commentDeleteLimiter, commentDeleteSlow, optionalAuthMiddl
     }
 
     if (isAuthorized) {
+      const movieId = comment.movieId;
       await Comment.findByIdAndDelete(req.params.id);
+
+      // Emit socket event for real-time update
+      try {
+        const io = getIO();
+        io.to(`movie:${movieId}`).emit('comment:deleted', { commentId: req.params.id });
+        logger.info('Socket event emitted: comment:deleted', { commentId: req.params.id, movieId });
+      } catch (socketError) {
+        logger.error('Failed to emit socket event:', { error: (socketError as Error).message });
+      }
+
       logger.info('Comment deleted', { commentId: req.params.id, deviceId: deviceId.substring(0, 8) + '...' });
       res.json({ message: 'Comment deleted' });
     } else {

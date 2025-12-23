@@ -1000,7 +1000,7 @@ const VideoPlayerPage: React.FC = () => {
             </button>
             
             <h1 className="text-lg md:text-xl font-medium text-white/90 truncate max-w-[60%]">{movie.title}</h1>
-            
+
             <div className="w-16"></div>
           </div>
 

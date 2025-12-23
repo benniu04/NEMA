@@ -11,6 +11,7 @@ import { optionalAuthMiddleware } from '../middleware/auth.middleware.js';
 import { generateCloudfrontSignedUrl } from '../config/s3.js';
 import logger from '../config/logger.js';
 import type { AuthenticatedRequest } from '../types/index.js';
+import { getIO } from '../config/socket.js';
 
 const reviewRouter = express.Router();
 
@@ -160,6 +161,19 @@ reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, optionalAuthMiddleware
 
     await recomputeAvg(movieId);
     clearCache();
+
+    // Emit socket event for real-time update
+    try {
+      const io = getIO();
+      io.to(`movie:${movieId}`).emit('review:updated', {
+        review,
+        isNew: isNewReview
+      });
+      logger.info('Socket event emitted: review:updated', { reviewId: review!._id, movieId, isNew: isNewReview });
+    } catch (socketError) {
+      logger.error('Failed to emit socket event:', { error: (socketError as Error).message });
+    }
+
     logger.info('Review created/updated', { reviewId: review!._id, movieId, rating, deviceId: deviceId.substring(0, 8) + '...' });
     res.status(201).json(review);
   } catch (error) {
@@ -196,6 +210,16 @@ reviewRouter.delete('/:id', reviewDeleteLimiter, reviewDeleteSlow, validateRevie
     await Review.findByIdAndDelete(req.params.id);
     await recomputeAvg(movieId);
     clearCache();
+
+    // Emit socket event for real-time update
+    try {
+      const io = getIO();
+      io.to(`movie:${movieId}`).emit('review:deleted', { reviewId: req.params.id });
+      logger.info('Socket event emitted: review:deleted', { reviewId: req.params.id, movieId });
+    } catch (socketError) {
+      logger.error('Failed to emit socket event:', { error: (socketError as Error).message });
+    }
+
     logger.info('Review deleted', { reviewId: req.params.id, movieId, deviceId: deviceId.substring(0, 8) + '...' });
     res.json({ message: 'Review deleted successfully' });
   } catch (error) {

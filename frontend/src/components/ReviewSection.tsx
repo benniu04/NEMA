@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
+import { io, Socket } from 'socket.io-client';
 import API_BASE_URL from '../config/api';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import { analytics } from '../config/analytics';
@@ -44,6 +45,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
   const [stars, setStars] = useState(0);
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(true);
+  const socketRef = useRef<Socket | null>(null);
 
   /* fingerprint */
   useEffect(() => {
@@ -80,6 +82,55 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
   useEffect(() => {
     if (deviceId) fetchReviews();
   }, [deviceId]);
+
+  // Socket.io connection for real-time updates
+  useEffect(() => {
+    if (!movieId) return;
+
+    // Initialize socket connection
+    socketRef.current = io(API_BASE_URL, {
+      transports: ['websocket', 'polling'],
+      withCredentials: true
+    });
+
+    const socket = socketRef.current;
+
+    socket.on('connect', () => {
+      console.log('Socket connected:', socket.id);
+      // Join the movie room
+      socket.emit('join-movie', movieId);
+    });
+
+    // Listen for review updates (new or edited)
+    socket.on('review:updated', ({ review, isNew }: { review: Review; isNew: boolean }) => {
+      console.log('Received review update:', review, 'isNew:', isNew);
+      // Refresh reviews to get updated list and average
+      if (deviceId) fetchReviews();
+    });
+
+    // Listen for deleted reviews
+    socket.on('review:deleted', ({ reviewId }: { reviewId: string }) => {
+      console.log('Received deleted review:', reviewId);
+      // Refresh reviews to update list and average
+      if (deviceId) fetchReviews();
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Socket disconnected');
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+    });
+
+    // Cleanup on unmount
+    return () => {
+      if (socket) {
+        socket.emit('leave-movie', movieId);
+        socket.disconnect();
+      }
+    };
+  }, [movieId, deviceId]);
 
   /* submit or update */
   const handleSubmit = async (e: React.FormEvent) => {

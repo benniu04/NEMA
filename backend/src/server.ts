@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express';
+import { createServer } from 'http';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -13,11 +14,13 @@ import uploadRoutes from './routes/upload.routes.js';
 import commentsRouter from './routes/comments.routes.js';
 import reviewsRouter from './routes/reviews.routes.js';
 import watchTimeRouter from './routes/watchTime.routes.js';
+import notificationsRouter from './routes/notifications.routes.js';
 
 import { connectDB } from './config/db.js';
 import { ENV_VARS } from './config/envVars.js';
 import logger from './config/logger.js';
 import { setupGracefulShutdown } from './utils/gracefulShutdown.js';
+import { initializeSocket } from './config/socket.js';
 import { 
   requestId, 
   securityHeaders, 
@@ -195,7 +198,8 @@ app.get('/', (req: Request, res: Response) => {
       upload: '/api/upload',
       comments: '/api/comments',
       reviews: '/api/reviews',
-      watchTime: '/api/watch-time'
+      watchTime: '/api/watch-time',
+      notifications: '/api/notifications'
     }
   });
 });
@@ -208,6 +212,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/comments', commentsRouter);
 app.use('/api/reviews', reviewsRouter);
 app.use('/api/watch-time', watchTimeRouter);
+app.use('/api/notifications', notificationsRouter);
 
 // CSP violation reporting endpoint
 app.post('/api/csp-report', cspReporter);
@@ -243,12 +248,17 @@ app.use((err: ErrorWithStatus, req: Request, res: Response, next: NextFunction) 
   });
 });
 
-const server = app.listen(PORT, () => {
+// Create HTTP server and initialize Socket.io
+const httpServer = createServer(app);
+initializeSocket(httpServer);
+
+httpServer.listen(PORT, () => {
   logger.info(`Server starting on port ${PORT}`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info('Socket.io initialized');
   connectDB();
 });
 
 // Setup graceful shutdown handlers
-setupGracefulShutdown(server);
+setupGracefulShutdown(httpServer);
 

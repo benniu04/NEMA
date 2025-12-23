@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
+import { io, Socket } from 'socket.io-client';
 import API_BASE_URL from '../config/api';
 import { useSettings } from '../context/SettingsContext';
 import { useUser } from '../context/UserContext';
@@ -37,6 +38,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
   const [editContent, setEditContent] = useState('');
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
+  const socketRef = useRef<Socket | null>(null);
 
   // Initialize fingerprint
   useEffect(() => {
@@ -105,6 +107,62 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
     if (videoId) {
       fetchComments();
     }
+  }, [videoId]);
+
+  // Socket.io connection and real-time updates
+  useEffect(() => {
+    if (!videoId) return;
+
+    // Initialize socket connection
+    socketRef.current = io(API_BASE_URL, {
+      transports: ['websocket', 'polling'],
+      withCredentials: true
+    });
+
+    const socket = socketRef.current;
+
+    socket.on('connect', () => {
+      console.log('Socket connected:', socket.id);
+      // Join the movie room
+      socket.emit('join-movie', videoId);
+    });
+
+    // Listen for new comments
+    socket.on('comment:new', (newComment: Comment) => {
+      console.log('Received new comment:', newComment);
+      // Refresh comments to get the updated tree structure
+      fetchComments();
+    });
+
+    // Listen for edited comments
+    socket.on('comment:edited', (editedComment: Comment) => {
+      console.log('Received edited comment:', editedComment);
+      // Refresh comments to show the edit
+      fetchComments();
+    });
+
+    // Listen for deleted comments
+    socket.on('comment:deleted', ({ commentId }: { commentId: string }) => {
+      console.log('Received deleted comment:', commentId);
+      // Refresh comments to update the tree
+      fetchComments();
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Socket disconnected');
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+    });
+
+    // Cleanup on unmount
+    return () => {
+      if (socket) {
+        socket.emit('leave-movie', videoId);
+        socket.disconnect();
+      }
+    };
   }, [videoId]);
 
   // Add new comment
