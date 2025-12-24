@@ -15,7 +15,7 @@ const LoginPage: React.FC = () => {
   const location = useLocation();
   const { login, isAuthenticated, loading, refreshUser } = useUser();
   const { t } = useSettings();
-  
+
   const [formData, setFormData] = useState<FormData>({
     login: '',
     password: ''
@@ -23,11 +23,16 @@ const LoginPage: React.FC = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
-  // Get redirect path from location state, or default to home
   const from = (location.state as any)?.from?.pathname || '/';
 
-  // Redirect if already logged in
+  useEffect(() => {
+    const timer = setTimeout(() => setMounted(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     if (!loading && isAuthenticated) {
       navigate(from, { replace: true });
@@ -36,16 +41,13 @@ const LoginPage: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
     if (error) setError('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.login || !formData.password) {
       setError(t('login.enterCredentials'));
       return;
@@ -53,7 +55,7 @@ const LoginPage: React.FC = () => {
 
     setIsSubmitting(true);
     setError('');
-    
+
     const result = await login(formData.login, formData.password, rememberMe);
 
     if (result.success) {
@@ -61,12 +63,11 @@ const LoginPage: React.FC = () => {
     } else {
       setError(result.error || 'Login failed');
     }
-    
+
     setIsSubmitting(false);
   };
 
   const handleGoogleSuccess = async (user: User) => {
-    // Refresh user context to get full user data
     await refreshUser();
     navigate(from, { replace: true });
   };
@@ -87,141 +88,176 @@ const LoginPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Image */}
-      <div
-        className="absolute inset-0 z-0 opacity-60"
-        style={{
-          backgroundImage: "url('/hero-image.png')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      ></div>
+    <div className="min-h-screen bg-[#0a0a0a] text-white flex">
+      {/* Left Side - Image */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: "url('/hero-image.png')" }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#0a0a0a]" />
+        <div className="absolute inset-0 bg-black/40" />
 
-      {/* Gradient Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black z-[1]"></div>
-
-      {/* Film Grain Effect */}
-      <div className="absolute inset-0 bg-[url('/film-grain.png')] opacity-[0.03] mix-blend-overlay z-[1] pointer-events-none"></div>
-
-      {/* Vignette Effect */}
-      <div
-        className="absolute inset-0 pointer-events-none z-[1]"
-        style={{ boxShadow: "inset 0 0 200px rgba(0,0,0,0.7)" }}
-      ></div>
-
-      <div className="w-full max-w-md relative z-10">
-        {/* Logo */}
-        <div className="text-center mb-12">
-          <Link to="/" className="inline-block">
-            <h1 className="text-4xl font-light tracking-[0.3em] text-white hover:text-white/80 transition-colors">
-              NEMA
-            </h1>
-          </Link>
+        {/* Overlay Content */}
+        <div className="relative z-10 flex flex-col justify-end p-12 pb-16">
+          <blockquote className="max-w-md">
+            <p className="text-xl text-white/90 font-light italic leading-relaxed mb-4">
+              "Cinema is a matter of what's in the frame and what's out."
+            </p>
+            <footer className="text-white/50 text-sm">— Martin Scorsese</footer>
+          </blockquote>
         </div>
+      </div>
 
-        {/* Login Form */}
-        <div className="bg-black/60 backdrop-blur-md border border-white/10 p-10">
-          <h2 className="text-2xl font-light text-center mb-8 tracking-wide">{t('login.title')}</h2>
-          
+      {/* Right Side - Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 relative">
+        {/* Subtle gradient background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/[0.02] via-transparent to-transparent" />
+
+        <div className="w-full max-w-sm relative z-10">
+          {/* Header */}
+          <div className={`mb-8 transition-all duration-700 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+            <h1 className="text-3xl font-light text-white mb-2">Welcome back</h1>
+            <p className="text-white/50 text-sm">Sign in to continue to your account</p>
+          </div>
+
+          {/* Error Message */}
           {error && (
-            <div className="bg-white/5 border border-white/20 text-white/90 px-4 py-3 mb-6 text-sm text-center">
+            <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 mb-6 text-sm rounded-lg">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <input
-                type="text"
-                name="login"
-                value={formData.login}
-                onChange={handleChange}
-                className="w-full bg-transparent border-b border-white/20 px-0 py-3 focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
-                placeholder={t('login.emailOrUsername')}
-                autoComplete="username"
-              />
-            </div>
-
-            <div>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                className="w-full bg-transparent border-b border-white/20 px-0 py-3 focus:outline-none focus:border-white transition-colors placeholder:text-white/30"
-                placeholder={t('login.password')}
-                autoComplete="current-password"
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-2">
-              <label className="flex items-center gap-2 cursor-pointer group">
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className={`transition-all duration-500 delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+              <label className="block text-xs text-white/40 uppercase tracking-wider mb-2">
+                Email or Username
+              </label>
+              <div className="relative">
                 <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 bg-transparent border border-white/30 rounded-sm checked:bg-white checked:border-white focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                  type="text"
+                  name="login"
+                  value={formData.login}
+                  onChange={handleChange}
+                  onFocus={() => setFocusedInput('login')}
+                  onBlur={() => setFocusedInput(null)}
+                  className={`w-full bg-white/[0.03] border rounded-lg px-4 py-3.5 focus:outline-none transition-all duration-200 text-white placeholder:text-white/20 ${
+                    focusedInput === 'login'
+                      ? 'border-amber-500/50 bg-white/[0.05]'
+                      : 'border-white/10 hover:border-white/20'
+                  }`}
+                  placeholder="Enter your email or username"
+                  autoComplete="username"
                 />
+              </div>
+            </div>
+
+            <div className={`transition-all duration-500 delay-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+              <label className="block text-xs text-white/40 uppercase tracking-wider mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  onFocus={() => setFocusedInput('password')}
+                  onBlur={() => setFocusedInput(null)}
+                  className={`w-full bg-white/[0.03] border rounded-lg px-4 py-3.5 focus:outline-none transition-all duration-200 text-white placeholder:text-white/20 ${
+                    focusedInput === 'password'
+                      ? 'border-amber-500/50 bg-white/[0.05]'
+                      : 'border-white/10 hover:border-white/20'
+                  }`}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
+                />
+              </div>
+            </div>
+
+            <div className={`flex items-center justify-between transition-all duration-500 delay-400 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+              <label className="flex items-center gap-2.5 cursor-pointer group">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="sr-only"
+                  />
+                  <div className={`w-5 h-5 rounded border-2 transition-all duration-200 flex items-center justify-center ${
+                    rememberMe
+                      ? 'bg-amber-500 border-amber-500'
+                      : 'border-white/20 group-hover:border-white/40'
+                  }`}>
+                    {rememberMe && (
+                      <svg className="w-3 h-3 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
                 <span className="text-sm text-white/50 group-hover:text-white/70 transition-colors">
-                  {t('login.rememberMe')}
+                  Remember me
                 </span>
               </label>
-              <Link
-                to="/forgot-password"
-                className="text-sm text-white/50 hover:text-white/70 transition-colors"
-              >
-                {t('login.forgotPassword')}
+              <Link to="/forgot-password" className="text-sm text-amber-500/80 hover:text-amber-400 transition-colors">
+                Forgot password?
               </Link>
             </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-white text-black py-3.5 font-light tracking-wide hover:bg-white/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-8"
-            >
-              {isSubmitting ? t('login.signingIn') : t('login.signIn')}
-            </button>
+            <div className={`pt-2 transition-all duration-500 delay-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full bg-amber-500 hover:bg-amber-400 text-black font-medium py-3.5 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Signing in...
+                  </>
+                ) : 'Sign In'}
+              </button>
+            </div>
           </form>
 
           {/* Divider */}
-          <div className="relative my-8">
+          <div className={`relative my-8 transition-all duration-500 delay-600 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-white/10"></div>
             </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 text-white/40 bg-white/[0.02]">{t('common.or')}</span>
+            <div className="relative flex justify-center">
+              <span className="px-4 text-white/30 text-xs bg-[#0a0a0a]">or continue with</span>
             </div>
           </div>
 
           {/* Google OAuth */}
-          <GoogleOAuth 
-            onSuccess={handleGoogleSuccess}
-            onError={handleGoogleError}
-          />
-
-          <div className="mt-8 text-center">
-            <p className="text-white/40 text-sm">
-              {t('login.noAccount')}{' '}
-              <Link
-                to="/register"
-                className="text-white hover:text-white/70 transition-colors underline underline-offset-4"
-              >
-                {t('nav.signUp')}
-              </Link>
-            </p>
+          <div className={`transition-all duration-500 delay-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+            <GoogleOAuth onSuccess={handleGoogleSuccess} onError={handleGoogleError} />
           </div>
-        </div>
 
-        {/* Footer Links */}
-        <div className="mt-8 flex items-center justify-center gap-6 text-xs text-white/30">
-          <Link to="/" className="hover:text-white/50 transition-colors">
-            {t('nav.home')}
-          </Link>
-          <span>•</span>
-          <Link to="/admin/login" className="hover:text-white/50 transition-colors">
-            Admin
-          </Link>
+          {/* Sign Up Link */}
+          <p className={`mt-8 text-center text-white/40 text-sm transition-all duration-500 delay-800 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+            Don't have an account?{' '}
+            <Link to="/register" className="text-amber-500 hover:text-amber-400 transition-colors">
+              Create one
+            </Link>
+          </p>
+
+          {/* Footer Links */}
+          <div className={`mt-12 pt-8 border-t border-white/5 flex items-center justify-center gap-4 text-xs text-white/30 transition-all duration-500 delay-900 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+            <Link to="/" className="hover:text-white/50 transition-colors">Home</Link>
+            <span className="text-white/10">•</span>
+            <Link to="/catalog" className="hover:text-white/50 transition-colors">Films</Link>
+            <span className="text-white/10">•</span>
+            <Link to="/about" className="hover:text-white/50 transition-colors">About</Link>
+            <span className="text-white/10">•</span>
+            <Link to="/admin/login" className="hover:text-white/50 transition-colors">Admin</Link>
+          </div>
         </div>
       </div>
     </div>
@@ -229,4 +265,3 @@ const LoginPage: React.FC = () => {
 };
 
 export default LoginPage;
-
