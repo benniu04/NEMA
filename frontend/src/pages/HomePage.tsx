@@ -40,6 +40,11 @@ interface Testimonial {
   role: string
 }
 
+interface FAQItem {
+  question: string
+  answer: string
+}
+
 interface VisibleSections {
   [key: string]: boolean
 }
@@ -60,6 +65,42 @@ const testimonials: Testimonial[] = [
     quote: "The curation at NEMA is unmatched. They're preserving the art of filmmaking in the digital age.",
     author: "Sophia Williams",
     role: "Film Critic"
+  }
+]
+
+// FAQ items
+const faqItems: FAQItem[] = [
+  {
+    question: "What is NEMA?",
+    answer: "NEMA is a curated streaming platform dedicated to independent cinema. We showcase films from emerging filmmakers and established indie directors, providing a space for authentic storytelling that often goes unnoticed by mainstream platforms."
+  },
+  {
+    question: "Is NEMA free to use?",
+    answer: "Yes! NEMA is completely free to use. Simply create an account to start watching our curated collection of independent films, save favorites, create watchlists, and engage with our community of film enthusiasts."
+  },
+  {
+    question: "How do I create an account?",
+    answer: "Click the 'Sign Up' button in the navigation bar. You can register with your email address or sign in quickly using your Google account. Once registered, you'll have full access to all features including reviews, comments, and personalized recommendations."
+  },
+  {
+    question: "Can I watch films without an account?",
+    answer: "Yes! You can watch films, leave reviews, and comment without creating an account. However, creating a free account unlocks additional features like saving films to your watchlist, adding favorites, following other users, and getting personalized recommendations."
+  },
+  {
+    question: "How are films selected for NEMA?",
+    answer: "Our curatorial team carefully selects films based on artistic merit, storytelling innovation, and cultural significance. We prioritize works from independent filmmakers, film school graduates, and underrepresented voices in cinema."
+  },
+  {
+    question: "Can I submit my film to NEMA?",
+    answer: "Yes! We welcome submissions from independent filmmakers. Visit our Contact page to learn more about our submission process. We review all submissions and respond to filmmakers whose work aligns with our platform's vision."
+  },
+  {
+    question: "What devices can I watch NEMA on?",
+    answer: "NEMA currently works best on a laptop or desktop computer with a modern web browser. We recommend using the latest version of Chrome, Firefox, Safari, or Edge for the best viewing experience. Mobile support is currently being worked on!"
+  },
+  {
+    question: "How do I delete my account?",
+    answer: "You can delete your account at any time from your Settings page under the Account section. Please note that account deletion is permanent and will remove all your reviews, comments, watchlist, and other data."
   }
 ]
 
@@ -101,6 +142,7 @@ const HomePage: React.FC = () => {
   const [scrollPosition, setScrollPosition] = useState<number>(0)
   const [visibleSections, setVisibleSections] = useState<VisibleSections>({})
   const [currentTestimonial, setCurrentTestimonial] = useState<number>(0)
+  const [openFAQ, setOpenFAQ] = useState<number | null>(null)
   const heroRef = useRef<HTMLElement>(null)
   const featuredFilmsRef = useRef<HTMLElement>(null)
   const continueWatchingRef = useRef<HTMLDivElement>(null)
@@ -1053,6 +1095,63 @@ const HomePage: React.FC = () => {
                 aria-label={`View testimonial ${index + 1}`}
               ></button>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section
+        id="faq"
+        className="relative py-24 px-6"
+      >
+        <div className="max-w-3xl mx-auto">
+          <div className="flex flex-col items-center mb-12">
+            <div className="mb-2">
+              <span className="text-amber-100/80 tracking-[0.3em] uppercase text-sm font-extralight">Got Questions?</span>
+            </div>
+            <h2 className="text-4xl font-extralight tracking-wide">Frequently Asked Questions</h2>
+            <div className="w-16 h-[1px] bg-amber-100/30 mt-4"></div>
+          </div>
+
+          <div className="space-y-3">
+            {faqItems.map((item, index) => (
+              <div
+                key={index}
+                className="border border-white/10 bg-white/[0.02] overflow-hidden transition-all duration-300"
+              >
+                <button
+                  onClick={() => setOpenFAQ(openFAQ === index ? null : index)}
+                  className="w-full px-6 py-5 flex items-center justify-between text-left hover:bg-white/[0.02] transition-colors"
+                >
+                  <span className="text-white/90 font-light tracking-wide pr-4">{item.question}</span>
+                  <ChevronDown
+                    className={`w-5 h-5 text-amber-100/60 flex-shrink-0 transition-transform duration-300 ${
+                      openFAQ === index ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                <div
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                    openFAQ === index ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                  }`}
+                >
+                  <div className="px-6 pb-5 pt-0">
+                    <p className="text-white/60 font-light leading-relaxed">{item.answer}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-12 text-center">
+            <p className="text-white/50 font-light mb-4">Still have questions?</p>
+            <Link
+              to="/contact"
+              className="inline-flex items-center gap-2 text-amber-100/80 hover:text-amber-100 transition-colors font-light tracking-wide"
+            >
+              Contact us
+              <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
         </div>
       </section>
