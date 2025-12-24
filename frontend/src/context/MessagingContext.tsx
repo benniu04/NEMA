@@ -62,7 +62,7 @@ export const MessagingProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Record<string, string[]>>({});
   const socketRef = useRef<Socket | null>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch all conversations
   const fetchConversations = useCallback(async () => {

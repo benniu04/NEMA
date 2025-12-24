@@ -10,7 +10,7 @@ const MessageInput: React.FC<MessageInputProps> = ({ conversationId }) => {
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-resize textarea
   useEffect(() => {
