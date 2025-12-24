@@ -170,6 +170,7 @@ export interface UserContextValue {
   logout: () => Promise<{ success: boolean; error?: string }>;
   updateProfile: (updates: Partial<User>) => Promise<{ success: boolean; user?: User; error?: string }>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  deleteAccount: (password: string) => Promise<{ success: boolean; error?: string }>;
   addToWatchlist: (movieId: string) => Promise<{ success: boolean; error?: string }>;
   removeFromWatchlist: (movieId: string) => Promise<{ success: boolean; error?: string }>;
   isInWatchlist: (movieId: string) => boolean;

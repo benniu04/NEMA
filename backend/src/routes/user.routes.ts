@@ -3,6 +3,11 @@ import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import { User } from '../models/user.model.js';
 import { Activity } from '../models/activity.model.js';
+import { Review } from '../models/review.model.js';
+import { Comment } from '../models/comment.model.js';
+import { Notification } from '../models/notification.model.js';
+import { Message } from '../models/message.model.js';
+import { Conversation } from '../models/conversation.model.js';
 import { ENV_VARS } from '../config/envVars.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.middleware.js';
 import { validateUserRegister, validateUserLogin, validateUserUpdate } from '../middleware/validation.middleware.js';
@@ -838,6 +843,90 @@ userRoutes.delete('/follow/:userId', authMiddleware, async (req: AuthenticatedRe
     res.json({ message: 'Successfully unfollowed user', following: currentUser!.following, followingCount: currentUser!.following.length });
   } catch (error) {
     res.status(500).json({ message: 'Failed to unfollow user' });
+  }
+});
+
+// Delete account
+userRoutes.delete('/account', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { password } = req.body;
+    const userId = req.user!.id;
+
+    securityLogger('ACCOUNT_DELETE_ATTEMPT', { userId }, req as Request);
+
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    // For local auth users, verify password
+    if (user.authProvider === 'local' || user.password) {
+      if (!password) {
+        res.status(400).json({ message: 'Password is required to delete account' });
+        return;
+      }
+
+      const isPasswordValid = await user.comparePassword(password);
+      if (!isPasswordValid) {
+        securityLogger('ACCOUNT_DELETE_FAILED', { userId, reason: 'invalid_password' }, req as Request);
+        res.status(401).json({ message: 'Incorrect password' });
+        return;
+      }
+    }
+
+    // Delete all user-related data in parallel
+    await Promise.all([
+      // Delete user's reviews
+      Review.deleteMany({ userId }),
+
+      // Delete user's comments
+      Comment.deleteMany({ userId }),
+
+      // Delete user's activities
+      Activity.deleteMany({ userId }),
+
+      // Delete user's notifications (sent to them)
+      Notification.deleteMany({ userId }),
+
+      // Delete user's messages
+      Message.deleteMany({ senderId: userId }),
+
+      // Delete conversations where user is a participant
+      Conversation.deleteMany({ participants: userId }),
+
+      // Remove user from other users' followers lists
+      User.updateMany(
+        { followers: userId },
+        { $pull: { followers: userId } }
+      ),
+
+      // Remove user from other users' following lists
+      User.updateMany(
+        { following: userId },
+        { $pull: { following: userId } }
+      )
+    ]);
+
+    // Delete the user
+    await User.findByIdAndDelete(userId);
+
+    // Clear auth cookie
+    res.clearCookie('userToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+    });
+
+    securityLogger('ACCOUNT_DELETE_SUCCESS', { userId, username: user.username }, req as Request);
+
+    res.json({ message: 'Account deleted successfully' });
+  } catch (error) {
+    const err = error as Error;
+    securityLogger('ACCOUNT_DELETE_ERROR', { userId: req.user!.id, error: err.message }, req as Request);
+    logger.error('Error deleting account:', error);
+    res.status(500).json({ message: 'Failed to delete account. Please try again.' });
   }
 });
 

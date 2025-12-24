@@ -425,6 +425,38 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     });
   };
 
+  // Delete account
+  const deleteAccount = async (password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      setError(null);
+      const response = await fetch(`${API_BASE_URL}/api/users/account`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ password })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to delete account');
+      }
+
+      // Clear user state and tokens
+      setUser(null);
+      localStorage.removeItem('authToken');
+      sessionStorage.removeItem('authToken');
+
+      return { success: true };
+    } catch (err) {
+      const error = err as Error;
+      setError(error.message);
+      return { success: false, error: error.message };
+    }
+  };
+
   const value: UserContextValue = {
     user,
     loading,
@@ -435,6 +467,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     logout,
     updateProfile,
     changePassword,
+    deleteAccount,
     addToWatchlist,
     removeFromWatchlist,
     isInWatchlist,

@@ -43,7 +43,7 @@ interface Section {
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, updateProfile, changePassword, loading, isAuthenticated, refreshUser } = useUser();
+  const { user, updateProfile, changePassword, deleteAccount, loading, isAuthenticated, refreshUser } = useUser();
   const { language, setLanguage, t } = useSettings();
 
   // Profile settings
@@ -66,6 +66,13 @@ const SettingsPage: React.FC = () => {
 
   // Active section
   const [activeSection, setActiveSection] = useState('profile');
+
+  // Delete account
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState<Message>({ type: '', text: '' });
 
   // Redirect if not logged in
   useEffect(() => {
@@ -163,6 +170,29 @@ const SettingsPage: React.FC = () => {
       alert('Failed to upload image');
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') {
+      setDeleteMessage({ type: 'error', text: 'Please type DELETE to confirm' });
+      return;
+    }
+
+    setDeleting(true);
+    setDeleteMessage({ type: '', text: '' });
+
+    try {
+      const result = await deleteAccount(deletePassword);
+      if (result.success) {
+        navigate('/');
+      } else {
+        setDeleteMessage({ type: 'error', text: result.error || 'Failed to delete account' });
+      }
+    } catch (error) {
+      setDeleteMessage({ type: 'error', text: 'An error occurred while deleting account' });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -428,6 +458,25 @@ const SettingsPage: React.FC = () => {
                       </button>
                     </form>
                   </div>
+
+                  {/* Delete Account */}
+                  <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <h2 className="text-xl font-light text-red-400">Delete Account</h2>
+                    </div>
+                    <p className="text-amber-100/60 text-sm mb-4">
+                      Permanently delete your account and all associated data. This action cannot be undone.
+                    </p>
+                    <button
+                      onClick={() => setShowDeleteModal(true)}
+                      className="px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/20 hover:border-red-500/50 transition-colors"
+                    >
+                      Delete my account
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -477,10 +526,105 @@ const SettingsPage: React.FC = () => {
                   </div>
                 </div>
               )}
+
             </div>
           </div>
         </div>
       </div>
+
+      {/* Delete Account Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            onClick={() => {
+              setShowDeleteModal(false);
+              setDeletePassword('');
+              setDeleteConfirmText('');
+              setDeleteMessage({ type: '', text: '' });
+            }}
+          />
+          <div className="relative bg-black border border-red-500/20 rounded-xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-medium text-white">Delete Account</h3>
+                <p className="text-sm text-red-400">This action cannot be undone</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-amber-100/70 text-sm">
+                This will permanently delete your account and all associated data. You will lose:
+              </p>
+              <ul className="text-amber-100/60 text-sm space-y-1 list-disc list-inside">
+                <li>All your reviews and ratings</li>
+                <li>All your comments</li>
+                <li>Your watchlist and favorites</li>
+                <li>All messages and conversations</li>
+                <li>Your followers and following</li>
+              </ul>
+
+              <div>
+                <label className="block text-sm text-amber-100/70 mb-2">
+                  Enter your password to confirm
+                </label>
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  className="w-full px-4 py-3 bg-black/50 border border-red-500/20 rounded-lg text-white placeholder-amber-100/30 focus:outline-none focus:border-red-500/50 transition-colors"
+                  placeholder="Your password"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-amber-100/70 mb-2">
+                  Type <span className="text-red-400 font-mono">DELETE</span> to confirm
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  className="w-full px-4 py-3 bg-black/50 border border-red-500/20 rounded-lg text-white placeholder-amber-100/30 focus:outline-none focus:border-red-500/50 transition-colors font-mono"
+                  placeholder="DELETE"
+                />
+              </div>
+
+              {deleteMessage.text && (
+                <div className="p-3 rounded-lg text-sm bg-red-500/10 border border-red-500/30 text-red-400">
+                  {deleteMessage.text}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setDeletePassword('');
+                    setDeleteConfirmText('');
+                    setDeleteMessage({ type: '', text: '' });
+                  }}
+                  className="flex-1 px-4 py-3 bg-white/5 border border-amber-100/20 text-amber-100 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleting || !deletePassword || deleteConfirmText !== 'DELETE'}
+                  className="flex-1 px-4 py-3 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deleting ? 'Deleting...' : 'Delete Account'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>
