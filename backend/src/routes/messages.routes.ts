@@ -10,27 +10,39 @@ import { getIO } from '../config/socket.js';
 
 const router = express.Router();
 
-// Helper: Check if two users mutually follow each other
-const canMessageUser = async (userId1: string, userId2: string): Promise<boolean> => {
+// Helper: Check if two users mutually follow each other and neither has blocked the other
+const canMessageUser = async (userId1: string, userId2: string): Promise<{ canMessage: boolean; reason?: string }> => {
   try {
     const [user1, user2] = await Promise.all([
       User.findById(userId1),
       User.findById(userId2)
     ]);
 
-    if (!user1 || !user2) return false;
+    if (!user1 || !user2) return { canMessage: false, reason: 'User not found' };
 
     // Convert to strings for reliable comparison
     const userId1Str = userId1.toString();
     const userId2Str = userId2.toString();
 
+    // Check if either user has blocked the other
+    if (user1.blockedUsers?.some((id: any) => id.toString() === userId2Str)) {
+      return { canMessage: false, reason: 'You have blocked this user' };
+    }
+    if (user2.blockedUsers?.some((id: any) => id.toString() === userId1Str)) {
+      return { canMessage: false, reason: 'You cannot message this user' };
+    }
+
     const user1FollowsUser2 = user1.following.some((id: any) => id.toString() === userId2Str);
     const user2FollowsUser1 = user2.following.some((id: any) => id.toString() === userId1Str);
 
-    return user1FollowsUser2 && user2FollowsUser1;
+    if (!user1FollowsUser2 || !user2FollowsUser1) {
+      return { canMessage: false, reason: 'You can only message users who follow you back' };
+    }
+
+    return { canMessage: true };
   } catch (error) {
     logger.error('Error in canMessageUser:', { error: (error as Error).message, userId1, userId2 });
-    return false;
+    return { canMessage: false, reason: 'Error checking message permission' };
   }
 };
 
@@ -71,11 +83,11 @@ export const emitUserMessageEvent = (userId: string, event: string, data: unknow
   }
 };
 
-// Check if user can message another user (mutual follow check)
+// Check if user can message another user (mutual follow check + block check)
 router.get('/can-message/:userId', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const canMessage = await canMessageUser(req.user!.id, req.params.userId);
-    res.json({ canMessage });
+    const result = await canMessageUser(req.user!.id, req.params.userId);
+    res.json(result);
   } catch (error) {
     logger.error('Error checking message permission:', { error: (error as Error).message });
     res.status(500).json({ message: 'Failed to check message permission' });
@@ -133,10 +145,10 @@ router.post('/conversations', authMiddleware, async (req: AuthenticatedRequest, 
       return;
     }
 
-    // Check mutual follow
-    const canMessage = await canMessageUser(req.user!.id, userId);
-    if (!canMessage) {
-      res.status(403).json({ message: 'You can only message users who follow you back' });
+    // Check mutual follow and blocks
+    const messageCheck = await canMessageUser(req.user!.id, userId);
+    if (!messageCheck.canMessage) {
+      res.status(403).json({ message: messageCheck.reason || 'Cannot message this user' });
       return;
     }
 
@@ -223,6 +235,18 @@ router.post('/conversations/:conversationId/messages', authMiddleware, async (re
     if (!conversation) {
       res.status(404).json({ message: 'Conversation not found' });
       return;
+    }
+
+    // Check if either user has blocked the other
+    const otherParticipant = conversation.participants.find(
+      (p: any) => p.toString() !== req.user!.id
+    );
+    if (otherParticipant) {
+      const messageCheck = await canMessageUser(req.user!.id, otherParticipant.toString());
+      if (!messageCheck.canMessage) {
+        res.status(403).json({ message: messageCheck.reason || 'Cannot send message' });
+        return;
+      }
     }
 
     // Create message
@@ -388,9 +412,12 @@ router.get('/messageable-users', authMiddleware, async (req: AuthenticatedReques
     // Convert to string arrays for comparison
     const followingIds = currentUser.following.map((id: any) => id.toString());
     const followerIds = currentUser.followers?.map((id: any) => id.toString()) || [];
+    const blockedIds = currentUser.blockedUsers?.map((id: any) => id.toString()) || [];
 
-    // Find users who are in BOTH arrays (mutual follows)
-    const mutualIds = followingIds.filter((id: string) => followerIds.includes(id));
+    // Find users who are in BOTH arrays (mutual follows) and NOT blocked
+    const mutualIds = followingIds.filter((id: string) =>
+      followerIds.includes(id) && !blockedIds.includes(id)
+    );
 
     logger.info('Mutual follow check:', {
       followingIds: followingIds.slice(0, 5),

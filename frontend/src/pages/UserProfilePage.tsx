@@ -4,7 +4,7 @@ import { useUser } from '../context/UserContext';
 import NavBar from '../components/NavBar';
 import Footer from '../components/Footer';
 import API_BASE_URL from '../config/api';
-import { Film, Star, Users, Calendar, UserPlus, UserMinus } from 'lucide-react';
+import { Film, Star, Users, Calendar, UserPlus, UserMinus, Ban, MoreVertical, MessageCircle } from 'lucide-react';
 import { Movie } from '../types';
 
 interface ProfileUser {
@@ -26,13 +26,15 @@ interface ProfileUser {
 const UserProfilePage: React.FC = () => {
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
-  const { user: currentUser, isAuthenticated, followUser, unfollowUser } = useUser();
-  
+  const { user: currentUser, isAuthenticated, followUser, unfollowUser, blockUser, unblockUser, isBlocked, refreshUser } = useUser();
+
   const [profileUser, setProfileUser] = useState<ProfileUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [favorites, setFavorites] = useState<Movie[]>([]);
   const [loadingFavorites, setLoadingFavorites] = useState(true);
 
@@ -143,6 +145,60 @@ const UserProfilePage: React.FC = () => {
     }
   };
 
+  const handleBlock = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
+    if (!profileUser) return;
+
+    const userIsBlocked = isBlocked(profileUser.id);
+
+    // Confirm before blocking
+    if (!userIsBlocked) {
+      const confirmed = window.confirm(
+        `Are you sure you want to block @${profileUser.username}? They will no longer be able to follow you, message you, or see your profile.`
+      );
+      if (!confirmed) return;
+    }
+
+    setBlockLoading(true);
+    setShowMenu(false);
+
+    try {
+      const result = userIsBlocked
+        ? await unblockUser(profileUser.id)
+        : await blockUser(profileUser.id);
+
+      if (result.success) {
+        if (!userIsBlocked) {
+          // User was just blocked - they're no longer following and we're not following them
+          setIsFollowing(false);
+          setProfileUser(prev => prev ? ({
+            ...prev,
+            stats: {
+              ...prev.stats,
+              followersCount: Math.max((prev.stats?.followersCount || 0) - (isFollowing ? 1 : 0), 0)
+            }
+          }) : null);
+        }
+        // Refresh current user to update their follower/following counts
+        await refreshUser();
+      } else {
+        alert(result.error || 'Failed to update block status');
+      }
+    } catch (error) {
+      console.error('Block error:', error);
+      alert('Failed to update block status');
+    } finally {
+      setBlockLoading(false);
+    }
+  };
+
+  // Check if this user is blocked
+  const userIsBlocked = profileUser ? isBlocked(profileUser.id) : false;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black text-white flex flex-col">
@@ -252,34 +308,88 @@ const UserProfilePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Follow Button */}
+              {/* Action Buttons */}
               {isAuthenticated && currentUser && currentUser.username !== profileUser.username && (
-                <button
-                  onClick={handleFollow}
-                  disabled={followLoading}
-                  className={`flex items-center gap-2 px-6 py-3 text-sm font-medium rounded transition-all ${
-                    isFollowing
-                      ? 'bg-white/10 border border-white/20 text-white hover:bg-white/5 hover:border-red-500/40 hover:text-red-400'
-                      : 'bg-amber-500 text-black hover:bg-amber-600'
-                  } ${followLoading ? 'opacity-50 cursor-not-allowed' : ''} mb-2`}
-                >
-                  {followLoading ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                      Loading...
-                    </>
-                  ) : isFollowing ? (
-                    <>
-                      <UserMinus className="w-4 h-4" />
-                      Unfollow
-                    </>
+                <div className="flex items-center gap-2 mb-2">
+                  {/* Show blocked state or follow button */}
+                  {userIsBlocked ? (
+                    <button
+                      onClick={handleBlock}
+                      disabled={blockLoading}
+                      className="flex items-center gap-2 px-6 py-3 text-sm font-medium rounded transition-all bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30"
+                    >
+                      {blockLoading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          <Ban className="w-4 h-4" />
+                          Unblock
+                        </>
+                      )}
+                    </button>
                   ) : (
                     <>
-                      <UserPlus className="w-4 h-4" />
-                      Follow
+                      <button
+                        onClick={handleFollow}
+                        disabled={followLoading}
+                        className={`flex items-center gap-2 px-6 py-3 text-sm font-medium rounded transition-all ${
+                          isFollowing
+                            ? 'bg-white/10 border border-white/20 text-white hover:bg-white/5 hover:border-red-500/40 hover:text-red-400'
+                            : 'bg-amber-500 text-black hover:bg-amber-600'
+                        } ${followLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {followLoading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                            Loading...
+                          </>
+                        ) : isFollowing ? (
+                          <>
+                            <UserMinus className="w-4 h-4" />
+                            Unfollow
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="w-4 h-4" />
+                            Follow
+                          </>
+                        )}
+                      </button>
+
+                      {/* More options menu */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowMenu(!showMenu)}
+                          className="p-3 bg-white/10 border border-white/20 text-white hover:bg-white/20 rounded transition-all"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+
+                        {showMenu && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-40"
+                              onClick={() => setShowMenu(false)}
+                            />
+                            <div className="absolute right-0 mt-2 w-48 bg-black border border-white/20 rounded shadow-xl z-50">
+                              <button
+                                onClick={handleBlock}
+                                disabled={blockLoading}
+                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-white/5 transition-colors"
+                              >
+                                <Ban className="w-4 h-4" />
+                                Block @{profileUser.username}
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </>
                   )}
-                </button>
+                </div>
               )}
             </div>
           </div>

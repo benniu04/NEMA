@@ -425,6 +425,89 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     });
   };
 
+  // Block a user
+  const blockUser = async (userId: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/block/${userId}`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to block user');
+      }
+
+      // Update local user state - add to blockedUsers and remove from following/followers
+      setUser(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          blockedUsers: [...(prev.blockedUsers || []), userId],
+          following: prev.following.filter(id => {
+            if (typeof id === 'string') return id !== userId;
+            return (id as { _id?: string })._id !== userId;
+          }),
+          followers: prev.followers.filter(id => {
+            if (typeof id === 'string') return id !== userId;
+            return (id as { _id?: string })._id !== userId;
+          }),
+          stats: {
+            ...prev.stats,
+            followersCount: data.followersCount ?? prev.stats.followersCount,
+            followingCount: data.followingCount ?? prev.stats.followingCount
+          }
+        };
+      });
+      return { success: true, message: data.message };
+    } catch (err) {
+      const error = err as Error;
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Unblock a user
+  const unblockUser = async (userId: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/block/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to unblock user');
+      }
+
+      // Update local user state - remove from blockedUsers
+      setUser(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          blockedUsers: (prev.blockedUsers || []).filter(id => {
+            if (typeof id === 'string') return id !== userId;
+            return (id as { _id?: string })._id !== userId;
+          })
+        };
+      });
+      return { success: true, message: data.message };
+    } catch (err) {
+      const error = err as Error;
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Check if a user is blocked
+  const isBlocked = (userId: string): boolean => {
+    if (!user || !user.blockedUsers) return false;
+    return user.blockedUsers.some((id) => {
+      if (typeof id === 'string') return id === userId;
+      return (id as { _id?: string })._id === userId;
+    });
+  };
+
   // Delete account
   const deleteAccount = async (password: string): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -477,6 +560,9 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     followUser,
     unfollowUser,
     isFollowing,
+    blockUser,
+    unblockUser,
+    isBlocked,
     refreshUser: checkAuth
   };
 

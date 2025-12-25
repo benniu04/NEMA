@@ -91,6 +91,10 @@ const userSchema = new Schema<IUser>({
     type: Schema.Types.ObjectId,
     ref: 'User'
   }],
+  blockedUsers: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   stats: {
     filmsWatched: {
       type: Number,
@@ -151,9 +155,10 @@ userSchema.index({ username: 1 });
 userSchema.index({ createdAt: -1 });
 // Index for user search
 userSchema.index({ username: 'text', displayName: 'text' });
-// Index for followers/following
+// Index for followers/following/blocked
 userSchema.index({ followers: 1 });
 userSchema.index({ following: 1 });
+userSchema.index({ blockedUsers: 1 });
 
 // Hash password before saving (only for local auth users)
 userSchema.pre('save', async function(next) {
@@ -248,6 +253,7 @@ userSchema.methods.toPrivateProfile = function(): PrivateProfile {
     watchedFilms: this.watchedFilms,
     following: this.following,
     followers: this.followers,
+    blockedUsers: this.blockedUsers,
     stats: {
       ...this.stats,
       followersCount: this.followers?.length || 0,

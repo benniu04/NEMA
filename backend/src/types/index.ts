@@ -56,6 +56,7 @@ export interface IUser extends Document {
   watchedFilms: IWatchedFilm[];
   following: Types.ObjectId[];
   followers: Types.ObjectId[];
+  blockedUsers: Types.ObjectId[];
   stats: IUserStats;
   isVerified: boolean;
   emailVerificationToken?: string | null;
@@ -97,6 +98,7 @@ export interface PrivateProfile extends PublicProfile {
   watchedFilms: IWatchedFilm[];
   following: Types.ObjectId[];
   followers: Types.ObjectId[];
+  blockedUsers: Types.ObjectId[];
   isVerified: boolean;
   isAdmin: boolean;
   lastLogin?: Date | null;

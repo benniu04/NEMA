@@ -29,6 +29,7 @@ export interface User {
   watchedFilms: WatchedFilm[];
   following: (string | User)[];
   followers: (string | User)[];
+  blockedUsers: (string | User)[];
   stats: UserStats;
   isVerified: boolean;
   isAdmin: boolean;
@@ -180,6 +181,9 @@ export interface UserContextValue {
   followUser: (userId: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   unfollowUser: (userId: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   isFollowing: (userId: string) => boolean;
+  blockUser: (userId: string) => Promise<{ success: boolean; message?: string; error?: string }>;
+  unblockUser: (userId: string) => Promise<{ success: boolean; message?: string; error?: string }>;
+  isBlocked: (userId: string) => boolean;
   refreshUser: () => Promise<void>;
 }
 

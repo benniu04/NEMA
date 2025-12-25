@@ -800,6 +800,17 @@ userRoutes.post('/follow/:userId', authMiddleware, async (req: AuthenticatedRequ
 
     const [currentUser, targetUser] = await Promise.all([User.findById(req.user!.id), User.findById(userId)]);
     if (!targetUser) { res.status(404).json({ message: 'User not found' }); return; }
+
+    // Check if either user has blocked the other
+    if (currentUser!.blockedUsers?.some(id => id.toString() === userId)) {
+      res.status(403).json({ message: 'You cannot follow a user you have blocked' });
+      return;
+    }
+    if (targetUser.blockedUsers?.some(id => id.toString() === req.user!.id)) {
+      res.status(403).json({ message: 'You cannot follow this user' });
+      return;
+    }
+
     if (currentUser!.following.includes(userId as any)) {
       res.status(400).json({ message: 'Already following this user' });
       return;
@@ -843,6 +854,116 @@ userRoutes.delete('/follow/:userId', authMiddleware, async (req: AuthenticatedRe
     res.json({ message: 'Successfully unfollowed user', following: currentUser!.following, followingCount: currentUser!.following.length });
   } catch (error) {
     res.status(500).json({ message: 'Failed to unfollow user' });
+  }
+});
+
+// Block user
+userRoutes.post('/block/:userId', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    if (userId === req.user!.id) {
+      res.status(400).json({ message: 'You cannot block yourself' });
+      return;
+    }
+
+    const [currentUser, targetUser] = await Promise.all([
+      User.findById(req.user!.id),
+      User.findById(userId)
+    ]);
+
+    if (!currentUser) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    if (!targetUser) {
+      res.status(404).json({ message: 'Target user not found' });
+      return;
+    }
+
+    // Check if already blocked
+    if (currentUser.blockedUsers?.some(id => id.toString() === userId)) {
+      res.status(400).json({ message: 'User is already blocked' });
+      return;
+    }
+
+    // Add to blocked list
+    if (!currentUser.blockedUsers) {
+      currentUser.blockedUsers = [];
+    }
+    currentUser.blockedUsers.push(userId as any);
+
+    // Remove from following/followers (both ways)
+    currentUser.following = currentUser.following.filter(id => id.toString() !== userId);
+    currentUser.followers = currentUser.followers.filter(id => id.toString() !== userId);
+    targetUser.following = targetUser.following.filter(id => id.toString() !== req.user!.id);
+    targetUser.followers = targetUser.followers.filter(id => id.toString() !== req.user!.id);
+
+    await Promise.all([currentUser.save(), targetUser.save()]);
+
+    securityLogger('USER_BLOCKED', { userId: req.user!.id, blockedUserId: userId }, req as Request);
+    res.json({
+      message: 'User blocked successfully',
+      followersCount: currentUser.followers.length,
+      followingCount: currentUser.following.length
+    });
+  } catch (error) {
+    logger.error('Error blocking user:', error);
+    res.status(500).json({ message: 'Failed to block user' });
+  }
+});
+
+// Unblock user
+userRoutes.delete('/block/:userId', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+
+    const currentUser = await User.findById(req.user!.id);
+    if (!currentUser) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    // Check if user is blocked
+    if (!currentUser.blockedUsers?.some(id => id.toString() === userId)) {
+      res.status(400).json({ message: 'User is not blocked' });
+      return;
+    }
+
+    // Remove from blocked list
+    currentUser.blockedUsers = currentUser.blockedUsers.filter(id => id.toString() !== userId);
+    await currentUser.save();
+
+    securityLogger('USER_UNBLOCKED', { userId: req.user!.id, unblockedUserId: userId }, req as Request);
+    res.json({ message: 'User unblocked successfully' });
+  } catch (error) {
+    logger.error('Error unblocking user:', error);
+    res.status(500).json({ message: 'Failed to unblock user' });
+  }
+});
+
+// Get blocked users list
+userRoutes.get('/blocked', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const user = await User.findById(req.user!.id)
+      .populate('blockedUsers', 'username displayName avatar');
+
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    const blockedUsers = (user.blockedUsers as any[] || []).map((blockedUser: any) => ({
+      id: blockedUser._id.toString(),
+      username: blockedUser.username,
+      displayName: blockedUser.displayName,
+      avatar: blockedUser.avatar
+    }));
+
+    res.json(blockedUsers);
+  } catch (error) {
+    logger.error('Error getting blocked users:', error);
+    res.status(500).json({ message: 'Failed to get blocked users' });
   }
 });
 

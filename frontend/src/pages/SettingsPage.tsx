@@ -41,9 +41,16 @@ interface Section {
   icon: string;
 }
 
+interface BlockedUser {
+  id: string;
+  username: string;
+  displayName?: string;
+  avatar?: string;
+}
+
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, updateProfile, changePassword, deleteAccount, loading, isAuthenticated, refreshUser } = useUser();
+  const { user, updateProfile, changePassword, deleteAccount, loading, isAuthenticated, refreshUser, unblockUser } = useUser();
   const { language, setLanguage, t } = useSettings();
 
   // Profile settings
@@ -51,6 +58,11 @@ const SettingsPage: React.FC = () => {
   const [bio, setBio] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<Message>({ type: '', text: '' });
+
+  // Blocked users
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
+  const [loadingBlocked, setLoadingBlocked] = useState(false);
+  const [unblockingUser, setUnblockingUser] = useState<string | null>(null);
 
   // Password settings
   const [currentPassword, setCurrentPassword] = useState('');
@@ -196,9 +208,56 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  // Load blocked users
+  const loadBlockedUsers = async () => {
+    setLoadingBlocked(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/blocked`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setBlockedUsers(data);
+      }
+    } catch (error) {
+      console.error('Failed to load blocked users:', error);
+    } finally {
+      setLoadingBlocked(false);
+    }
+  };
+
+  // Handle unblock
+  const handleUnblock = async (userId: string, username: string) => {
+    const confirmed = window.confirm(`Are you sure you want to unblock @${username}?`);
+    if (!confirmed) return;
+
+    setUnblockingUser(userId);
+    try {
+      const result = await unblockUser(userId);
+      if (result.success) {
+        setBlockedUsers(prev => prev.filter(u => u.id !== userId));
+      } else {
+        alert(result.error || 'Failed to unblock user');
+      }
+    } catch (error) {
+      console.error('Unblock error:', error);
+      alert('Failed to unblock user');
+    } finally {
+      setUnblockingUser(null);
+    }
+  };
+
+  // Load blocked users when privacy section is active
+  useEffect(() => {
+    if (activeSection === 'privacy' && blockedUsers.length === 0) {
+      loadBlockedUsers();
+    }
+  }, [activeSection]);
+
   const sections: Section[] = [
     { id: 'profile', name: t('settings.profile'), icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
     { id: 'account', name: t('settings.account'), icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z' },
+    { id: 'privacy', name: 'Privacy', icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8zM18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636' },
     { id: 'language', name: t('settings.language'), icon: 'M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129' },
   ];
 
@@ -521,6 +580,96 @@ const SettingsPage: React.FC = () => {
                           <p className="text-amber-100 text-sm font-medium">{t('settings.languageAutoSave')}</p>
                           <p className="text-amber-100/60 text-xs mt-1">{t('settings.someContentOriginal')}</p>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Privacy Section */}
+              {activeSection === 'privacy' && (
+                <div className="space-y-6">
+                  <div className="bg-white/5 border border-amber-100/10 rounded-xl p-6">
+                    <h2 className="text-xl font-light text-white mb-2">Blocked Users</h2>
+                    <p className="text-amber-100/60 text-sm mb-6">
+                      Blocked users cannot follow you, message you, or see your profile.
+                    </p>
+
+                    {loadingBlocked ? (
+                      <div className="flex items-center justify-center py-12">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
+                      </div>
+                    ) : blockedUsers.length === 0 ? (
+                      <div className="text-center py-12 border border-amber-100/10 border-dashed rounded-xl">
+                        <svg className="w-12 h-12 text-amber-100/20 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                        </svg>
+                        <p className="text-amber-100/40">You haven't blocked anyone</p>
+                        <p className="text-amber-100/30 text-sm mt-1">
+                          You can block users from their profile page
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {blockedUsers.map((blockedUser) => (
+                          <div
+                            key={blockedUser.id}
+                            className="flex items-center gap-4 p-4 bg-black/30 border border-amber-100/10 rounded-xl hover:border-amber-100/20 transition-colors"
+                          >
+                            <div className="w-12 h-12 rounded-full bg-white/10 overflow-hidden flex-shrink-0">
+                              {blockedUser.avatar ? (
+                                <img
+                                  src={blockedUser.avatar}
+                                  alt={blockedUser.displayName || blockedUser.username}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-lg font-light text-amber-100/40">
+                                  {(blockedUser.displayName || blockedUser.username).charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white font-medium truncate">
+                                {blockedUser.displayName || blockedUser.username}
+                              </p>
+                              <p className="text-amber-100/50 text-sm truncate">@{blockedUser.username}</p>
+                            </div>
+
+                            <button
+                              onClick={() => handleUnblock(blockedUser.id, blockedUser.username)}
+                              disabled={unblockingUser === blockedUser.id}
+                              className="px-4 py-2 bg-white/5 border border-amber-100/20 text-amber-100/80 text-sm rounded-lg hover:bg-white/10 hover:border-amber-100/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                              {unblockingUser === blockedUser.id ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                                  Unblocking...
+                                </>
+                              ) : (
+                                'Unblock'
+                              )}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-6">
+                    <div className="flex items-start gap-3">
+                      <svg className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div>
+                        <p className="text-amber-100 text-sm font-medium">What happens when you block someone?</p>
+                        <ul className="text-amber-100/60 text-sm mt-2 space-y-1 list-disc list-inside">
+                          <li>They can't follow you or see your profile</li>
+                          <li>They can't send you messages</li>
+                          <li>You'll be removed from each other's followers</li>
+                          <li>Existing conversations will be blocked</li>
+                        </ul>
                       </div>
                     </div>
                   </div>
