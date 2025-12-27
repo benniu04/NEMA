@@ -67,13 +67,47 @@ export const moviesService = {
     }
   },
 
-  // Search movies
+  // Search movies - tries server-side search first, falls back to client-side filtering
   async searchMovies(query: string): Promise<Movie[]> {
+    const searchTerm = query.toLowerCase().trim();
+
     try {
+      // Try server-side search first
       const response = await api.get('/api/movies/search', { params: { q: query, limit: 20 } });
-      return Array.isArray(response.data) ? response.data : [];
+      const results = Array.isArray(response.data) ? response.data : [];
+
+      // If server search returns results, use them
+      if (results.length > 0) {
+        return results;
+      }
+
+      // Fall back to client-side search if server returns empty
+      console.log('Server search returned empty, trying client-side search');
+      return this.clientSideSearch(searchTerm);
+    } catch (error: any) {
+      console.error('Server search error:', error?.response?.status, error?.message);
+      // Fall back to client-side search on error
+      return this.clientSideSearch(searchTerm);
+    }
+  },
+
+  // Client-side search fallback
+  async clientSideSearch(searchTerm: string): Promise<Movie[]> {
+    try {
+      const response = await api.get('/api/movies', { params: { limit: 100 } });
+      const allMovies = Array.isArray(response.data) ? response.data : [];
+
+      return allMovies.filter((movie: Movie) => {
+        const titleMatch = movie.title?.toLowerCase().includes(searchTerm);
+        const directorMatch = movie.director?.toLowerCase().includes(searchTerm);
+        const castMatch = movie.cast?.some(actor => actor.toLowerCase().includes(searchTerm));
+        const genreMatch = movie.genre?.some(g => g.toLowerCase().includes(searchTerm));
+        const descriptionMatch = movie.description?.toLowerCase().includes(searchTerm);
+
+        return titleMatch || directorMatch || castMatch || genreMatch || descriptionMatch;
+      });
     } catch (error) {
-      console.error('Error searching movies:', error);
+      console.error('Client-side search error:', error);
       return [];
     }
   },
