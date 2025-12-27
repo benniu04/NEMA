@@ -104,6 +104,23 @@ const MovieDetailScreen = ({ route, navigation }: Props) => {
     }
   };
 
+  const handleWatchNow = () => {
+    if (!movie) return;
+
+    // Check if video is available
+    const hasVideo = movie.videoUrls && Object.values(movie.videoUrls).some(url => url);
+    if (!hasVideo) {
+      Alert.alert(
+        'Video Unavailable',
+        'This movie is not available for streaming yet.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    navigation.navigate('VideoPlayer', { movieId: movie._id });
+  };
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -141,7 +158,7 @@ const MovieDetailScreen = ({ route, navigation }: Props) => {
           />
 
           {/* Play Button Overlay */}
-          <TouchableOpacity style={styles.playButton} activeOpacity={0.9}>
+          <TouchableOpacity style={styles.playButton} activeOpacity={0.9} onPress={handleWatchNow}>
             <View style={styles.playButtonInner}>
               <Ionicons name="play" size={32} color="#000" style={{ marginLeft: 4 }} />
             </View>
@@ -190,6 +207,7 @@ const MovieDetailScreen = ({ route, navigation }: Props) => {
             <TouchableOpacity
               style={styles.watchNowButton}
               activeOpacity={0.8}
+              onPress={handleWatchNow}
             >
               <Ionicons name="play" size={20} color="#000" />
               <Text style={styles.watchNowText}>Watch Now</Text>

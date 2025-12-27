@@ -78,6 +78,7 @@ export interface Movie {
   director: string;
   cast: string[];
   language: string;
+  duration?: number; // Duration in minutes
   videoUrls: VideoUrls;
   subtitleUrls?: SubtitleUrls;
   posterKey?: string;

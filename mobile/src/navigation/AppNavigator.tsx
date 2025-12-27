@@ -16,6 +16,7 @@ import WatchlistScreen from '../screens/WatchlistScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import MovieDetailScreen from '../screens/MovieDetailScreen';
 import SearchScreen from '../screens/SearchScreen';
+import VideoPlayerScreen from '../screens/VideoPlayerScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -137,6 +138,15 @@ export const AppNavigator = () => {
           name="Search"
           component={SearchScreen}
           options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="VideoPlayer"
+          component={VideoPlayerScreen}
+          options={{
+            headerShown: false,
+            orientation: 'landscape',
+            animation: 'fade',
+          }}
         />
         <Stack.Screen
           name="Profile"
