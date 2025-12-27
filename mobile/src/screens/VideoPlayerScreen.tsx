@@ -7,13 +7,13 @@ import {
   ActivityIndicator,
   Dimensions,
   StatusBar,
-  Alert,
   Platform,
 } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus, Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import Slider from '@react-native-community/slider';
 import { moviesService } from '../services/movies';
 import type { Movie } from '../types';
 import type { RootStackScreenProps } from '../navigation/types';
@@ -35,8 +35,12 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
   const [selectedQuality, setSelectedQuality] = useState<string>('720p');
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isFinished, setIsFinished] = useState(false);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [seekPosition, setSeekPosition] = useState(0);
 
   const controlsTimeout = useRef<NodeJS.Timeout | null>(null);
+  const durationRef = useRef(0);
 
   useEffect(() => {
     // Configure audio session for video playback
@@ -62,7 +66,7 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
   }, [movieId]);
 
   useEffect(() => {
-    if (showControls) {
+    if (showControls && !isSeeking) {
       resetControlsTimeout();
     }
     return () => {
@@ -70,14 +74,14 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
         clearTimeout(controlsTimeout.current);
       }
     };
-  }, [showControls]);
+  }, [showControls, isSeeking]);
 
   const resetControlsTimeout = () => {
     if (controlsTimeout.current) {
       clearTimeout(controlsTimeout.current);
     }
     controlsTimeout.current = setTimeout(() => {
-      if (isPlaying) {
+      if (isPlaying && !isSeeking) {
         setShowControls(false);
       }
     }, 4000);
@@ -125,15 +129,34 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
     }
 
     setIsPlaying(status.isPlaying);
-    setPosition(status.positionMillis || 0);
+
+    // Only update position if not seeking (to prevent jumpy UI)
+    if (!isSeeking) {
+      setPosition(status.positionMillis || 0);
+    }
+
     setDuration(status.durationMillis || 0);
+    durationRef.current = status.durationMillis || 0;
     setIsBuffering(status.isBuffering);
+
+    // Handle video finished
+    if (status.didJustFinish) {
+      setIsFinished(true);
+      setIsPlaying(false);
+      setShowControls(true);
+    }
   };
 
   const togglePlayPause = async () => {
     if (!videoRef.current) return;
 
-    if (isPlaying) {
+    // If video finished, seek to beginning first
+    if (isFinished) {
+      await videoRef.current.setPositionAsync(0);
+      setIsFinished(false);
+      setPosition(0);
+      await videoRef.current.playAsync();
+    } else if (isPlaying) {
       await videoRef.current.pauseAsync();
     } else {
       await videoRef.current.playAsync();
@@ -143,14 +166,35 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
 
   const seekRelative = async (seconds: number) => {
     if (!videoRef.current) return;
+
+    // Reset finished state when seeking
+    if (isFinished) {
+      setIsFinished(false);
+    }
+
     const newPosition = Math.max(0, Math.min(position + seconds * 1000, duration));
     await videoRef.current.setPositionAsync(newPosition);
+    setPosition(newPosition);
+
+    // Auto-play if was finished
+    if (isFinished || !isPlaying) {
+      await videoRef.current.playAsync();
+    }
+
     resetControlsTimeout();
   };
 
-  const handleSliderChange = async (value: number) => {
+  const seekToPosition = async (newPosition: number) => {
     if (!videoRef.current) return;
-    await videoRef.current.setPositionAsync(value);
+
+    // Reset finished state when seeking
+    if (isFinished) {
+      setIsFinished(false);
+    }
+
+    const clampedPosition = Math.max(0, Math.min(newPosition, duration));
+    await videoRef.current.setPositionAsync(clampedPosition);
+    setPosition(clampedPosition);
     resetControlsTimeout();
   };
 
@@ -167,7 +211,9 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
   };
 
   const handleScreenTap = () => {
+    if (isSeeking) return;
     setShowControls(!showControls);
+    setShowQualityMenu(false);
     if (!showControls) {
       resetControlsTimeout();
     }
@@ -193,8 +239,29 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
     navigation.goBack();
   };
 
+  // Slider handlers for seeking
+  const handleSlidingStart = () => {
+    setIsSeeking(true);
+    // Keep controls visible while seeking
+    if (controlsTimeout.current) {
+      clearTimeout(controlsTimeout.current);
+    }
+  };
+
+  const handleSlidingComplete = async (value: number) => {
+    setIsSeeking(false);
+    await seekToPosition(value);
+  };
+
+  const handleSliderChange = (value: number) => {
+    setSeekPosition(value);
+  };
+
   const availableQualities = movie?.videoUrls ? Object.keys(movie.videoUrls).filter(q => movie.videoUrls[q]) : [];
   const videoUrl = getVideoUrl();
+
+  // Use seek position while dragging, otherwise use actual position
+  const displayPosition = isSeeking ? seekPosition : position;
 
   if (isLoading) {
     return (
@@ -235,6 +302,7 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
           style={styles.video}
           resizeMode={ResizeMode.CONTAIN}
           shouldPlay={true}
+          isLooping={false}
           isMuted={false}
           volume={1.0}
           positionMillis={startTime * 1000}
@@ -309,9 +377,10 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
 
               <TouchableOpacity style={styles.playPauseButton} onPress={togglePlayPause}>
                 <Ionicons
-                  name={isPlaying ? 'pause' : 'play'}
+                  name={isFinished ? 'reload' : isPlaying ? 'pause' : 'play'}
                   size={44}
                   color="#000"
+                  style={!isFinished && !isPlaying ? { marginLeft: 4 } : undefined}
                 />
               </TouchableOpacity>
 
@@ -326,28 +395,21 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
 
             {/* Bottom Bar */}
             <View style={styles.bottomBar}>
-              <Text style={styles.timeText}>{formatTime(position)}</Text>
+              <Text style={styles.timeText}>{formatTime(displayPosition)}</Text>
 
-              {/* Progress Bar */}
-              <View
-                style={styles.progressContainer}
-                onTouchEnd={(e) => {
-                  const x = e.nativeEvent.locationX;
-                  // Estimate progress bar width based on screen dimensions
-                  const progressWidth = width - 140; // Account for padding and time labels
-                  const newPosition = Math.max(0, Math.min((x / progressWidth) * duration, duration));
-                  handleSliderChange(newPosition);
-                }}
-              >
-                <View style={styles.progressBackground}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      { width: `${duration > 0 ? (position / duration) * 100 : 0}%` },
-                    ]}
-                  />
-                </View>
-              </View>
+              {/* Slider for seeking - YouTube style */}
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={duration}
+                value={isSeeking ? seekPosition : position}
+                onSlidingStart={handleSlidingStart}
+                onSlidingComplete={handleSlidingComplete}
+                onValueChange={handleSliderChange}
+                minimumTrackTintColor="#F59E0B"
+                maximumTrackTintColor="rgba(255,255,255,0.3)"
+                thumbTintColor="#F59E0B"
+              />
 
               <Text style={styles.timeText}>{formatTime(duration)}</Text>
             </View>
@@ -523,20 +585,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     minWidth: 50,
   },
-  progressContainer: {
+  slider: {
     flex: 1,
-    height: 32,
-    justifyContent: 'center',
-  },
-  progressBackground: {
-    height: 4,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 2,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#F59E0B',
-    borderRadius: 2,
+    height: 40,
+    marginHorizontal: 8,
   },
 });
 
