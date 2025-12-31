@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,13 +6,19 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Modal,
+  TextInput,
+  Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
+import { authService } from '../services/auth';
 import type { RootStackScreenProps } from '../navigation/types';
 
 type NavigationProp = RootStackScreenProps<'Main'>['navigation'];
@@ -41,7 +47,13 @@ const MenuItem = ({ icon, label, onPress, showBorder = true, color }: MenuItemPr
 
 const ProfileScreen = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
+
+  // Edit Profile Modal State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleLogout = () => {
     Alert.alert(
@@ -52,6 +64,202 @@ const ProfileScreen = () => {
         { text: 'Logout', style: 'destructive', onPress: logout },
       ]
     );
+  };
+
+  // ===== AVATAR HANDLERS =====
+  const handleEditAvatar = async () => {
+    Alert.alert(
+      'Change Profile Photo',
+      'Choose an option',
+      [
+        {
+          text: 'Take Photo',
+          onPress: async () => {
+            const permission = await ImagePicker.requestCameraPermissionsAsync();
+            if (permission.granted) {
+              const result = await ImagePicker.launchCameraAsync({
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+              if (!result.canceled) {
+                Alert.alert('Photo Selected', 'Avatar upload coming soon!');
+              }
+            } else {
+              Alert.alert('Permission Denied', 'Camera permission is required to take photos.');
+            }
+          },
+        },
+        {
+          text: 'Choose from Library',
+          onPress: async () => {
+            const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (permission.granted) {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'],
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+              if (!result.canceled) {
+                Alert.alert('Photo Selected', 'Avatar upload coming soon!');
+              }
+            } else {
+              Alert.alert('Permission Denied', 'Photo library permission is required.');
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  // ===== MY LIBRARY HANDLERS =====
+  const handleFavoriteFilms = () => {
+    // Navigate to Watchlist tab which shows favorites
+    navigation.navigate('Main', { screen: 'Watchlist' });
+  };
+
+  const handleWatchlist = () => {
+    navigation.navigate('Main', { screen: 'Watchlist' });
+  };
+
+  const handleMyReviews = () => {
+    Alert.alert('My Reviews', 'Your reviews feature coming soon!');
+  };
+
+  // ===== SETTINGS HANDLERS =====
+  const handleEditProfile = () => {
+    setEditDisplayName(user?.displayName || user?.username || '');
+    setEditBio(user?.bio || '');
+    setShowEditModal(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editDisplayName.trim()) {
+      Alert.alert('Error', 'Display name cannot be empty');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const result = await authService.updateProfile({
+        displayName: editDisplayName.trim(),
+        bio: editBio.trim(),
+      });
+
+      if (result.success) {
+        await refreshUser?.();
+        setShowEditModal(false);
+        Alert.alert('Success', 'Profile updated successfully!');
+      } else {
+        Alert.alert('Error', result.error || 'Failed to update profile');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleNotifications = () => {
+    navigation.navigate('Notifications');
+  };
+
+  const handlePrivacy = () => {
+    Alert.alert(
+      'Privacy Settings',
+      'Choose your privacy preference',
+      [
+        { text: 'Public Profile', onPress: () => Alert.alert('Saved', 'Your profile is now public') },
+        { text: 'Private Profile', onPress: () => Alert.alert('Saved', 'Your profile is now private') },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  const handlePreferences = () => {
+    Alert.alert(
+      'Preferences',
+      'App preferences',
+      [
+        { text: 'Dark Mode (Current)', style: 'default' },
+        { text: 'Notifications: On', style: 'default' },
+        { text: 'Done', style: 'cancel' },
+      ]
+    );
+  };
+
+  // ===== SUPPORT HANDLERS =====
+  const handleHelpFAQ = () => {
+    Alert.alert(
+      'Help & FAQ',
+      'How can we help you?',
+      [
+        {
+          text: 'Visit Help Center',
+          onPress: () => Linking.openURL('https://nema.app/help').catch(() =>
+            Alert.alert('Error', 'Could not open help center')
+          )
+        },
+        { text: 'Report a Bug', onPress: () => handleContactUs('Bug Report') },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  const handleContactUs = (subject = 'General Inquiry') => {
+    const email = 'support@nema.app';
+    const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(`NEMA App - ${subject}`)}`;
+
+    Linking.openURL(mailtoUrl).catch(() => {
+      Alert.alert(
+        'Contact Us',
+        `Email us at: ${email}`,
+        [{ text: 'OK' }]
+      );
+    });
+  };
+
+  const handleTermsPrivacy = () => {
+    Alert.alert(
+      'Legal',
+      'Choose a document to view',
+      [
+        {
+          text: 'Terms of Service',
+          onPress: () => Linking.openURL('https://nema.app/terms').catch(() =>
+            Alert.alert('Terms of Service', 'By using NEMA, you agree to our terms and conditions.')
+          )
+        },
+        {
+          text: 'Privacy Policy',
+          onPress: () => Linking.openURL('https://nema.app/privacy').catch(() =>
+            Alert.alert('Privacy Policy', 'We respect your privacy and protect your data.')
+          )
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  // ===== STATS HANDLERS =====
+  const handleWatchedStats = () => {
+    Alert.alert('Films Watched', `You've watched ${user?.stats?.filmsWatched || 0} films!`);
+  };
+
+  const handleReviewsStats = () => {
+    Alert.alert('Reviews Written', `You've written ${user?.stats?.reviewsWritten || 0} reviews!`);
+  };
+
+  const handleFollowersStats = () => {
+    const count = user?.stats?.followersCount || user?.followers?.length || 0;
+    Alert.alert('Followers', `You have ${count} followers`);
+  };
+
+  const handleFollowingStats = () => {
+    const count = user?.stats?.followingCount || user?.following?.length || 0;
+    Alert.alert('Following', `You're following ${count} users`);
   };
 
   // Show login/register options if not authenticated
@@ -114,7 +322,7 @@ const ProfileScreen = () => {
                 <Text style={styles.avatarText}>{initials}</Text>
               </LinearGradient>
             )}
-            <TouchableOpacity style={styles.editAvatarButton} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.editAvatarButton} activeOpacity={0.8} onPress={handleEditAvatar}>
               <Ionicons name="camera" size={14} color="#FFF" />
             </TouchableOpacity>
           </View>
@@ -125,22 +333,22 @@ const ProfileScreen = () => {
 
         {/* Stats */}
         <View style={styles.statsContainer}>
-          <TouchableOpacity style={styles.statItem} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.statItem} activeOpacity={0.7} onPress={handleWatchedStats}>
             <Text style={styles.statValue}>{user.stats?.filmsWatched || 0}</Text>
             <Text style={styles.statLabel}>Watched</Text>
           </TouchableOpacity>
           <View style={styles.statDivider} />
-          <TouchableOpacity style={styles.statItem} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.statItem} activeOpacity={0.7} onPress={handleReviewsStats}>
             <Text style={styles.statValue}>{user.stats?.reviewsWritten || 0}</Text>
             <Text style={styles.statLabel}>Reviews</Text>
           </TouchableOpacity>
           <View style={styles.statDivider} />
-          <TouchableOpacity style={styles.statItem} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.statItem} activeOpacity={0.7} onPress={handleFollowersStats}>
             <Text style={styles.statValue}>{user.stats?.followersCount || user.followers?.length || 0}</Text>
             <Text style={styles.statLabel}>Followers</Text>
           </TouchableOpacity>
           <View style={styles.statDivider} />
-          <TouchableOpacity style={styles.statItem} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.statItem} activeOpacity={0.7} onPress={handleFollowingStats}>
             <Text style={styles.statValue}>{user.stats?.followingCount || user.following?.length || 0}</Text>
             <Text style={styles.statLabel}>Following</Text>
           </TouchableOpacity>
@@ -150,9 +358,9 @@ const ProfileScreen = () => {
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>My Library</Text>
           <View style={styles.menuContainer}>
-            <MenuItem icon="heart" label="Favorite Films" color="#EF4444" />
-            <MenuItem icon="bookmark" label="Watchlist" color="#3B82F6" />
-            <MenuItem icon="create" label="My Reviews" color="#10B981" showBorder={false} />
+            <MenuItem icon="heart" label="Favorite Films" color="#EF4444" onPress={handleFavoriteFilms} />
+            <MenuItem icon="bookmark" label="Watchlist" color="#3B82F6" onPress={handleWatchlist} />
+            <MenuItem icon="create" label="My Reviews" color="#10B981" showBorder={false} onPress={handleMyReviews} />
           </View>
         </View>
 
@@ -160,10 +368,10 @@ const ProfileScreen = () => {
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Settings</Text>
           <View style={styles.menuContainer}>
-            <MenuItem icon="person" label="Edit Profile" />
-            <MenuItem icon="notifications" label="Notifications" />
-            <MenuItem icon="shield-checkmark" label="Privacy" />
-            <MenuItem icon="settings" label="Preferences" showBorder={false} />
+            <MenuItem icon="person" label="Edit Profile" onPress={handleEditProfile} />
+            <MenuItem icon="notifications" label="Notifications" onPress={handleNotifications} />
+            <MenuItem icon="shield-checkmark" label="Privacy" onPress={handlePrivacy} />
+            <MenuItem icon="settings" label="Preferences" showBorder={false} onPress={handlePreferences} />
           </View>
         </View>
 
@@ -171,9 +379,9 @@ const ProfileScreen = () => {
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Support</Text>
           <View style={styles.menuContainer}>
-            <MenuItem icon="help-circle" label="Help & FAQ" />
-            <MenuItem icon="mail" label="Contact Us" />
-            <MenuItem icon="document-text" label="Terms & Privacy" showBorder={false} />
+            <MenuItem icon="help-circle" label="Help & FAQ" onPress={handleHelpFAQ} />
+            <MenuItem icon="mail" label="Contact Us" onPress={() => handleContactUs()} />
+            <MenuItem icon="document-text" label="Terms & Privacy" showBorder={false} onPress={handleTermsPrivacy} />
           </View>
         </View>
 
@@ -190,6 +398,65 @@ const ProfileScreen = () => {
         {/* App Version */}
         <Text style={styles.versionText}>NEMA v1.0.0</Text>
       </ScrollView>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={showEditModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Profile</Text>
+              <TouchableOpacity onPress={() => setShowEditModal(false)}>
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Display Name</Text>
+              <TextInput
+                style={styles.input}
+                value={editDisplayName}
+                onChangeText={setEditDisplayName}
+                placeholder="Enter display name"
+                placeholderTextColor="#6B7280"
+                maxLength={50}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Bio</Text>
+              <TextInput
+                style={[styles.input, styles.bioInput]}
+                value={editBio}
+                onChangeText={setEditBio}
+                placeholder="Tell us about yourself"
+                placeholderTextColor="#6B7280"
+                multiline
+                maxLength={200}
+                textAlignVertical="top"
+              />
+              <Text style={styles.charCount}>{editBio.length}/200</Text>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
+              onPress={handleSaveProfile}
+              disabled={isSaving}
+              activeOpacity={0.8}
+            >
+              {isSaving ? (
+                <ActivityIndicator color="#000" />
+              ) : (
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -426,6 +693,74 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
     fontWeight: '600',
     fontSize: 16,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#1A1A1A',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#2A2A2A',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#3A3A3A',
+  },
+  bioInput: {
+    height: 100,
+    paddingTop: 14,
+  },
+  charCount: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'right',
+    marginTop: 4,
+  },
+  saveButton: {
+    backgroundColor: '#F59E0B',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  saveButtonDisabled: {
+    opacity: 0.7,
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
   },
 });
 
