@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { useSettings } from '../context/SettingsContext';
 import GoogleOAuth from '../components/GoogleOAuth';
 import { User } from '../types';
+import { getRedirectResult } from 'firebase/auth';
+import { auth } from '../config/firebase';
+import API_BASE_URL from '../config/api';
 
 interface FormData {
   login: string;
@@ -25,8 +28,62 @@ const LoginPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  const [checkingRedirect, setCheckingRedirect] = useState(true);
 
   const from = (location.state as any)?.from?.pathname || '/';
+
+  // Handle OAuth redirect result BEFORE anything else (fixes mobile OAuth)
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const pendingRedirect = sessionStorage.getItem('pendingRedirect');
+
+        // Only check if we're expecting a redirect result
+        if (pendingRedirect === 'true') {
+          const result = await getRedirectResult(auth);
+
+          if (result) {
+            sessionStorage.removeItem('pendingRedirect');
+
+            // Get Firebase ID token and authenticate with backend
+            const idToken = await result.user.getIdToken();
+            const response = await fetch(`${API_BASE_URL}/api/users/firebase-auth`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                firebaseToken: idToken,
+                email: result.user.email,
+                displayName: result.user.displayName,
+                photoURL: result.user.photoURL,
+                uid: result.user.uid,
+              }),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              if (data.token) {
+                localStorage.setItem('authToken', data.token);
+              }
+              await refreshUser();
+              navigate(from, { replace: true });
+              return;
+            }
+          }
+
+          sessionStorage.removeItem('pendingRedirect');
+        }
+      } catch (err) {
+        console.error('Redirect result error:', err);
+        sessionStorage.removeItem('pendingRedirect');
+        setError('Google sign-in failed. Please try again.');
+      } finally {
+        setCheckingRedirect(false);
+      }
+    };
+
+    handleRedirectResult();
+  }, [navigate, from, refreshUser]);
 
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 100);
@@ -34,10 +91,10 @@ const LoginPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!loading && isAuthenticated) {
+    if (!loading && !checkingRedirect && isAuthenticated) {
       navigate(from, { replace: true });
     }
-  }, [isAuthenticated, loading, navigate, from]);
+  }, [isAuthenticated, loading, checkingRedirect, navigate, from]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -76,7 +133,7 @@ const LoginPage: React.FC = () => {
     setError(errorMessage);
   };
 
-  if (loading) {
+  if (loading || checkingRedirect) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
