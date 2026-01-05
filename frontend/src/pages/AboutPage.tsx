@@ -30,61 +30,161 @@ const AboutPage: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white overflow-hidden">
       <NavBar />
-      
-      <div className="relative min-h-screen pt-16">
-        {/* Cinematic Hero */}
-        <section id="about-hero" className={`relative h-[60vh] md:h-[70vh] flex items-center justify-center overflow-hidden transition-opacity duration-1000 ${
-          visibleSections['about-hero'] ? 'opacity-100' : 'opacity-0'
-        }`}>
-          <div className="absolute inset-0 bg-[url('/hero-2.jpeg')] bg-cover bg-center opacity-40"></div>
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black"></div>
+
+      <div className="relative min-h-screen pt-24">
+        {/* Hero Section */}
+        <section
+          id="about-hero"
+          className={`relative h-[50vh] md:h-[60vh] flex items-center justify-center overflow-hidden transition-all duration-1000 ${
+            visibleSections['about-hero'] ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          {/* Background */}
+          <div className="absolute inset-0 bg-[url('/hero-2.jpeg')] bg-cover bg-center opacity-50" />
+
+          {/* Gradient Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black" />
+
+          {/* Hero Content */}
           <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">
-            <div className="mb-4">
-              <span className="text-amber-100/80 tracking-[0.4em] uppercase text-xs md:text-sm font-extralight">Independent Cinema</span>
+            <div
+              className={`mb-4 transition-all duration-1000 ${
+                visibleSections['about-hero'] ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+              }`}
+              style={{ transitionDelay: '0.2s' }}
+            >
+              <span className="text-amber-200/90 tracking-[0.4em] uppercase text-xs md:text-sm font-light">
+                Independent Cinema
+              </span>
             </div>
-            <h1 className="text-5xl md:text-7xl font-light tracking-[0.2em] uppercase mb-4">About NEMA</h1>
-            <div className="w-24 h-px bg-amber-100/30 mx-auto mb-6"></div>
-            <p className="text-white/90 text-lg md:text-xl font-light tracking-wide">
-              Curating voices beyond the mainstream — a home for bold, independent films.
+
+            <h1
+              className={`text-5xl md:text-7xl font-extralight tracking-[0.25em] uppercase mb-4 transition-all duration-1000 ${
+                visibleSections['about-hero'] ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+              }`}
+              style={{ transitionDelay: '0.4s' }}
+            >
+              About
+            </h1>
+
+            {/* Divider */}
+            <div className="relative h-px w-32 mx-auto mb-6 overflow-hidden">
+              <div
+                className={`absolute inset-0 bg-gradient-to-r from-transparent via-amber-200/60 to-transparent transition-all duration-1000 ${
+                  visibleSections['about-hero'] ? 'scale-x-100' : 'scale-x-0'
+                }`}
+                style={{ transitionDelay: '0.6s' }}
+              />
+            </div>
+
+            <p
+              className={`text-white/80 text-base md:text-lg font-light tracking-wider max-w-xl mx-auto transition-all duration-1000 ${
+                visibleSections['about-hero'] ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+              }`}
+              style={{ transitionDelay: '0.8s' }}
+            >
+              Curating voices beyond the mainstream — a home for bold, independent films
             </p>
+          </div>
+
+          {/* Scroll Indicator */}
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+            <div className="w-px h-12 bg-gradient-to-b from-amber-200/50 to-transparent" />
           </div>
         </section>
 
-        {/* Mission / Vision / Values - Glass Panels */}
-        <section id="mission" className={`relative max-w-7xl mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-3 gap-6 transition-opacity duration-1000 ${
-          visibleSections['mission'] ? 'opacity-100' : 'opacity-0'
-        }`}>
-          {[
-            { title: 'Vision', desc: 'A global stage for uncompromising cinema and new narratives.' },
-            { title: 'Mission', desc: 'Champion emerging filmmakers and give audiences access to boundary-pushing stories.' },
-            { title: 'Values', desc: 'Artistic integrity, inclusivity, cultural preservation, and experimentation.' }
-          ].map((card, idx) => (
-            <div key={idx} className="panel border border-amber-100/20 p-8 bg-white/5">
-              <h3 className="text-2xl font-light tracking-wide mb-3">{card.title}</h3>
-              <p className="text-amber-100/70 leading-relaxed">{card.desc}</p>
+        {/* Mission / Vision / Values */}
+        <section
+          id="mission"
+          className={`relative max-w-3xl mx-auto px-6 py-20 text-center transition-all duration-1000 ${
+            visibleSections['mission'] ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+          }`}
+        >
+          <div className="mb-16">
+            <h2 className="text-2xl font-extralight tracking-[0.2em] uppercase text-white/90 mb-2">Who We Are</h2>
+            <div className="w-16 h-px bg-gradient-to-r from-transparent via-amber-200/50 to-transparent mx-auto" />
+          </div>
+
+          <div className="space-y-16">
+            <div
+              className={`transition-all duration-700 ${
+                visibleSections['mission'] ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+              }`}
+              style={{ transitionDelay: '0.1s' }}
+            >
+              <h3 className="text-amber-200/80 tracking-[0.2em] uppercase text-sm mb-4">Vision</h3>
+              <p className="text-white/80 text-xl md:text-2xl font-light leading-relaxed">
+                A global stage for uncompromising cinema and new narratives.
+              </p>
             </div>
-          ))}
+
+            <div className="w-16 h-px bg-amber-200/30 mx-auto" />
+
+            <div
+              className={`transition-all duration-700 ${
+                visibleSections['mission'] ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+              }`}
+              style={{ transitionDelay: '0.2s' }}
+            >
+              <h3 className="text-amber-200/80 tracking-[0.2em] uppercase text-sm mb-4">Mission</h3>
+              <p className="text-white/80 text-xl md:text-2xl font-light leading-relaxed">
+                Champion emerging filmmakers and give audiences access to boundary-pushing stories.
+              </p>
+            </div>
+
+            <div className="w-16 h-px bg-amber-200/30 mx-auto" />
+
+            <div
+              className={`transition-all duration-700 ${
+                visibleSections['mission'] ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+              }`}
+              style={{ transitionDelay: '0.3s' }}
+            >
+              <h3 className="text-amber-200/80 tracking-[0.2em] uppercase text-sm mb-4">Values</h3>
+              <p className="text-white/80 text-xl md:text-2xl font-light leading-relaxed">
+                Artistic integrity, inclusivity, cultural preservation, and experimentation.
+              </p>
+            </div>
+          </div>
         </section>
 
         {/* Timeline */}
-        <section id="timeline" className={`relative max-w-5xl mx-auto px-6 py-12 transition-opacity duration-1000 ${
-          visibleSections['timeline'] ? 'opacity-100' : 'opacity-0'
-        }`}>
-          <h2 className="text-3xl font-light tracking-wide text-center mb-10">Milestones</h2>
-          <div className="relative pl-6">
-            <div className="absolute left-3 top-0 bottom-0 w-px bg-amber-100/20"></div>
+        <section
+          id="timeline"
+          className={`relative max-w-4xl mx-auto px-4 py-16 sm:px-6 lg:px-8 transition-all duration-1000 ${
+            visibleSections['timeline'] ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+          }`}
+        >
+          <div className="text-center mb-12">
+            <h2 className="text-2xl font-extralight tracking-[0.2em] uppercase text-white/90 mb-2">Milestones</h2>
+            <div className="w-16 h-px bg-gradient-to-r from-transparent via-amber-200/50 to-transparent mx-auto" />
+          </div>
+
+          <div className="relative pl-8">
+            {/* Timeline Line */}
+            <div className="absolute left-3 top-2 bottom-2 w-px bg-gradient-to-b from-amber-200/40 via-amber-200/20 to-transparent" />
+
             {[
               { year: '2025 May', text: 'NEMA founded by filmmakers and curators.' },
               { year: '2025 June', text: 'First film submitted to NEMA.' },
               { year: '2025 Sep', text: 'Onboarding more films.' }
             ].map((item, i) => (
-              <div key={i} className="mb-8 flex items-start gap-4">
-                <div className="mt-1 w-2 h-2 rounded-full bg-amber-400"></div>
+              <div
+                key={i}
+                className={`mb-10 flex items-start gap-6 transition-all duration-700 ${
+                  visibleSections['timeline'] ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'
+                }`}
+                style={{ transitionDelay: `${0.1 + i * 0.15}s` }}
+              >
+                <div className="relative">
+                  <div className="w-2 h-2 rounded-full bg-amber-200/80" />
+                  <div className="absolute inset-0 w-2 h-2 rounded-full bg-amber-200/30 scale-150" />
+                </div>
                 <div>
-                  <div className="text-amber-100/80 text-sm tracking-widest uppercase">{item.year}</div>
-                  <div className="text-white/90 text-lg">{item.text}</div>
+                  <div className="text-amber-200/70 text-sm tracking-[0.15em] uppercase mb-1">{item.year}</div>
+                  <div className="text-white/80 text-lg font-light">{item.text}</div>
                 </div>
               </div>
             ))}
@@ -92,10 +192,17 @@ const AboutPage: React.FC = () => {
         </section>
 
         {/* Team */}
-        <section id="team" className={`relative max-w-7xl mx-auto px-6 py-12 transition-opacity duration-1000 ${
-          visibleSections['team'] ? 'opacity-100' : 'opacity-0'
-        }`}>
-          <h2 className="text-3xl font-light tracking-wide text-center mb-10">Curators</h2>
+        <section
+          id="team"
+          className={`relative max-w-6xl mx-auto px-4 py-16 sm:px-6 lg:px-8 transition-all duration-1000 ${
+            visibleSections['team'] ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+          }`}
+        >
+          <div className="text-center mb-12">
+            <h2 className="text-2xl font-extralight tracking-[0.2em] uppercase text-white/90 mb-2">Curators</h2>
+            <div className="w-16 h-px bg-gradient-to-r from-transparent via-amber-200/50 to-transparent mx-auto" />
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {[
               { name: 'Benjamin Niu', role: 'Full Stack Developer', img: '/BenNiuLinkedIn.jpeg' },
@@ -103,14 +210,24 @@ const AboutPage: React.FC = () => {
               { name: 'Rohan Biju', role: 'Co-Founder', img: '/Rohan.jpg' },
               { name: 'Alex Lynn', role: 'Finance Coordinator', img: '/Alex.jpg' }
             ].map((p, idx) => (
-              <div key={idx} className="bg-white/5 border border-amber-100/10 p-4 text-center">
-                <div className="aspect-square bg-cover bg-center mb-3" style={{ backgroundImage: `url(${p.img})` }}></div>
-                <div className="text-white/90">{p.name}</div>
-                <div className="text-amber-100/60 text-sm">{p.role}</div>
+              <div
+                key={idx}
+                className={`relative bg-black/60 backdrop-blur-xl border border-amber-100/10 p-5 text-center transition-all duration-700 ${
+                  visibleSections['team'] ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+                }`}
+                style={{ transitionDelay: `${0.1 + idx * 0.1}s` }}
+              >
+                <div
+                  className="aspect-square bg-cover bg-center mb-4 border border-amber-100/10"
+                  style={{ backgroundImage: `url(${p.img})` }}
+                />
+                <div className="text-white/90 font-light tracking-wide">{p.name}</div>
+                <div className="text-amber-100/60 text-sm tracking-wide mt-1">{p.role}</div>
               </div>
             ))}
           </div>
         </section>
+
         <Footer />
       </div>
     </div>
@@ -118,4 +235,3 @@ const AboutPage: React.FC = () => {
 };
 
 export default AboutPage;
-

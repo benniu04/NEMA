@@ -76,7 +76,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ className = '', isMobile = false 
     if (open) {
       const scrollY = window.scrollY;
       const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-      
+
       // Store original styles
       const originalOverflow = document.body.style.overflow;
       const originalPosition = document.body.style.position;
@@ -84,13 +84,13 @@ const SearchBar: React.FC<SearchBarProps> = ({ className = '', isMobile = false 
       const originalLeft = document.body.style.left;
       const originalRight = document.body.style.right;
       const originalWillChange = document.body.style.willChange;
-      
+
       // Hint to browser for optimization
       document.body.style.willChange = 'position, top';
-      
+
       // Force a reflow to apply will-change before the actual changes
       document.body.offsetHeight;
-      
+
       // Apply all styles at once to minimize reflow
       Object.assign(document.body.style, {
         overflow: 'hidden',
@@ -100,12 +100,12 @@ const SearchBar: React.FC<SearchBarProps> = ({ className = '', isMobile = false 
         right: `${scrollbarWidth}px`,
         willChange: 'auto'
       });
-      
+
       // Reset overlay scroll
       if (overlayRef.current) {
         overlayRef.current.scrollTop = 0;
       }
-      
+
       return () => {
         // Restore all at once
         Object.assign(document.body.style, {
@@ -330,8 +330,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ className = '', isMobile = false 
                         key={movie._id}
                         onClick={() => handleSelectMovie(movie)}
                         className="group relative aspect-[3/4] overflow-hidden border border-amber-100/10 bg-white/5 text-left shadow-lg shadow-black/30 hover:border-amber-100/30 hover:shadow-xl hover:shadow-amber-500/20 transition-all duration-300 hover:scale-[1.02]"
-                        style={{ 
-                          animation: `fadeInUp 0.4s ease-out ${idx * 0.05}s both` 
+                        style={{
+                          animation: `fadeInUp 0.4s ease-out ${idx * 0.05}s both`
                         }}
                       >
                         <div
@@ -392,8 +392,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ className = '', isMobile = false 
                         key={item}
                         onClick={() => handleChipClick(item)}
                         className="rounded-none border border-amber-100/20 px-3 py-1 text-xs text-amber-100/80 hover:border-amber-100/40 hover:text-amber-100 hover:bg-white/5 transition-all duration-150"
-                        style={{ 
-                          animation: `fadeInUp 0.3s ease-out ${idx * 0.05}s both` 
+                        style={{
+                          animation: `fadeInUp 0.3s ease-out ${idx * 0.05}s both`
                         }}
                       >
                         {item}
@@ -416,8 +416,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ className = '', isMobile = false 
                         key={movie._id}
                         onClick={() => handleSelectMovie(movie)}
                         className="group relative aspect-[3/4] overflow-hidden border border-amber-100/10 bg-white/5 text-left shadow-lg shadow-black/30 hover:border-amber-100/30 hover:shadow-xl hover:shadow-amber-500/20 transition-all duration-300 hover:scale-[1.02]"
-                        style={{ 
-                          animation: `fadeInUp 0.4s ease-out ${idx * 0.05 + 0.1}s both` 
+                        style={{
+                          animation: `fadeInUp 0.4s ease-out ${idx * 0.05 + 0.1}s both`
                         }}
                       >
                         <div

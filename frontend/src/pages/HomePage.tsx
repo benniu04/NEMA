@@ -1105,11 +1105,11 @@ const HomePage: React.FC = () => {
         className="relative py-24 px-6"
       >
         <div className="max-w-3xl mx-auto">
-          <div className="flex flex-col items-center mb-12">
+          <div className="flex flex-col items-center mb-12 text-center">
             <div className="mb-2">
               <span className="text-amber-100/80 tracking-[0.3em] uppercase text-sm font-extralight">Got Questions?</span>
             </div>
-            <h2 className="text-4xl font-extralight tracking-wide">Frequently Asked Questions</h2>
+            <h2 className="text-3xl md:text-4xl font-extralight tracking-wide">Frequently Asked Questions</h2>
             <div className="w-16 h-[1px] bg-amber-100/30 mt-4"></div>
           </div>
 
