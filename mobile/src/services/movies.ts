@@ -195,4 +195,91 @@ export const moviesService = {
       return { success: false, error: error.response?.data?.message || 'Failed to remove from favorites' };
     }
   },
+
+  // Get trending movies (sorted by views)
+  async getTrending(limit = 10): Promise<Movie[]> {
+    try {
+      const response = await api.get('/api/movies');
+      const movies = Array.isArray(response.data) ? response.data : [];
+      return movies
+        .sort((a: Movie, b: Movie) => (b.views || 0) - (a.views || 0))
+        .slice(0, limit);
+    } catch (error) {
+      console.error('Error fetching trending movies:', error);
+      return [];
+    }
+  },
+
+  // Get new releases (last 30 days)
+  async getNewReleases(limit = 10): Promise<Movie[]> {
+    try {
+      const response = await api.get('/api/movies');
+      const movies = Array.isArray(response.data) ? response.data : [];
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      return movies
+        .filter((m: Movie) => new Date(m.releaseDate) >= thirtyDaysAgo)
+        .sort((a: Movie, b: Movie) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime())
+        .slice(0, limit);
+    } catch (error) {
+      console.error('Error fetching new releases:', error);
+      return [];
+    }
+  },
+
+  // Get similar movies based on shared genres/tags
+  async getSimilarMovies(movie: Movie, limit = 10): Promise<Movie[]> {
+    try {
+      const response = await api.get('/api/movies');
+      const movies = Array.isArray(response.data) ? response.data : [];
+
+      // Calculate similarity score based on shared genres and tags
+      const calculateSimilarity = (m: Movie): number => {
+        let score = 0;
+        const movieGenres = movie.genre || [];
+        const movieTags = movie.tags || [];
+
+        // Shared genres (higher weight)
+        const sharedGenres = (m.genre || []).filter(g => movieGenres.includes(g));
+        score += sharedGenres.length * 3;
+
+        // Shared tags
+        const sharedTags = (m.tags || []).filter(t => movieTags.includes(t));
+        score += sharedTags.length * 2;
+
+        // Same director
+        if (m.director === movie.director) {
+          score += 2;
+        }
+
+        return score;
+      };
+
+      return movies
+        .filter((m: Movie) => m._id !== movie._id) // Exclude the source movie
+        .map((m: Movie) => ({ ...m, _similarityScore: calculateSimilarity(m) }))
+        .filter((m: any) => m._similarityScore > 0) // Only include movies with some similarity
+        .sort((a: any, b: any) => b._similarityScore - a._similarityScore)
+        .slice(0, limit)
+        .map(({ _similarityScore, ...m }: any) => m as Movie); // Remove similarity score from result
+    } catch (error) {
+      console.error('Error fetching similar movies:', error);
+      return [];
+    }
+  },
+
+  // Get top rated movies
+  async getTopRated(limit = 10): Promise<Movie[]> {
+    try {
+      const response = await api.get('/api/movies');
+      const movies = Array.isArray(response.data) ? response.data : [];
+      return movies
+        .sort((a: Movie, b: Movie) => (b.rating || 0) - (a.rating || 0))
+        .slice(0, limit);
+    } catch (error) {
+      console.error('Error fetching top rated movies:', error);
+      return [];
+    }
+  },
 };

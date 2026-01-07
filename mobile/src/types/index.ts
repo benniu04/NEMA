@@ -177,3 +177,23 @@ export type MainTabParamList = {
   Watchlist: undefined;
   ProfileTab: undefined;
 };
+
+// ============================================
+// Watch Progress Types
+// ============================================
+export interface WatchProgressItem {
+  movieId: string;
+  position: number;        // Current position in milliseconds
+  duration: number;        // Total duration in milliseconds
+  percentage: number;      // Progress percentage (0-100)
+  lastWatched: string;     // ISO timestamp
+  thumbnailUrl?: string;   // Cached for quick display
+  title?: string;          // Cached for quick display
+}
+
+export interface CategoryData {
+  id: string;
+  title: string;
+  movies: Movie[];
+  type: 'continueWatching' | 'trending' | 'newReleases' | 'genre' | 'similar' | 'recommended';
+}

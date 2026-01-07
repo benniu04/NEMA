@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import Slider from '@react-native-community/slider';
 import { moviesService } from '../services/movies';
+import { watchProgressService } from '../services/watchProgress';
 import type { Movie } from '../types';
 import type { RootStackScreenProps } from '../navigation/types';
 
@@ -41,6 +42,8 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
 
   const controlsTimeout = useRef<NodeJS.Timeout | null>(null);
   const durationRef = useRef(0);
+  const lastSaveTime = useRef(0);
+  const hasLoadedSavedProgress = useRef(false);
 
   useEffect(() => {
     // Configure audio session for video playback
@@ -115,6 +118,62 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
     }
   };
 
+  // Save watch progress (debounced - every 5 seconds)
+  const saveWatchProgress = useCallback(async (positionMs: number, durationMs: number) => {
+    if (!movie || durationMs === 0) return;
+
+    const now = Date.now();
+    // Debounce: only save every 5 seconds
+    if (now - lastSaveTime.current < 5000) return;
+    lastSaveTime.current = now;
+
+    const percentage = (positionMs / durationMs) * 100;
+
+    await watchProgressService.save({
+      movieId: movie._id,
+      position: positionMs,
+      duration: durationMs,
+      percentage,
+      lastWatched: new Date().toISOString(),
+      thumbnailUrl: movie.thumbnailUrl || movie.posterUrl,
+      title: movie.title,
+    });
+  }, [movie]);
+
+  // Force save progress (used on close/pause)
+  const forceSaveProgress = useCallback(async () => {
+    if (!movie || duration === 0) return;
+
+    const percentage = (position / duration) * 100;
+
+    await watchProgressService.save({
+      movieId: movie._id,
+      position,
+      duration,
+      percentage,
+      lastWatched: new Date().toISOString(),
+      thumbnailUrl: movie.thumbnailUrl || movie.posterUrl,
+      title: movie.title,
+    });
+  }, [movie, position, duration]);
+
+  // Load saved progress if no startTime provided
+  useEffect(() => {
+    const loadSavedProgress = async () => {
+      if (startTime > 0 || hasLoadedSavedProgress.current || !movie) return;
+      hasLoadedSavedProgress.current = true;
+
+      const savedProgress = await watchProgressService.get(movie._id);
+      if (savedProgress && savedProgress.position > 0 && videoRef.current) {
+        await videoRef.current.setPositionAsync(savedProgress.position);
+      }
+    };
+
+    if (movie && !isLoading) {
+      loadSavedProgress();
+    }
+  }, [movie, isLoading, startTime]);
+
   const getVideoUrl = (): string | null => {
     if (!movie?.videoUrls) return null;
     return movie.videoUrls[selectedQuality] || null;
@@ -144,6 +203,15 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
       setIsFinished(true);
       setIsPlaying(false);
       setShowControls(true);
+      // Remove from continue watching when finished
+      if (movie) {
+        watchProgressService.remove(movie._id);
+      }
+    }
+
+    // Save watch progress periodically
+    if (status.isPlaying && status.positionMillis && status.durationMillis) {
+      saveWatchProgress(status.positionMillis, status.durationMillis);
     }
   };
 
@@ -236,6 +304,8 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
     if (videoRef.current) {
       await videoRef.current.pauseAsync();
     }
+    // Save progress before closing
+    await forceSaveProgress();
     navigation.goBack();
   };
 

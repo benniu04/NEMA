@@ -1,47 +1,103 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
-  FlatList,
-  TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Dimensions,
   ScrollView,
 } from 'react-native';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { moviesService } from '../services/movies';
+import { watchProgressService, WatchProgressItem } from '../services/watchProgress';
+import { useAuth } from '../context/AuthContext';
+import HeroSection from '../components/HeroSection';
+import CategoryRow from '../components/CategoryRow';
 import type { Movie } from '../types';
 import type { RootStackScreenProps } from '../navigation/types';
 
 type NavigationProp = RootStackScreenProps<'Main'>['navigation'];
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.38;
-const FEATURED_HEIGHT = 420;
 
 const HomeScreen = () => {
   const navigation = useNavigation<NavigationProp>();
+  const isFocused = useIsFocused();
+  const { user } = useAuth();
+
   const [featuredMovies, setFeaturedMovies] = useState<Movie[]>([]);
   const [recommendations, setRecommendations] = useState<Movie[]>([]);
-  const [movies, setMovies] = useState<Movie[]>([]);
+  const [trending, setTrending] = useState<Movie[]>([]);
+  const [newReleases, setNewReleases] = useState<Movie[]>([]);
+  const [topRated, setTopRated] = useState<Movie[]>([]);
+  const [genreMovies, setGenreMovies] = useState<Record<string, Movie[]>>({});
+  const [continueWatching, setContinueWatching] = useState<WatchProgressItem[]>([]);
+  const [continueWatchingMovies, setContinueWatchingMovies] = useState<Movie[]>([]);
+  const [similarMovies, setSimilarMovies] = useState<Movie[]>([]);
+  const [lastWatchedTitle, setLastWatchedTitle] = useState<string>('');
+
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Load continue watching data
+  const loadContinueWatching = useCallback(async () => {
+    const progress = await watchProgressService.getContinueWatching();
+    setContinueWatching(progress);
+
+    // Fetch full movie data for continue watching items
+    if (progress.length > 0) {
+      const moviePromises = progress.map(p => moviesService.getMovieById(p.movieId));
+      const movies = await Promise.all(moviePromises);
+      const validMovies = movies.filter((m): m is Movie => m !== null);
+      setContinueWatchingMovies(validMovies);
+
+      // Get similar movies based on most recently watched
+      const lastWatched = validMovies[0];
+      if (lastWatched) {
+        setLastWatchedTitle(lastWatched.title);
+        const similar = await moviesService.getSimilarMovies(lastWatched, 10);
+        setSimilarMovies(similar);
+      }
+    } else {
+      setContinueWatchingMovies([]);
+      setSimilarMovies([]);
+      setLastWatchedTitle('');
+    }
+  }, []);
+
+  // Load all data
   const loadData = async () => {
     try {
-      const [featured, recommended, allMovies] = await Promise.all([
+      // Load main data in parallel
+      const [featured, recommended, trendingData, newReleasesData, topRatedData] = await Promise.all([
         moviesService.getFeaturedMovies(),
         moviesService.getRecommendations(10),
-        moviesService.getMovies(1, 20),
+        moviesService.getTrending(10),
+        moviesService.getNewReleases(10),
+        moviesService.getTopRated(10),
       ]);
+
       setFeaturedMovies(featured);
       setRecommendations(recommended);
-      setMovies(allMovies.movies);
+      setTrending(trendingData);
+      setNewReleases(newReleasesData);
+      setTopRated(topRatedData);
+
+      // Load genre-based rows for user's favorite genres
+      if (user?.favoriteGenres && user.favoriteGenres.length > 0) {
+        const genrePromises = user.favoriteGenres.slice(0, 3).map(async (genre) => {
+          const movies = await moviesService.getMoviesByGenre(genre, 10);
+          return { genre, movies };
+        });
+        const genreResults = await Promise.all(genrePromises);
+        const genreMap: Record<string, Movie[]> = {};
+        genreResults.forEach(({ genre, movies }) => {
+          if (movies.length > 0) {
+            genreMap[genre] = movies;
+          }
+        });
+        setGenreMovies(genreMap);
+      }
+
+      // Load continue watching
+      await loadContinueWatching();
     } catch (error) {
       console.error('Error loading home data:', error);
     } finally {
@@ -54,61 +110,38 @@ const HomeScreen = () => {
     loadData();
   }, []);
 
+  // Refresh continue watching when screen comes into focus
+  useEffect(() => {
+    if (isFocused) {
+      loadContinueWatching();
+    }
+  }, [isFocused, loadContinueWatching]);
+
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
   };
 
+  const handleMoviePress = (movie: Movie) => {
+    navigation.navigate('MovieDetail', { movieId: movie._id });
+  };
+
+  const handlePlayPress = (movie: Movie) => {
+    navigation.navigate('VideoPlayer', { movieId: movie._id });
+  };
+
+  const handleSearchPress = () => {
+    navigation.navigate('Search');
+  };
+
   // Hero featured movie
-  const heroMovie = featuredMovies[0] || movies[0];
+  const heroMovie = featuredMovies[0];
 
-  const renderMovieCard = (item: Movie, large = false) => (
-    <TouchableOpacity
-      key={item._id}
-      style={[styles.movieCard, large && styles.movieCardLarge]}
-      onPress={() => navigation.navigate('MovieDetail', { movieId: item._id })}
-      activeOpacity={0.8}
-    >
-      <Image
-        source={{ uri: item.posterUrl || item.thumbnailUrl }}
-        style={[styles.moviePoster, large && styles.moviePosterLarge]}
-        contentFit="cover"
-      />
-      <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.9)']}
-        style={styles.cardGradient}
-      />
-      <View style={styles.cardInfo}>
-        <Text style={styles.cardTitle} numberOfLines={1}>
-          {item.title}
-        </Text>
-        <View style={styles.cardMeta}>
-          <Ionicons name="star" size={12} color="#F59E0B" />
-          <Text style={styles.cardRating}>{(item.rating ?? 0).toFixed(1)}</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderSection = (title: string, data: Movie[], showAll?: () => void) => (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        {showAll && (
-          <TouchableOpacity onPress={showAll}>
-            <Text style={styles.seeAll}>See All</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.horizontalList}
-      >
-        {data.map((item) => renderMovieCard(item))}
-      </ScrollView>
-    </View>
-  );
+  // Create progress data map for continue watching
+  const progressData: Record<string, number> = {};
+  continueWatching.forEach(item => {
+    progressData[item.movieId] = item.percentage;
+  });
 
   if (isLoading) {
     return (
@@ -130,73 +163,95 @@ const HomeScreen = () => {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero Section */}
+        {/* Hero Section with Auto-Play */}
         {heroMovie && (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate('MovieDetail', { movieId: heroMovie._id })}
-          >
-            <View style={styles.heroContainer}>
-              <Image
-                source={{ uri: heroMovie.posterUrl || heroMovie.thumbnailUrl }}
-                style={styles.heroPoster}
-                contentFit="cover"
-              />
-              <LinearGradient
-                colors={['transparent', 'rgba(15,15,15,0.8)', '#0F0F0F']}
-                style={styles.heroGradient}
-              />
-              <SafeAreaView style={styles.header} edges={['top']}>
-                <Text style={styles.logo}>NEMA</Text>
-                <TouchableOpacity
-                  style={styles.searchButton}
-                  onPress={() => navigation.navigate('Search')}
-                >
-                  <Ionicons name="search" size={24} color="#FFFFFF" />
-                </TouchableOpacity>
-              </SafeAreaView>
-              <View style={styles.heroContent}>
-                <View style={styles.heroGenres}>
-                  {heroMovie.genre?.slice(0, 3).map((g, i) => (
-                    <Text key={g} style={styles.heroGenre}>
-                      {g}{i < Math.min(heroMovie.genre.length, 3) - 1 ? ' • ' : ''}
-                    </Text>
-                  ))}
-                </View>
-                <Text style={styles.heroTitle}>{heroMovie.title}</Text>
-                <View style={styles.heroMeta}>
-                  <View style={styles.ratingBadge}>
-                    <Ionicons name="star" size={14} color="#000" />
-                    <Text style={styles.ratingText}>{(heroMovie.rating ?? 0).toFixed(1)}</Text>
-                  </View>
-                  <Text style={styles.heroYear}>
-                    {new Date(heroMovie.releaseDate).getFullYear()}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.playButton}
-                  onPress={() => navigation.navigate('MovieDetail', { movieId: heroMovie._id })}
-                >
-                  <Ionicons name="play" size={20} color="#000" />
-                  <Text style={styles.playButtonText}>Watch Now</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </TouchableOpacity>
+          <HeroSection
+            movie={heroMovie}
+            onPress={() => handleMoviePress(heroMovie)}
+            onPlayPress={() => handlePlayPress(heroMovie)}
+            onSearchPress={handleSearchPress}
+            autoPlayEnabled={true}
+            isFocused={isFocused}
+          />
         )}
 
-        {/* Recommendations */}
-        {recommendations.length > 0 && renderSection('Recommended For You', recommendations)}
+        {/* Continue Watching - First priority */}
+        {continueWatchingMovies.length > 0 && (
+          <View style={styles.sectionSpacing}>
+            <CategoryRow
+              title="Continue Watching"
+              movies={continueWatchingMovies}
+              onMoviePress={handleMoviePress}
+              showProgress={true}
+              progressData={progressData}
+            />
+          </View>
+        )}
 
-        {/* All Movies */}
-        {movies.length > 0 && renderSection(
-          'Popular Movies',
-          movies,
-          () => navigation.navigate('Main', { screen: 'Catalog' } as any)
+        {/* Trending Now */}
+        {trending.length > 0 && (
+          <CategoryRow
+            title="Trending Now"
+            movies={trending}
+            onMoviePress={handleMoviePress}
+          />
+        )}
+
+        {/* New Releases */}
+        {newReleases.length > 0 && (
+          <CategoryRow
+            title="New Releases"
+            movies={newReleases}
+            onMoviePress={handleMoviePress}
+          />
+        )}
+
+        {/* Because You Watched [Title] */}
+        {similarMovies.length > 0 && lastWatchedTitle && (
+          <CategoryRow
+            title={`Because You Watched ${lastWatchedTitle}`}
+            movies={similarMovies}
+            onMoviePress={handleMoviePress}
+          />
+        )}
+
+        {/* User's Favorite Genres */}
+        {Object.entries(genreMovies).map(([genre, movies]) => (
+          <CategoryRow
+            key={genre}
+            title={`${genre} Movies`}
+            movies={movies}
+            onMoviePress={handleMoviePress}
+            onSeeAll={() => navigation.navigate('Main', { screen: 'Catalog' } as any)}
+          />
+        ))}
+
+        {/* Recommendations */}
+        {recommendations.length > 0 && (
+          <CategoryRow
+            title="Recommended For You"
+            movies={recommendations}
+            onMoviePress={handleMoviePress}
+          />
+        )}
+
+        {/* Top Rated */}
+        {topRated.length > 0 && (
+          <CategoryRow
+            title="Top Rated"
+            movies={topRated}
+            onMoviePress={handleMoviePress}
+          />
         )}
 
         {/* More Featured */}
-        {featuredMovies.length > 1 && renderSection('Featured', featuredMovies.slice(1))}
+        {featuredMovies.length > 1 && (
+          <CategoryRow
+            title="Featured"
+            movies={featuredMovies.slice(1)}
+            onMoviePress={handleMoviePress}
+          />
+        )}
 
         <View style={styles.bottomPadding} />
       </ScrollView>
@@ -215,181 +270,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#0F0F0F',
   },
-  header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    zIndex: 10,
-  },
-  logo: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#F59E0B',
-    letterSpacing: 2,
-  },
-  searchButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  heroContainer: {
-    height: FEATURED_HEIGHT,
-    position: 'relative',
-  },
-  heroPoster: {
-    width: '100%',
-    height: '100%',
-  },
-  heroGradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '70%',
-  },
-  heroContent: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-  },
-  heroGenres: {
-    flexDirection: 'row',
-    marginBottom: 8,
-  },
-  heroGenre: {
-    color: '#9CA3AF',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  heroTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 12,
-  },
-  heroMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  ratingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F59E0B',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    marginRight: 12,
-  },
-  ratingText: {
-    color: '#000',
-    fontWeight: 'bold',
-    fontSize: 14,
-    marginLeft: 4,
-  },
-  heroYear: {
-    color: '#9CA3AF',
-    fontSize: 14,
-  },
-  playButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 30,
-    alignSelf: 'flex-start',
-  },
-  playButtonText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  section: {
-    marginTop: 28,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  seeAll: {
-    fontSize: 14,
-    color: '#F59E0B',
-    fontWeight: '500',
-  },
-  horizontalList: {
-    paddingLeft: 20,
-    paddingRight: 8,
-  },
-  movieCard: {
-    width: CARD_WIDTH,
-    marginRight: 12,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#1A1A1A',
-  },
-  movieCardLarge: {
-    width: CARD_WIDTH * 1.3,
-  },
-  moviePoster: {
-    width: '100%',
-    height: CARD_WIDTH * 1.5,
-    borderRadius: 12,
-  },
-  moviePosterLarge: {
-    height: CARD_WIDTH * 1.8,
-  },
-  cardGradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 80,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-  },
-  cardInfo: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 12,
-  },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  cardMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cardRating: {
-    fontSize: 12,
-    color: '#F59E0B',
-    fontWeight: '600',
-    marginLeft: 4,
+  sectionSpacing: {
+    marginTop: 24,
   },
   bottomPadding: {
     height: 20,

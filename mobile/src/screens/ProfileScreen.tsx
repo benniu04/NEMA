@@ -183,7 +183,6 @@ const ProfileScreen = () => {
       'Preferences',
       'App preferences',
       [
-        { text: 'Dark Mode (Current)', style: 'default' },
         { text: 'Notifications: On', style: 'default' },
         { text: 'Done', style: 'cancel' },
       ]
@@ -198,7 +197,7 @@ const ProfileScreen = () => {
       [
         {
           text: 'Visit Help Center',
-          onPress: () => Linking.openURL('https://nema.app/help').catch(() =>
+          onPress: () => Linking.openURL('https://nemaa.netlify.app').catch(() =>
             Alert.alert('Error', 'Could not open help center')
           )
         },
@@ -209,7 +208,7 @@ const ProfileScreen = () => {
   };
 
   const handleContactUs = (subject = 'General Inquiry') => {
-    const email = 'support@nema.app';
+    const email = 'nemaarchives@gmail.com';
     const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(`NEMA App - ${subject}`)}`;
 
     Linking.openURL(mailtoUrl).catch(() => {
@@ -228,13 +227,13 @@ const ProfileScreen = () => {
       [
         {
           text: 'Terms of Service',
-          onPress: () => Linking.openURL('https://nema.app/terms').catch(() =>
+          onPress: () => Linking.openURL('https://nemaa.netlify.app').catch(() =>
             Alert.alert('Terms of Service', 'By using NEMA, you agree to our terms and conditions.')
           )
         },
         {
           text: 'Privacy Policy',
-          onPress: () => Linking.openURL('https://nema.app/privacy').catch(() =>
+          onPress: () => Linking.openURL('https://nemaa.netlify.app').catch(() =>
             Alert.alert('Privacy Policy', 'We respect your privacy and protect your data.')
           )
         },
