@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import Hls from 'hls.js'
 import NavBar from '../components/NavBar'
 import API_BASE_URL from '../config/api'
 import { useSettings } from '../context/SettingsContext'
 import { useUser } from '../context/UserContext'
-import { ChevronDown, ChevronLeft, ChevronRight, Filter, X, Play, Info, ArrowRight } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Filter, X, Play, Info, ArrowRight, Volume2, VolumeX, RotateCcw } from 'lucide-react'
 
 // Type definitions
 interface Movie {
@@ -20,6 +21,12 @@ interface Movie {
   rating?: number
   thumbnailUrl?: string
   posterUrl?: string
+  videoUrls?: {
+    '720p'?: string
+    '1080p'?: string
+    hls?: string
+    [key: string]: string | undefined
+  }
 }
 
 interface WatchSession {
@@ -176,7 +183,6 @@ const HomePage: React.FC = () => {
         setFeaturedMovies(Array.isArray(featuredData) ? featuredData : [])
         setAllMovies(Array.isArray(allData) ? allData : [])
       } catch (err) {
-        console.error('Fetch error:', err)
       } finally {
         setLoading(false)
       }
@@ -394,19 +400,238 @@ const HomePage: React.FC = () => {
 
   // Hero Banner Component (for authenticated users)
   const HeroBanner: React.FC<HeroBannerProps> = ({ movie }) => {
+    const [showTrailer, setShowTrailer] = useState(false)
+    const [isMuted, setIsMuted] = useState(true)
+    const [isEnded, setIsEnded] = useState(false)
+    const [isPlaying, setIsPlaying] = useState(false)
+    const [videoError, setVideoError] = useState(false)
+    const videoRef = useRef<HTMLVideoElement | null>(null)
+    const hlsRef = useRef<Hls | null>(null)
+    const { t } = useSettings()
+
+    // Get the best available video URL (prefer HLS, fallback to 1080p or 720p)
+    const getVideoUrl = (): string | null => {
+      if (!movie?.videoUrls) return null
+      return movie.videoUrls.hls || movie.videoUrls['1080p'] || movie.videoUrls['720p'] || null
+    }
+
+    const videoUrl = getVideoUrl()
+    const isHls = videoUrl === movie?.videoUrls?.hls
+
+    useEffect(() => {
+      console.log('[HeroBanner] Starting 2s timer for trailer auto-play', { 
+        movieId: movie?._id, 
+        hasHls: !!movie?.videoUrls?.hls,
+        has1080p: !!movie?.videoUrls?.['1080p'],
+        has720p: !!movie?.videoUrls?.['720p'],
+        selectedUrl: videoUrl,
+        isHls
+      })
+      const timer = setTimeout(() => {
+        if (videoUrl) {
+          console.log('[HeroBanner] Timer complete - enabling trailer', { videoUrl, isHls })
+          setShowTrailer(true)
+        } else {
+          console.log('[HeroBanner] Timer complete - no video URL available')
+        }
+      }, 1000)
+
+      return () => {
+        console.log('[HeroBanner] Cleanup - clearing timer and destroying HLS')
+        clearTimeout(timer)
+        if (hlsRef.current) {
+          hlsRef.current.destroy()
+          hlsRef.current = null
+        }
+      }
+    }, [movie, videoUrl, isHls])
+
+    useEffect(() => {
+      if (showTrailer && videoUrl && videoRef.current) {
+        console.log('[HeroBanner] Initializing video player', { videoUrl, isHls, hlsSupported: Hls.isSupported() })
+        
+        // If it's an HLS URL (.m3u8)
+        if (isHls && (videoUrl.includes('.m3u8') || videoUrl.includes('hls'))) {
+          if (Hls.isSupported()) {
+            if (hlsRef.current) {
+              console.log('[HeroBanner] Destroying existing HLS instance')
+              hlsRef.current.destroy()
+            }
+            
+            const hls = new Hls({
+              capLevelToPlayerSize: true,
+              autoStartLoad: true,
+              debug: false
+            })
+            
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+              console.log('[HeroBanner] HLS manifest parsed - attempting to play video')
+              videoRef.current?.play()
+                .then(() => {
+                  console.log('[HeroBanner] Video play() succeeded')
+                })
+                .catch(err => {
+                  console.error('[HeroBanner] Video play() failed:', err)
+                  setVideoError(true)
+                })
+            })
+            
+            hls.on(Hls.Events.ERROR, (event, data) => {
+              console.error('[HeroBanner] HLS error:', { type: data.type, details: data.details, fatal: data.fatal })
+              
+              if (data.fatal) {
+                switch (data.type) {
+                  case Hls.ErrorTypes.NETWORK_ERROR:
+                    console.log('[HeroBanner] Fatal network error - attempting recovery')
+                    hls.startLoad()
+                    break
+                  case Hls.ErrorTypes.MEDIA_ERROR:
+                    console.log('[HeroBanner] Fatal media error - attempting recovery')
+                    hls.recoverMediaError()
+                    break
+                  default:
+                    console.error('[HeroBanner] Unrecoverable error - destroying HLS')
+                    hls.destroy()
+                    setVideoError(true)
+                    break
+                }
+              }
+            })
+            
+            console.log('[HeroBanner] Loading HLS source and attaching to video element')
+            hls.loadSource(videoUrl)
+            hls.attachMedia(videoRef.current)
+            hlsRef.current = hls
+          } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+            console.log('[HeroBanner] Using native HLS support (Safari)')
+            videoRef.current.src = videoUrl
+            videoRef.current.play()
+              .then(() => {
+                console.log('[HeroBanner] Native HLS play() succeeded')
+              })
+              .catch(err => {
+                console.error('[HeroBanner] Native HLS play() failed:', err)
+                setVideoError(true)
+              })
+          }
+        } else {
+          // Direct MP4 playback (1080p or 720p)
+          console.log('[HeroBanner] Using direct MP4 playback')
+          videoRef.current.src = videoUrl
+          
+          videoRef.current.addEventListener('canplay', () => {
+            console.log('[HeroBanner] Video can play - attempting to start playback')
+            videoRef.current?.play()
+              .then(() => {
+                console.log('[HeroBanner] MP4 play() succeeded')
+              })
+              .catch(err => {
+                console.error('[HeroBanner] MP4 play() failed:', err)
+                setVideoError(true)
+              })
+          }, { once: true })
+        }
+      }
+    }, [showTrailer, videoUrl, isHls])
+
     if (!movie) return null
 
+    const handleReplay = () => {
+      console.log('[HeroBanner] Replay button clicked')
+      if (videoRef.current) {
+        videoRef.current.currentTime = 0
+        videoRef.current.play()
+          .then(() => {
+            console.log('[HeroBanner] Replay play() succeeded')
+            setIsEnded(false)
+          })
+          .catch(err => {
+            console.error('[HeroBanner] Replay play() failed:', err)
+          })
+      }
+    }
+
+    const handleVideoPlay = () => {
+      console.log('[HeroBanner] Video onPlay event fired')
+      setIsPlaying(true)
+      setVideoError(false)
+    }
+
+    const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+      const video = e.currentTarget
+      console.error('[HeroBanner] Video element error:', {
+        error: video.error,
+        code: video.error?.code,
+        message: video.error?.message,
+        networkState: video.networkState,
+        readyState: video.readyState
+      })
+      setVideoError(true)
+      setIsPlaying(false)
+    }
+
+    const handleLoadedMetadata = () => {
+      console.log('[HeroBanner] Video metadata loaded', {
+        duration: videoRef.current?.duration,
+        videoWidth: videoRef.current?.videoWidth,
+        videoHeight: videoRef.current?.videoHeight
+      })
+    }
+
     return (
-      <div className="relative w-full h-[95vh] min-h-[700px] max-h-[1200px]">
+      <div className="relative w-full h-[95vh] min-h-[700px] max-h-[1200px] overflow-hidden">
         <div className="absolute inset-0">
           <img
             src={movie.thumbnailUrl}
             alt={movie.title}
-            className="w-full h-full object-cover"
+            className={`w-full h-full object-cover transition-opacity duration-1000 ${showTrailer && isPlaying && !isEnded ? 'opacity-0' : 'opacity-100'}`}
           />
+          
+          {showTrailer && videoUrl && (
+            <div className={`absolute inset-0 transition-opacity duration-1000 ${isEnded || videoError ? 'opacity-0' : 'opacity-100'}`}>
+              <video
+                ref={videoRef}
+                muted={isMuted}
+                playsInline
+                className="w-full h-full object-cover"
+                onPlay={handleVideoPlay}
+                onLoadedMetadata={handleLoadedMetadata}
+                onError={handleVideoError}
+                onEnded={() => {
+                  console.log('[HeroBanner] Video ended')
+                  setIsEnded(true)
+                  setIsPlaying(false)
+                }}
+              />
+            </div>
+          )}
+
           <div className="absolute inset-0 bg-gradient-to-r from-black via-black/60 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/30" />
           <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent" />
+          
+          {/* Mute/Unmute & Replay Controls */}
+          {showTrailer && videoUrl && (
+            <div className="absolute bottom-40 right-10 z-20 flex items-center gap-4">
+              {isEnded ? (
+                <button
+                  onClick={handleReplay}
+                  className="p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white transition-all border border-white/20"
+                  title="Replay"
+                >
+                  <RotateCcw className="w-6 h-6" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsMuted(!isMuted)}
+                  className="p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white transition-all border border-white/20"
+                  title={isMuted ? "Unmute" : "Mute"}
+                >
+                  {isMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="absolute inset-0 flex items-center">

@@ -4,7 +4,7 @@ import { Activity } from '../models/activity.model.js';
 import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
 import { validateComment, validateCommentDelete } from '../middleware/validation.middleware.js';
-import { optionalAuthMiddleware } from '../middleware/auth.middleware.js';
+import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.middleware.js';
 import logger from '../config/logger.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 import { getIO } from '../config/socket.js';
@@ -120,14 +120,9 @@ router.post('/', commentPostLimiter, commentPostSlow, optionalAuthMiddleware, va
   }
 });
 
-router.put('/:id', commentPostLimiter, commentPostSlow, optionalAuthMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.put('/:id', commentPostLimiter, commentPostSlow, authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { content, deviceId } = req.body;
-
-    if (!deviceId || typeof deviceId !== 'string') {
-      res.status(400).json({ message: 'Device ID is required' });
-      return;
-    }
+    const { content } = req.body;
 
     if (!content || typeof content !== 'string' || content.trim().length === 0) {
       res.status(400).json({ message: 'Content is required' });
@@ -141,24 +136,11 @@ router.put('/:id', commentPostLimiter, commentPostSlow, optionalAuthMiddleware, 
       return;
     }
 
-    // Authorization logic:
-    // - If comment has userId (authenticated comment), check userId matches
-    // - If comment has no userId (anonymous comment), check deviceId matches AND user is not authenticated
-    let isAuthorized = false;
-
-    if (comment.userId) {
-      // Authenticated comment - require matching userId
-      isAuthorized = req.user?.id === comment.userId;
-    } else {
-      // Anonymous comment - require matching deviceId AND user must not be authenticated
-      isAuthorized = comment.deviceId === deviceId && !req.user;
-    }
-
-    if (!isAuthorized) {
+    // Only the authenticated user who created the comment can edit it
+    // Anonymous comments cannot be edited (no userId to verify ownership)
+    if (!comment.userId || req.user?.id !== comment.userId) {
       logger.warn('Unauthorized comment edit attempt', {
         commentId: req.params.id,
-        attemptedFrom: deviceId.substring(0, 8) + '...',
-        commentOwner: comment.deviceId.substring(0, 8) + '...',
         commentUserId: comment.userId ? comment.userId.substring(0, 8) + '...' : 'anonymous',
         currentUserId: req.user?.id ? req.user.id.substring(0, 8) + '...' : 'not authenticated'
       });
@@ -182,7 +164,7 @@ router.put('/:id', commentPostLimiter, commentPostSlow, optionalAuthMiddleware, 
       logger.error('Failed to emit socket event:', { error: (socketError as Error).message });
     }
 
-    logger.info('Comment edited', { commentId: req.params.id, deviceId: deviceId.substring(0, 8) + '...' });
+    logger.info('Comment edited', { commentId: req.params.id, userId: req.user?.id });
     res.json(updatedComment);
   } catch (error) {
     const err = error as Error;
@@ -191,16 +173,8 @@ router.put('/:id', commentPostLimiter, commentPostSlow, optionalAuthMiddleware, 
   }
 });
 
-router.delete('/:id', commentDeleteLimiter, commentDeleteSlow, optionalAuthMiddleware, validateCommentDelete, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.delete('/:id', commentDeleteLimiter, commentDeleteSlow, authMiddleware, validateCommentDelete, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    // Accept deviceId from query parameter (for DELETE requests)
-    const deviceId = req.query.deviceId as string;
-
-    if (!deviceId) {
-      res.status(400).json({ message: 'Device ID is required' });
-      return;
-    }
-
     const comment = await Comment.findById(req.params.id);
 
     if (!comment) {
@@ -208,44 +182,32 @@ router.delete('/:id', commentDeleteLimiter, commentDeleteSlow, optionalAuthMiddl
       return;
     }
 
-    // Authorization logic:
-    // - If comment has userId (authenticated comment), check userId matches
-    // - If comment has no userId (anonymous comment), check deviceId matches AND user is not authenticated
-    let isAuthorized = false;
-
-    if (comment.userId) {
-      // Authenticated comment - require matching userId
-      isAuthorized = req.user?.id === comment.userId;
-    } else {
-      // Anonymous comment - require matching deviceId AND user must not be authenticated
-      isAuthorized = comment.deviceId === deviceId && !req.user;
-    }
-
-    if (isAuthorized) {
-      const movieId = comment.movieId;
-      await Comment.findByIdAndDelete(req.params.id);
-
-      // Emit socket event for real-time update
-      try {
-        const io = getIO();
-        io.to(`movie:${movieId}`).emit('comment:deleted', { commentId: req.params.id });
-        logger.info('Socket event emitted: comment:deleted', { commentId: req.params.id, movieId });
-      } catch (socketError) {
-        logger.error('Failed to emit socket event:', { error: (socketError as Error).message });
-      }
-
-      logger.info('Comment deleted', { commentId: req.params.id, deviceId: deviceId.substring(0, 8) + '...' });
-      res.json({ message: 'Comment deleted' });
-    } else {
+    // Only the authenticated user who created the comment can delete it
+    // Anonymous comments cannot be deleted (no userId to verify ownership)
+    if (!comment.userId || req.user?.id !== comment.userId) {
       logger.warn('Unauthorized comment deletion attempt', {
         commentId: req.params.id,
-        attemptedFrom: deviceId.substring(0, 8) + '...',
-        commentOwner: comment.deviceId.substring(0, 8) + '...',
         commentUserId: comment.userId ? comment.userId.substring(0, 8) + '...' : 'anonymous',
         currentUserId: req.user?.id ? req.user.id.substring(0, 8) + '...' : 'not authenticated'
       });
       res.status(403).json({ message: 'Not authorized to delete this comment' });
+      return;
     }
+
+    const movieId = comment.movieId;
+    await Comment.findByIdAndDelete(req.params.id);
+
+    // Emit socket event for real-time update
+    try {
+      const io = getIO();
+      io.to(`movie:${movieId}`).emit('comment:deleted', { commentId: req.params.id });
+      logger.info('Socket event emitted: comment:deleted', { commentId: req.params.id, movieId });
+    } catch (socketError) {
+      logger.error('Failed to emit socket event:', { error: (socketError as Error).message });
+    }
+
+    logger.info('Comment deleted', { commentId: req.params.id, userId: req.user?.id });
+    res.json({ message: 'Comment deleted' });
   } catch (error) {
     const err = error as Error;
     logger.error('Error deleting comment:', { error: err.message, commentId: req.params.id });
