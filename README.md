@@ -103,8 +103,6 @@ MongoDB      AWS S3 + CloudFront
 **Database:** MongoDB Atlas (M0 tier, us-east-1)  
 **Storage:** AWS S3 + CloudFront CDN with signed URLs
 
-**Cost:** ~$94/month at scale → **$0.003 per user**
-
 ---
 
 ## 📄 License
