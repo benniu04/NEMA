@@ -168,28 +168,42 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     const fetchData = async (): Promise<void> => {
       try {
-        const [heroRes, featuredRes, allRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/movies/hero`),
-          fetch(`${API_BASE_URL}/api/movies/featured?limit=6`),
-          fetch(`${API_BASE_URL}/api/movies`)
-        ])
+        // Fetch all movies first (always needed)
+        const allRes = await fetch(`${API_BASE_URL}/api/movies`)
+        if (!allRes.ok) throw new Error('Failed to fetch movies')
+        const allData = await allRes.json()
+        const movies = Array.isArray(allData) ? allData : []
+        setAllMovies(movies)
 
-        // Hero movie is optional - might not be set
-        if (heroRes.ok) {
-          const heroData = await heroRes.json()
-          setHeroMovie(heroData)
+        // Try to fetch hero movie (optional - might not be set)
+        try {
+          const heroRes = await fetch(`${API_BASE_URL}/api/movies/hero`)
+          if (heroRes.ok) {
+            const heroData = await heroRes.json()
+            setHeroMovie(heroData)
+          } else {
+            // No hero set - use first movie as fallback
+            if (movies.length > 0) {
+              setHeroMovie(movies[0])
+            }
+          }
+        } catch {
+          // Hero fetch failed - use first movie as fallback
+          if (movies.length > 0) {
+            setHeroMovie(movies[0])
+          }
         }
 
-        if (!featuredRes.ok) throw new Error('Failed to fetch featured movies')
-        if (!allRes.ok) throw new Error('Failed to fetch movies')
-
-        const [featuredData, allData] = await Promise.all([
-          featuredRes.json(),
-          allRes.json()
-        ])
-
-        setFeaturedMovies(Array.isArray(featuredData) ? featuredData : [])
-        setAllMovies(Array.isArray(allData) ? allData : [])
+        // Try to fetch featured movies (optional)
+        try {
+          const featuredRes = await fetch(`${API_BASE_URL}/api/movies/featured?limit=6`)
+          if (featuredRes.ok) {
+            const featuredData = await featuredRes.json()
+            setFeaturedMovies(Array.isArray(featuredData) ? featuredData : [])
+          }
+        } catch {
+          // Featured fetch failed - ignore
+        }
       } catch (err) {
       } finally {
         setLoading(false)
@@ -404,8 +418,8 @@ const HomePage: React.FC = () => {
     setSortBy("newest")
   }
 
-  // Fallback to first featured or all movie if no hero is set
-  const displayHeroMovie = heroMovie || featuredMovies[0] || allMovies[0]
+  // heroMovie is already set with fallback in useEffect
+  const displayHeroMovie = heroMovie
 
   // Hero Banner Component (for authenticated users)
   const HeroBanner: React.FC<HeroBannerProps> = ({ movie }) => {
@@ -436,6 +450,7 @@ const HomePage: React.FC = () => {
     const isHls = videoUrl === movie?.videoUrls?.hls
 
     useEffect(() => {
+      // Show poster briefly before starting preview
       const timer = setTimeout(() => {
         if (videoUrl) {
           if (isMobile) {
@@ -444,7 +459,7 @@ const HomePage: React.FC = () => {
             setShowTrailer(true)
           }
         }
-      }, 1000)
+      }, 1500) // 1.5 second delay to show poster
 
       return () => {
         clearTimeout(timer)
@@ -550,15 +565,17 @@ const HomePage: React.FC = () => {
 
     return (
       <div className="relative w-full h-[95vh] min-h-[700px] max-h-[1200px] overflow-hidden">
-        <div className="absolute inset-0">
+        <div className="absolute inset-0 bg-black">
+          {/* Poster - fades out when video starts playing */}
           <img
             src={movie.thumbnailUrl}
             alt={movie.title}
-            className={`w-full h-full object-cover transition-opacity duration-1000 ${showTrailer && isPlaying && !isEnded ? 'opacity-0' : 'opacity-100'}`}
+            className={`w-full h-full object-cover transition-opacity duration-1000 ${showTrailer && isPlaying && !videoError ? 'opacity-0' : 'opacity-100'}`}
           />
-          
+
+          {/* Video - render when showTrailer is true */}
           {showTrailer && videoUrl && (
-            <div className={`absolute inset-0 transition-opacity duration-1000 ${isEnded || videoError ? 'opacity-0' : 'opacity-100'}`}>
+            <div className={`absolute inset-0 transition-opacity duration-1000 ${isPlaying && !videoError ? 'opacity-100' : 'opacity-0'}`}>
               <video
                 ref={videoRef}
                 muted={isMuted}

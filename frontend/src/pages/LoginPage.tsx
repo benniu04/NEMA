@@ -19,6 +19,9 @@ const LoginPage: React.FC = () => {
   const { login, isAuthenticated, loading, refreshUser } = useUser();
   const { t } = useSettings();
 
+  // Detect mobile devices - hide Google OAuth on mobile
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
   const [formData, setFormData] = useState<FormData>({
     login: '',
     password: ''
@@ -282,20 +285,23 @@ const LoginPage: React.FC = () => {
             </div>
           </form>
 
-          {/* Divider */}
-          <div className={`relative my-8 transition-all duration-500 delay-600 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/10"></div>
-            </div>
-            <div className="relative flex justify-center">
-              <span className="px-4 text-white/30 text-xs bg-[#0a0a0a]">or continue with</span>
-            </div>
-          </div>
+          {/* Google OAuth - hidden on mobile */}
+          {!isMobile && (
+            <>
+              <div className={`relative my-8 transition-all duration-500 delay-600 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-white/10"></div>
+                </div>
+                <div className="relative flex justify-center">
+                  <span className="px-4 text-white/30 text-xs bg-[#0a0a0a]">or continue with</span>
+                </div>
+              </div>
 
-          {/* Google OAuth */}
-          <div className={`transition-all duration-500 delay-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            <GoogleOAuth onSuccess={handleGoogleSuccess} onError={handleGoogleError} />
-          </div>
+              <div className={`transition-all duration-500 delay-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                <GoogleOAuth onSuccess={handleGoogleSuccess} onError={handleGoogleError} />
+              </div>
+            </>
+          )}
 
           {/* Sign Up Link */}
           <p className={`mt-8 text-center text-white/40 text-sm transition-all duration-500 delay-800 ${mounted ? 'opacity-100' : 'opacity-0'}`}>

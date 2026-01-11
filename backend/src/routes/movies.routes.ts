@@ -191,15 +191,7 @@ moviesRoutes.get('/search', async (req: Request, res: Response): Promise<void> =
 // Get the hero movie (the one displayed in the hero banner)
 moviesRoutes.get('/hero', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const cacheKey = 'movie:hero';
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      res.set('Cache-Control', 'public, max-age=60, must-revalidate');
-      res.set('X-Cache', 'HIT');
-      res.json(cached);
-      return;
-    }
-
+    // No server-side caching for hero - it changes frequently
     const heroMovie = await Movie.findOne({ isHero: true });
     if (!heroMovie) {
       res.status(404).json({ message: 'No hero movie set' });
@@ -210,9 +202,8 @@ moviesRoutes.get('/hero', async (_req: Request, res: Response): Promise<void> =>
     const freshUrls = await generateFreshSignedUrls(heroMovie);
     const responseData = { ...movieObj, ...freshUrls };
 
-    cache.set(cacheKey, responseData, { ttl: 1000 * 60 * 5 }); // 5 min cache
-    res.set('Cache-Control', 'public, max-age=60, must-revalidate');
-    res.set('X-Cache', 'MISS');
+    // Disable browser caching so hero changes take effect immediately
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.status(200).json(responseData);
   } catch (error) {
     const err = error as Error;

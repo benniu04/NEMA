@@ -165,7 +165,22 @@ export const generateCloudfrontSignedUrl = async (key: string): Promise<string> 
     return generatePresignedUrl(key);
   }
 
-  const url = `https://${cloudFrontDomain}/${key}`;
+  // If key is already a full CloudFront URL, extract just the path
+  let cleanKey = key;
+  if (key.startsWith('https://') || key.startsWith('http://')) {
+    try {
+      const urlObj = new URL(key);
+      cleanKey = urlObj.pathname.startsWith('/') ? urlObj.pathname.slice(1) : urlObj.pathname;
+    } catch {
+      // If URL parsing fails, try simple string extraction
+      const match = key.match(/cloudfront\.net\/(.+)$/);
+      if (match) {
+        cleanKey = match[1];
+      }
+    }
+  }
+
+  const url = `https://${cloudFrontDomain}/${cleanKey}`;
 
   if (ENV_VARS.CLOUDFRONT_KEY_PAIR_ID && ENV_VARS.CLOUDFRONT_PRIVATE_KEY) {
     const privateKey = ENV_VARS.CLOUDFRONT_PRIVATE_KEY.replace(/\\n/g, '\n');
