@@ -166,18 +166,18 @@ const generalLimiter = rateLimit({
   legacyHeaders: false
 });
 
-// Strict rate limiting for auth routes
+// Rate limiting for auth routes
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Only 5 login attempts per IP per 15 minutes
+  max: 20, // 20 login attempts per IP per 15 minutes
   message: { message: 'Too many login attempts, please try again later.' },
   skipSuccessfulRequests: true
 });
 
 const speedLimiter = slowDown({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  delayAfter: 2, // Allow 2 requests per 15 minutes at full speed
-  delayMs: () => 500, 
+  delayAfter: 10, // Allow 10 requests at full speed before slowing down
+  delayMs: () => 500,
   validate: { delayMs: false } // Disable the warning
 });
 
