@@ -565,17 +565,15 @@ const HomePage: React.FC = () => {
 
     return (
       <div className="relative w-full h-[95vh] min-h-[700px] max-h-[1200px] overflow-hidden">
-        <div className="absolute inset-0 bg-black">
-          {/* Poster - fades out when video starts playing */}
+        <div className="absolute inset-0">
           <img
             src={movie.thumbnailUrl}
             alt={movie.title}
-            className={`w-full h-full object-cover transition-opacity duration-1000 ${showTrailer && isPlaying && !videoError ? 'opacity-0' : 'opacity-100'}`}
+            className={`w-full h-full object-cover transition-opacity duration-1000 ${showTrailer && isPlaying && !isEnded ? 'opacity-0' : 'opacity-100'}`}
           />
-
-          {/* Video - render when showTrailer is true */}
+          
           {showTrailer && videoUrl && (
-            <div className={`absolute inset-0 transition-opacity duration-1000 ${isPlaying && !videoError ? 'opacity-100' : 'opacity-0'}`}>
+            <div className={`absolute inset-0 transition-opacity duration-1000 ${isEnded || videoError ? 'opacity-0' : 'opacity-100'}`}>
               <video
                 ref={videoRef}
                 muted={isMuted}
