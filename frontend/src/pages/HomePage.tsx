@@ -131,6 +131,7 @@ interface RecommendationCardProps {
 const HomePage: React.FC = () => {
   const { t } = useSettings()
   const { isAuthenticated } = useUser()
+  const [heroMovie, setHeroMovie] = useState<Movie | null>(null)
   const [featuredMovies, setFeaturedMovies] = useState<Movie[]>([])
   const [allMovies, setAllMovies] = useState<Movie[]>([])
   const [loading, setLoading] = useState<boolean>(true)
@@ -167,10 +168,17 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     const fetchData = async (): Promise<void> => {
       try {
-        const [featuredRes, allRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/movies?limit=3`),
+        const [heroRes, featuredRes, allRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/movies/hero`),
+          fetch(`${API_BASE_URL}/api/movies/featured?limit=6`),
           fetch(`${API_BASE_URL}/api/movies`)
         ])
+
+        // Hero movie is optional - might not be set
+        if (heroRes.ok) {
+          const heroData = await heroRes.json()
+          setHeroMovie(heroData)
+        }
 
         if (!featuredRes.ok) throw new Error('Failed to fetch featured movies')
         if (!allRes.ok) throw new Error('Failed to fetch movies')
@@ -396,7 +404,8 @@ const HomePage: React.FC = () => {
     setSortBy("newest")
   }
 
-  const heroMovie = featuredMovies[0] || allMovies[0]
+  // Fallback to first featured or all movie if no hero is set
+  const displayHeroMovie = heroMovie || featuredMovies[0] || allMovies[0]
 
   // Hero Banner Component (for authenticated users)
   const HeroBanner: React.FC<HeroBannerProps> = ({ movie }) => {
@@ -959,13 +968,13 @@ const HomePage: React.FC = () => {
     .slice(0, 6)
 
   if (isAuthenticated) {
-    const gridMovies = filteredMovies.filter(m => m._id !== heroMovie?._id)
+    const gridMovies = filteredMovies.filter(m => m._id !== displayHeroMovie?._id)
 
     return (
       <div className="min-h-screen bg-black text-white overflow-x-hidden">
         <NavBar />
 
-        {heroMovie && <HeroBanner movie={heroMovie} />}
+        {displayHeroMovie && <HeroBanner movie={displayHeroMovie} />}
 
         <div className="pb-12 px-6 -mt-16 relative z-10">
           <div className="max-w-7xl mx-auto">

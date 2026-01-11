@@ -58,6 +58,10 @@ const movieSchema = new Schema<IMovie>({
     type: Boolean,
     default: false,
   },
+  isHero: {
+    type: Boolean,
+    default: false,
+  },
   tags: {
     type: [String],
   },
@@ -82,6 +86,10 @@ movieSchema.index({ genre: 1 });
 // 2. Featured movies sorted by creation date
 // Query: Movie.find({ isFeatured: true }).sort({ createdAt: -1 })
 movieSchema.index({ isFeatured: 1, createdAt: -1 });
+
+// 2b. Hero movie lookup (only one movie should be hero at a time)
+// Query: Movie.findOne({ isHero: true })
+movieSchema.index({ isHero: 1 });
 
 // 3. Title search (case-insensitive partial match)
 // Query: Movie.find({ title: /search term/i })

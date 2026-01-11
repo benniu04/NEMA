@@ -143,6 +143,7 @@ export interface IMovie extends Document {
   thumbnailUrl?: string;
   views: number;
   isFeatured: boolean;
+  isHero: boolean;
   tags: string[];
   createdAt: Date;
   updatedAt: Date;

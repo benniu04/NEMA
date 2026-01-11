@@ -188,6 +188,75 @@ moviesRoutes.get('/search', async (req: Request, res: Response): Promise<void> =
   }
 });
 
+// Get the hero movie (the one displayed in the hero banner)
+moviesRoutes.get('/hero', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const cacheKey = 'movie:hero';
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      res.set('Cache-Control', 'public, max-age=60, must-revalidate');
+      res.set('X-Cache', 'HIT');
+      res.json(cached);
+      return;
+    }
+
+    const heroMovie = await Movie.findOne({ isHero: true });
+    if (!heroMovie) {
+      res.status(404).json({ message: 'No hero movie set' });
+      return;
+    }
+
+    const movieObj = heroMovie.toObject();
+    const freshUrls = await generateFreshSignedUrls(heroMovie);
+    const responseData = { ...movieObj, ...freshUrls };
+
+    cache.set(cacheKey, responseData, { ttl: 1000 * 60 * 5 }); // 5 min cache
+    res.set('Cache-Control', 'public, max-age=60, must-revalidate');
+    res.set('X-Cache', 'MISS');
+    res.status(200).json(responseData);
+  } catch (error) {
+    const err = error as Error;
+    logger.error('Error fetching hero movie:', { error: err.message, stack: err.stack });
+    res.status(500).json({ message: 'Failed to fetch hero movie' });
+  }
+});
+
+// Get featured movies (for the featured section)
+moviesRoutes.get('/featured', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 6, 20);
+    const cacheKey = `movies:featured:${limit}`;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      res.set('Cache-Control', 'public, max-age=60, must-revalidate');
+      res.set('X-Cache', 'HIT');
+      res.json(cached);
+      return;
+    }
+
+    const featuredMovies = await Movie.find({ isFeatured: true })
+      .sort({ createdAt: -1 })
+      .limit(limit);
+
+    const moviesWithFreshUrls = await Promise.all(
+      featuredMovies.map(async (movie) => {
+        const movieObj = movie.toObject();
+        const freshUrls = await generateFreshSignedUrls(movie);
+        return { ...movieObj, ...freshUrls };
+      })
+    );
+
+    cache.set(cacheKey, moviesWithFreshUrls, { ttl: 1000 * 60 * 5 }); // 5 min cache
+    res.set('Cache-Control', 'public, max-age=60, must-revalidate');
+    res.set('X-Cache', 'MISS');
+    res.status(200).json(moviesWithFreshUrls);
+  } catch (error) {
+    const err = error as Error;
+    logger.error('Error fetching featured movies:', { error: err.message, stack: err.stack });
+    res.status(500).json({ message: 'Failed to fetch featured movies' });
+  }
+});
+
 moviesRoutes.get('/recommendations', optionalAuthMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
@@ -390,6 +459,60 @@ moviesRoutes.delete('/:id', [authMiddleware, adminMiddleware], async (req: Reque
     const err = error as Error;
     logger.error('Error deleting movie:', { error: err.message, movieId: req.params.id, stack: err.stack });
     res.status(500).json({ message: "Failed to delete movie" });
+  }
+});
+
+// Set a movie as the hero (only one movie can be hero at a time)
+moviesRoutes.put('/:id/set-hero', [authMiddleware, adminMiddleware], async (req: Request, res: Response): Promise<void> => {
+  try {
+    const movieId = req.params.id;
+
+    // First, find the movie to set as hero
+    const movie = await Movie.findById(movieId);
+    if (!movie) {
+      res.status(404).json({ message: 'Movie not found' });
+      return;
+    }
+
+    // Unset any existing hero movie
+    await Movie.updateMany({ isHero: true }, { isHero: false });
+
+    // Set the new hero movie
+    movie.isHero = true;
+    await movie.save();
+
+    clearCache();
+    logger.info('Set movie as hero', { movieId, title: movie.title });
+
+    res.status(200).json({
+      message: 'Movie set as hero successfully',
+      movie
+    });
+  } catch (error) {
+    const err = error as Error;
+    logger.error('Error setting hero movie:', { error: err.message, movieId: req.params.id, stack: err.stack });
+    res.status(500).json({ message: 'Failed to set hero movie' });
+  }
+});
+
+// Remove hero status from a movie
+moviesRoutes.delete('/:id/set-hero', [authMiddleware, adminMiddleware], async (req: Request, res: Response): Promise<void> => {
+  try {
+    const movie = await Movie.findById(req.params.id);
+    if (!movie) {
+      res.status(404).json({ message: 'Movie not found' });
+      return;
+    }
+
+    movie.isHero = false;
+    await movie.save();
+
+    clearCache();
+    res.status(200).json({ message: 'Hero status removed', movie });
+  } catch (error) {
+    const err = error as Error;
+    logger.error('Error removing hero status:', { error: err.message, movieId: req.params.id, stack: err.stack });
+    res.status(500).json({ message: 'Failed to remove hero status' });
   }
 });
 

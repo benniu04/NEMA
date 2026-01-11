@@ -37,6 +37,7 @@ interface Movie {
   thumbnailKey?: string;
   posterKey?: string;
   isFeatured: boolean;
+  isHero: boolean;
   tags: string | string[];
   createdAt?: string;
   updatedAt?: string;
@@ -311,6 +312,22 @@ const AdminDashboard: React.FC = () => {
       fetchMovies(true);
     } catch {
       setError('Failed to delete movie');
+    }
+  };
+
+  const handleSetHero = async (movieId: string, movieTitle: string): Promise<void> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/movies/${movieId}/set-hero`, {
+        method: 'PUT',
+        credentials: 'include'
+      });
+
+      if (!response.ok) throw new Error('Failed to set hero movie');
+
+      setSuccess(`"${movieTitle}" is now the hero movie`);
+      fetchMovies(true);
+    } catch {
+      setError('Failed to set hero movie');
     }
   };
 
@@ -948,27 +965,44 @@ const AdminDashboard: React.FC = () => {
                         <div className="p-4">
                           <div className="flex items-start justify-between mb-2">
                             <h3 className="text-lg font-medium text-white line-clamp-1">{movie.title}</h3>
-                            {movie.isFeatured && (
-                              <span className="px-2 py-1 bg-amber-500/20 border border-amber-500/30 rounded text-xs text-amber-100">
-                                Featured
-                              </span>
-                            )}
+                            <div className="flex gap-1">
+                              {movie.isHero && (
+                                <span className="px-2 py-1 bg-purple-500/20 border border-purple-500/30 rounded text-xs text-purple-100">
+                                  Hero
+                                </span>
+                              )}
+                              {movie.isFeatured && (
+                                <span className="px-2 py-1 bg-amber-500/20 border border-amber-500/30 rounded text-xs text-amber-100">
+                                  Featured
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <p className="text-amber-100/70 text-sm mb-1">{movie.director}</p>
                           <p className="text-amber-100/60 text-sm mb-3">{new Date(movie.releaseDate).getFullYear()}</p>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleEdit(movie)}
-                              className="flex-1 px-3 py-2 bg-amber-500/20 border border-amber-500/30 rounded text-sm text-amber-100 hover:bg-amber-500/30 transition-colors"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(movie._id)}
-                              className="flex-1 px-3 py-2 bg-red-500/20 border border-red-500/30 rounded text-sm text-red-100 hover:bg-red-500/30 transition-colors"
-                            >
-                              Delete
-                            </button>
+                          <div className="flex flex-col gap-2">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleEdit(movie)}
+                                className="flex-1 px-3 py-2 bg-amber-500/20 border border-amber-500/30 rounded text-sm text-amber-100 hover:bg-amber-500/30 transition-colors"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDelete(movie._id)}
+                                className="flex-1 px-3 py-2 bg-red-500/20 border border-red-500/30 rounded text-sm text-red-100 hover:bg-red-500/30 transition-colors"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                            {!movie.isHero && (
+                              <button
+                                onClick={() => handleSetHero(movie._id, movie.title)}
+                                className="w-full px-3 py-2 bg-purple-500/20 border border-purple-500/30 rounded text-sm text-purple-100 hover:bg-purple-500/30 transition-colors"
+                              >
+                                Set as Hero
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
