@@ -566,15 +566,15 @@ const VideoPlayerPage: React.FC = () => {
   const handleSeek = (e: MouseEvent<HTMLDivElement> | globalThis.MouseEvent): void => {
     const video = videoRef.current
     const progressBar = progressBarRef.current
-    
+
     if (!video || !progressBar || !duration || isNaN(duration)) return
-    
+
     const rect = progressBar.getBoundingClientRect()
     const clickX = e.clientX - rect.left
     const progressBarWidth = rect.width
     const seekPercentage = Math.max(0, Math.min(1, clickX / progressBarWidth))
     const seekTime = seekPercentage * duration
-    
+
     video.currentTime = seekTime
     setCurrentTime(seekTime)
   }

@@ -405,9 +405,17 @@ const HomePage: React.FC = () => {
     const [isEnded, setIsEnded] = useState(false)
     const [isPlaying, setIsPlaying] = useState(false)
     const [videoError, setVideoError] = useState(false)
+    const [mobileNeedsInteraction, setMobileNeedsInteraction] = useState(false)
     const videoRef = useRef<HTMLVideoElement | null>(null)
     const hlsRef = useRef<Hls | null>(null)
     const { t } = useSettings()
+
+    // Detect mobile devices
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+
+    // Preview/trailer segment configuration (in seconds)
+    const PREVIEW_START_TIME = 10  // Start from beginning
+    const PREVIEW_DURATION = 30   // Play for 30 seconds before looping
 
     // Get the best available video URL (prefer HLS, fallback to 1080p or 720p)
     const getVideoUrl = (): string | null => {
@@ -419,116 +427,74 @@ const HomePage: React.FC = () => {
     const isHls = videoUrl === movie?.videoUrls?.hls
 
     useEffect(() => {
-      console.log('[HeroBanner] Starting 2s timer for trailer auto-play', { 
-        movieId: movie?._id, 
-        hasHls: !!movie?.videoUrls?.hls,
-        has1080p: !!movie?.videoUrls?.['1080p'],
-        has720p: !!movie?.videoUrls?.['720p'],
-        selectedUrl: videoUrl,
-        isHls
-      })
       const timer = setTimeout(() => {
         if (videoUrl) {
-          console.log('[HeroBanner] Timer complete - enabling trailer', { videoUrl, isHls })
-          setShowTrailer(true)
-        } else {
-          console.log('[HeroBanner] Timer complete - no video URL available')
+          if (isMobile) {
+            setMobileNeedsInteraction(true)
+          } else {
+            setShowTrailer(true)
+          }
         }
       }, 1000)
 
       return () => {
-        console.log('[HeroBanner] Cleanup - clearing timer and destroying HLS')
         clearTimeout(timer)
         if (hlsRef.current) {
           hlsRef.current.destroy()
           hlsRef.current = null
         }
       }
-    }, [movie, videoUrl, isHls])
+    }, [movie, videoUrl, isHls, isMobile])
 
     useEffect(() => {
       if (showTrailer && videoUrl && videoRef.current) {
-        console.log('[HeroBanner] Initializing video player', { videoUrl, isHls, hlsSupported: Hls.isSupported() })
-        
         // If it's an HLS URL (.m3u8)
         if (isHls && (videoUrl.includes('.m3u8') || videoUrl.includes('hls'))) {
           if (Hls.isSupported()) {
             if (hlsRef.current) {
-              console.log('[HeroBanner] Destroying existing HLS instance')
               hlsRef.current.destroy()
             }
-            
+
             const hls = new Hls({
               capLevelToPlayerSize: true,
               autoStartLoad: true,
               debug: false
             })
-            
+
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
-              console.log('[HeroBanner] HLS manifest parsed - attempting to play video')
-              videoRef.current?.play()
-                .then(() => {
-                  console.log('[HeroBanner] Video play() succeeded')
-                })
-                .catch(err => {
-                  console.error('[HeroBanner] Video play() failed:', err)
-                  setVideoError(true)
-                })
+              videoRef.current?.play().catch(() => setVideoError(true))
             })
-            
-            hls.on(Hls.Events.ERROR, (event, data) => {
-              console.error('[HeroBanner] HLS error:', { type: data.type, details: data.details, fatal: data.fatal })
-              
+
+            hls.on(Hls.Events.ERROR, (_, data) => {
               if (data.fatal) {
                 switch (data.type) {
                   case Hls.ErrorTypes.NETWORK_ERROR:
-                    console.log('[HeroBanner] Fatal network error - attempting recovery')
                     hls.startLoad()
                     break
                   case Hls.ErrorTypes.MEDIA_ERROR:
-                    console.log('[HeroBanner] Fatal media error - attempting recovery')
                     hls.recoverMediaError()
                     break
                   default:
-                    console.error('[HeroBanner] Unrecoverable error - destroying HLS')
                     hls.destroy()
                     setVideoError(true)
                     break
                 }
               }
             })
-            
-            console.log('[HeroBanner] Loading HLS source and attaching to video element')
+
             hls.loadSource(videoUrl)
             hls.attachMedia(videoRef.current)
             hlsRef.current = hls
           } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-            console.log('[HeroBanner] Using native HLS support (Safari)')
             videoRef.current.src = videoUrl
-            videoRef.current.play()
-              .then(() => {
-                console.log('[HeroBanner] Native HLS play() succeeded')
-              })
-              .catch(err => {
-                console.error('[HeroBanner] Native HLS play() failed:', err)
-                setVideoError(true)
-              })
+            videoRef.current.play().catch(() => setVideoError(true))
           }
         } else {
           // Direct MP4 playback (1080p or 720p)
-          console.log('[HeroBanner] Using direct MP4 playback')
           videoRef.current.src = videoUrl
-          
+
           videoRef.current.addEventListener('canplay', () => {
-            console.log('[HeroBanner] Video can play - attempting to start playback')
-            videoRef.current?.play()
-              .then(() => {
-                console.log('[HeroBanner] MP4 play() succeeded')
-              })
-              .catch(err => {
-                console.error('[HeroBanner] MP4 play() failed:', err)
-                setVideoError(true)
-              })
+            videoRef.current?.play().catch(() => setVideoError(true))
           }, { once: true })
         }
       }
@@ -537,45 +503,40 @@ const HomePage: React.FC = () => {
     if (!movie) return null
 
     const handleReplay = () => {
-      console.log('[HeroBanner] Replay button clicked')
       if (videoRef.current) {
-        videoRef.current.currentTime = 0
-        videoRef.current.play()
-          .then(() => {
-            console.log('[HeroBanner] Replay play() succeeded')
-            setIsEnded(false)
-          })
-          .catch(err => {
-            console.error('[HeroBanner] Replay play() failed:', err)
-          })
+        videoRef.current.currentTime = PREVIEW_START_TIME
+        videoRef.current.play().then(() => setIsEnded(false)).catch(() => {})
       }
     }
 
+    const handleMobilePlay = () => {
+      setMobileNeedsInteraction(false)
+      setShowTrailer(true)
+    }
+
     const handleVideoPlay = () => {
-      console.log('[HeroBanner] Video onPlay event fired')
       setIsPlaying(true)
       setVideoError(false)
     }
 
-    const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
-      const video = e.currentTarget
-      console.error('[HeroBanner] Video element error:', {
-        error: video.error,
-        code: video.error?.code,
-        message: video.error?.message,
-        networkState: video.networkState,
-        readyState: video.readyState
-      })
+    const handleVideoError = () => {
       setVideoError(true)
       setIsPlaying(false)
     }
 
     const handleLoadedMetadata = () => {
-      console.log('[HeroBanner] Video metadata loaded', {
-        duration: videoRef.current?.duration,
-        videoWidth: videoRef.current?.videoWidth,
-        videoHeight: videoRef.current?.videoHeight
-      })
+      if (videoRef.current && PREVIEW_START_TIME > 0) {
+        videoRef.current.currentTime = PREVIEW_START_TIME
+      }
+    }
+
+    // Handle segment looping - restart preview when reaching segment end
+    const handlePreviewTimeUpdate = () => {
+      if (!videoRef.current) return
+      const segmentEnd = PREVIEW_START_TIME + PREVIEW_DURATION
+      if (videoRef.current.currentTime >= segmentEnd) {
+        videoRef.current.currentTime = PREVIEW_START_TIME
+      }
     }
 
     return (
@@ -596,9 +557,9 @@ const HomePage: React.FC = () => {
                 className="w-full h-full object-cover"
                 onPlay={handleVideoPlay}
                 onLoadedMetadata={handleLoadedMetadata}
+                onTimeUpdate={handlePreviewTimeUpdate}
                 onError={handleVideoError}
                 onEnded={() => {
-                  console.log('[HeroBanner] Video ended')
                   setIsEnded(true)
                   setIsPlaying(false)
                 }}
@@ -610,6 +571,19 @@ const HomePage: React.FC = () => {
           <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/30" />
           <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent" />
           
+          {/* Mobile Play Button - shown when waiting for user interaction */}
+          {mobileNeedsInteraction && videoUrl && !showTrailer && (
+            <div className="absolute inset-0 flex items-center justify-center z-20">
+              <button
+                onClick={handleMobilePlay}
+                className="p-6 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-full text-white transition-all border border-white/30 animate-pulse"
+                title="Tap to play trailer"
+              >
+                <Play className="w-12 h-12" fill="white" />
+              </button>
+            </div>
+          )}
+
           {/* Mute/Unmute & Replay Controls */}
           {showTrailer && videoUrl && (
             <div className="absolute bottom-40 right-10 z-20 flex items-center gap-4">
