@@ -10,6 +10,7 @@ export interface IComment extends Document {
   isEdited: boolean;
   editedAt?: Date;
   createdAt: Date;
+  voteScore: number;
 }
 
 const commentSchema = new Schema<IComment>({
@@ -50,6 +51,11 @@ const commentSchema = new Schema<IComment>({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  voteScore: {
+    type: Number,
+    default: 0,
+    index: true
   }
 });
 
@@ -65,6 +71,9 @@ commentSchema.index({ deviceId: 1 });
 // 3. Cleanup old comments (optional, for future use)
 // Query: Comment.find({ createdAt: { $lt: oldDate } })
 commentSchema.index({ createdAt: 1 });
+
+// 4. Get comments for a movie, sorted by vote score
+commentSchema.index({ movieId: 1, voteScore: -1 });
 
 // Note: The compound index { movieId: 1, createdAt: -1 } can also be used for:
 //   - Queries on just { movieId: 1 }

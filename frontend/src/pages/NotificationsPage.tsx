@@ -147,7 +147,7 @@ const NotificationsPage: React.FC = () => {
           )}
         </div>
 
-        {/* Notifications List */}
+        {/* Notifications List */}  
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>

@@ -19,6 +19,8 @@ interface Comment {
   createdAt: string;
   updatedAt: string;
   replies?: Comment[];
+  voteScore?: number;
+  userVote?: 'upvote' | 'downvote' | null;
 }
 
 interface CommentSectionProps {
@@ -38,6 +40,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
   const [editContent, setEditContent] = useState('');
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
+  const [votingCommentId, setVotingCommentId] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
   // Initialize fingerprint
@@ -146,6 +149,26 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
       console.log('Received deleted comment:', commentId);
       // Refresh comments to update the tree
       fetchComments();
+    });
+
+    // Listen for vote updates
+    socket.on('comment:vote', ({ commentId, voteScore }: { commentId: string; voteScore: number }) => {
+      console.log('Received vote update:', commentId, voteScore);
+      // Update the vote score in the comments tree
+      setComments(prevComments => {
+        const updateVoteScore = (comments: Comment[]): Comment[] => {
+          return comments.map(comment => {
+            if (comment._id === commentId) {
+              return { ...comment, voteScore };
+            }
+            if (comment.replies && comment.replies.length > 0) {
+              return { ...comment, replies: updateVoteScore(comment.replies) };
+            }
+            return comment;
+          });
+        };
+        return updateVoteScore(prevComments);
+      });
     });
 
     socket.on('disconnect', () => {
@@ -311,6 +334,74 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
     }
   };
 
+  // Handle voting on a comment
+  const handleVote = async (commentId: string, voteType: 'upvote' | 'downvote', currentVote?: 'upvote' | 'downvote' | null) => {
+    if (!user) {
+      setError('You must be logged in to vote');
+      return;
+    }
+
+    setVotingCommentId(commentId);
+    try {
+      // If clicking the same vote type, remove the vote
+      if (currentVote === voteType) {
+        await axios.delete(`${API_BASE_URL}/api/votes/comments/${commentId}`, {
+          withCredentials: true
+        });
+        // Update local state
+        setComments(prevComments => {
+          const updateVote = (comments: Comment[]): Comment[] => {
+            return comments.map(comment => {
+              if (comment._id === commentId) {
+                const scoreChange = currentVote === 'upvote' ? -1 : 1;
+                return { ...comment, userVote: null, voteScore: (comment.voteScore || 0) + scoreChange };
+              }
+              if (comment.replies && comment.replies.length > 0) {
+                return { ...comment, replies: updateVote(comment.replies) };
+              }
+              return comment;
+            });
+          };
+          return updateVote(prevComments);
+        });
+      } else {
+        // Cast or change vote
+        const response = await axios.post(
+          `${API_BASE_URL}/api/votes/comments/${commentId}/${voteType}`,
+          {},
+          { withCredentials: true }
+        );
+        // Update local state with new score and vote
+        setComments(prevComments => {
+          const updateVote = (comments: Comment[]): Comment[] => {
+            return comments.map(comment => {
+              if (comment._id === commentId) {
+                return { ...comment, userVote: voteType, voteScore: response.data.newScore };
+              }
+              if (comment.replies && comment.replies.length > 0) {
+                return { ...comment, replies: updateVote(comment.replies) };
+              }
+              return comment;
+            });
+          };
+          return updateVote(prevComments);
+        });
+      }
+      setError(null);
+    } catch (error: any) {
+      console.error('Error voting:', error);
+      if (error.response?.status === 403) {
+        setError(error.response.data.message || 'Cannot vote on this comment');
+      } else if (error.response?.status === 400) {
+        setError(error.response.data.message || 'Already voted');
+      } else {
+        setError('Failed to record vote');
+      }
+    } finally {
+      setVotingCommentId(null);
+    }
+  };
+
   // Render individual comment with edit/reply functionality
   const renderComment = (comment: Comment, depth: number = 0) => {
     const isEditing = editingCommentId === comment._id;
@@ -381,6 +472,44 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
           {/* Action buttons */}
           {!isEditing && (
             <div className="flex items-center gap-4 mt-2">
+              {/* Vote buttons */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handleVote(comment._id, 'upvote', comment.userVote)}
+                  disabled={votingCommentId === comment._id || !user}
+                  className={`p-1 rounded transition-colors disabled:opacity-50 ${
+                    comment.userVote === 'upvote'
+                      ? 'text-green-400'
+                      : 'text-amber-100/40 hover:text-green-400'
+                  }`}
+                  title={user ? 'Upvote' : 'Login to vote'}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                <span className={`text-sm min-w-[2ch] text-center ${
+                  (comment.voteScore || 0) > 0 ? 'text-green-400' :
+                  (comment.voteScore || 0) < 0 ? 'text-red-400' : 'text-amber-100/60'
+                }`}>
+                  {comment.voteScore || 0}
+                </span>
+                <button
+                  onClick={() => handleVote(comment._id, 'downvote', comment.userVote)}
+                  disabled={votingCommentId === comment._id || !user}
+                  className={`p-1 rounded transition-colors disabled:opacity-50 ${
+                    comment.userVote === 'downvote'
+                      ? 'text-red-400'
+                      : 'text-amber-100/40 hover:text-red-400'
+                  }`}
+                  title={user ? 'Downvote' : 'Login to vote'}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+
               <button
                 onClick={() => handleStartReply(comment._id)}
                 className="text-amber-400/60 text-sm hover:text-amber-400 transition-colors"

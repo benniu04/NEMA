@@ -16,6 +16,7 @@ import reviewsRouter from './routes/reviews.routes.js';
 import watchTimeRouter from './routes/watchTime.routes.js';
 import notificationsRouter from './routes/notifications.routes.js';
 import messagesRouter from './routes/messages.routes.js';
+import votesRouter from './routes/votes.routes.js';
 
 import { connectDB } from './config/db.js';
 import { ENV_VARS } from './config/envVars.js';
@@ -200,7 +201,8 @@ app.get('/', (req: Request, res: Response) => {
       comments: '/api/comments',
       reviews: '/api/reviews',
       watchTime: '/api/watch-time',
-      notifications: '/api/notifications'
+      notifications: '/api/notifications',
+      votes: '/api/votes'
     }
   });
 });
@@ -215,6 +217,7 @@ app.use('/api/reviews', reviewsRouter);
 app.use('/api/watch-time', watchTimeRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/messages', messagesRouter);
+app.use('/api/votes', votesRouter);
 
 // CSP violation reporting endpoint
 app.post('/api/csp-report', cspReporter);

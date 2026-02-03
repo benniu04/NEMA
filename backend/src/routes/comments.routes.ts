@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import { Comment } from '../models/comment.model.js';
+import { Vote } from '../models/vote.model.js';
 import { Activity } from '../models/activity.model.js';
 import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
@@ -56,9 +57,24 @@ const commentDeleteSlow = slowDown({
   validate: { delayMs: false }
 });
 
-router.get('/movie/:movieId', async (req: Request, res: Response): Promise<void> => {
+router.get('/movie/:movieId', optionalAuthMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const comments = await Comment.find({ movieId: req.params.movieId }).sort({ createdAt: -1 });
+
+    // If authenticated, include the user's vote on each comment
+    if (req.user) {
+      const commentIds = comments.map(c => c._id.toString());
+      const votes = await Vote.find({ commentId: { $in: commentIds }, userId: req.user.id });
+      const voteMap = new Map(votes.map(v => [v.commentId, v.voteType]));
+
+      const commentsWithVotes = comments.map(c => ({
+        ...c.toObject(),
+        userVote: voteMap.get(c._id.toString()) || null
+      }));
+      res.json(commentsWithVotes);
+      return;
+    }
+
     res.json(comments);
   } catch (error) {
     const err = error as Error;
