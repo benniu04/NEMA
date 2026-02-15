@@ -114,6 +114,9 @@ watchTimeSchema.index({ movieId: 1, completed: 1 });
 // 5. Session-based queries
 watchTimeSchema.index({ sessionId: 1 });
 
+// TTL index: auto-delete watch sessions not updated in 90 days
+watchTimeSchema.index({ lastUpdatedAt: 1 }, { expireAfterSeconds: 7776000 });
+
 // Pre-save hook to calculate completion percentage
 watchTimeSchema.pre('save', function(next: CallbackWithoutResultAndOptionalError) {
   if (this.videoDuration > 0) {

@@ -56,5 +56,11 @@ const activitySchema = new Schema<IActivity>({
 activitySchema.index({ userId: 1, createdAt: -1 });
 activitySchema.index({ movieId: 1, createdAt: -1 });
 
+// TTL index: auto-delete activities older than 180 days
+// NOTE: User stats (filmsWatched, reviewsWritten, etc.) are computed via
+// Activity.countDocuments(), so counts will decrease as old activities expire.
+// If accurate lifetime stats are needed, increment counters on the User model directly.
+activitySchema.index({ createdAt: 1 }, { expireAfterSeconds: 15552000 });
+
 export const Activity = mongoose.model<IActivity>('Activity', activitySchema);
 

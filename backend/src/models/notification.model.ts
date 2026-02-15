@@ -64,4 +64,7 @@ notificationSchema.index({ userId: 1, createdAt: -1 });
 // Index for fetching unread notifications
 notificationSchema.index({ userId: 1, isRead: 1 });
 
+// TTL index: auto-delete notifications older than 60 days
+notificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 5184000 });
+
 export const Notification = mongoose.model<INotification>('Notification', notificationSchema);
