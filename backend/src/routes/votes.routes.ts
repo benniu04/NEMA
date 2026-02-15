@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import { Vote } from '../models/vote.model.js';
 import { Comment } from '../models/comment.model.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
@@ -37,13 +38,14 @@ const voteSlow = slowDown({
 });
 
 // Recalculate and update a comment's vote score
-const updateCommentScore = async (commentId: string): Promise<number> => {
+const updateCommentScore = async (commentId: string, session?: mongoose.ClientSession): Promise<number> => {
+  const opts = session ? { session } : {};
   const [upvotes, downvotes] = await Promise.all([
-    Vote.countDocuments({ commentId, voteType: 'upvote' }),
-    Vote.countDocuments({ commentId, voteType: 'downvote' })
+    Vote.countDocuments({ commentId, voteType: 'upvote' }).session(session ?? null),
+    Vote.countDocuments({ commentId, voteType: 'downvote' }).session(session ?? null)
   ]);
   const newScore = upvotes - downvotes;
-  await Comment.findByIdAndUpdate(commentId, { voteScore: newScore });
+  await Comment.findByIdAndUpdate(commentId, { voteScore: newScore }, opts);
   return newScore;
 };
 
@@ -82,19 +84,33 @@ const handleVote = async (req: AuthenticatedRequest, res: Response, voteType: 'u
         res.status(400).json({ message: `Already ${voteType}d this comment` });
         return;
       }
-      // Switch vote direction
-      previousVote = existingVote.voteType;
-      existingVote.voteType = voteType;
-      await existingVote.save();
-    } else {
-      await Vote.create({ commentId, userId, voteType });
     }
 
-    const newScore = await updateCommentScore(commentId);
+    // Wrap vote mutation + score update in a transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    let newScore: number;
+    try {
+      if (existingVote) {
+        previousVote = existingVote.voteType;
+        existingVote.voteType = voteType;
+        await existingVote.save({ session });
+      } else {
+        await Vote.create([{ commentId, userId, voteType }], { session });
+      }
 
+      newScore = await updateCommentScore(commentId, session);
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+
+    // Side effects after commit
     emitVoteUpdate(comment.movieId, commentId, newScore);
 
-    // Notify comment author on upvote only
     if (voteType === 'upvote' && comment.userId && comment.userId !== userId) {
       try {
         await createNotification({
@@ -141,13 +157,28 @@ router.delete('/comments/:commentId', voteLimiter, voteSlow, authMiddleware, asy
       return;
     }
 
-    const existingVote = await Vote.findOneAndDelete({ commentId, userId });
+    const existingVote = await Vote.findOne({ commentId, userId });
     if (!existingVote) {
       res.status(404).json({ message: 'No vote found to remove' });
       return;
     }
 
-    const newScore = await updateCommentScore(commentId);
+    // Wrap delete + score update in a transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    let newScore: number;
+    try {
+      await Vote.findOneAndDelete({ commentId, userId }, { session });
+      newScore = await updateCommentScore(commentId, session);
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+
+    // Side effects after commit
     emitVoteUpdate(comment.movieId, commentId, newScore);
 
     res.json({ message: 'Vote removed', newScore });

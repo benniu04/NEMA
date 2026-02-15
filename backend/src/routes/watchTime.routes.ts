@@ -46,7 +46,8 @@ watchTimeRouter.post('/track', watchTimeLimiter, optionalAuthMiddleware, async (
 
     let watchTime = await WatchTime.findOne({ movieId, deviceId, sessionId });
     const isNewSession = !watchTime;
-    
+    let shouldClearCache = false;
+
     if (!watchTime) {
       const previousWatchQuery: Record<string, unknown> = { movieId, completed: true };
       if (req.user) {
@@ -54,7 +55,7 @@ watchTimeRouter.post('/track', watchTimeLimiter, optionalAuthMiddleware, async (
       } else {
         previousWatchQuery.deviceId = deviceId;
       }
-      
+
       const previousWatch = await WatchTime.findOne(previousWatchQuery).sort({ createdAt: -1 });
 
       watchTime = new WatchTime({
@@ -67,21 +68,37 @@ watchTimeRouter.post('/track', watchTimeLimiter, optionalAuthMiddleware, async (
         rewatched: !!previousWatch,
         startedAt: new Date()
       });
-      
-      await Movie.findByIdAndUpdate(movieId, { $inc: { views: 1 } });
-      clearCache();
+
+      // Wrap views increment + initial save in a transaction
+      const session = await mongoose.startSession();
+      session.startTransaction();
+      try {
+        await Movie.findByIdAndUpdate(movieId, { $inc: { views: 1 } }, { session });
+        await watchTime.save({ session });
+        await session.commitTransaction();
+      } catch (error) {
+        await session.abortTransaction();
+        throw error;
+      } finally {
+        session.endSession();
+      }
+
+      shouldClearCache = true;
     }
 
     const timeDiff = currentTime - (watchTime.maxTimeReached || 0);
     const wasCompleted = watchTime.completed;
-    
+
     if (timeDiff > 0 && timeDiff < videoDuration) {
       watchTime.watchTime += timeDiff;
       watchTime.maxTimeReached = Math.max(watchTime.maxTimeReached || 0, currentTime);
       watchTime.lastUpdatedAt = new Date();
     }
 
-    await watchTime.save();
+    // For existing sessions, save the updated watch time
+    if (!isNewSession) {
+      await watchTime.save();
+    }
 
     if (req.user && watchTime.completed && !wasCompleted) {
       try {
@@ -95,7 +112,12 @@ watchTimeRouter.post('/track', watchTimeLimiter, optionalAuthMiddleware, async (
       }
     }
 
-    res.status(200).json({ 
+    // Side effects after commit
+    if (shouldClearCache) {
+      clearCache();
+    }
+
+    res.status(200).json({
       success: true,
       watchTime: watchTime.watchTime,
       completionPercentage: watchTime.completionPercentage

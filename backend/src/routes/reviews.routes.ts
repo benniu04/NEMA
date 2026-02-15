@@ -60,19 +60,20 @@ const reviewDeleteSlow = slowDown({
   validate: { delayMs: false }
 });
 
-async function recomputeAvg(movieId: string | mongoose.Types.ObjectId): Promise<void> {
+async function recomputeAvg(movieId: string | mongoose.Types.ObjectId, session?: mongoose.ClientSession): Promise<void> {
   try {
-    const movieObjectId = typeof movieId === 'string' 
-      ? new mongoose.Types.ObjectId(movieId) 
+    const movieObjectId = typeof movieId === 'string'
+      ? new mongoose.Types.ObjectId(movieId)
       : movieId;
-    
+
     const agg = await Review.aggregate([
       { $match: { movieId: movieObjectId } },
       { $group: { _id: '$movieId', avg: { $avg: '$rating' } } }
-    ]);
-    
+    ]).session(session ?? null);
+
     const avg = agg[0]?.avg ?? 0;
-    await Movie.findByIdAndUpdate(movieId, { rating: avg });
+    const opts = session ? { session } : {};
+    await Movie.findByIdAndUpdate(movieId, { rating: avg }, opts);
   } catch (error) {
     const err = error as Error;
     logger.error('Error recomputing average rating:', { error: err.message, movieId });
@@ -138,31 +139,40 @@ reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, optionalAuthMiddleware
     const existingReview = await Review.findOne({ movieId, deviceId });
     const isNewReview = !existingReview;
 
-    const review = await Review.findOneAndUpdate(
-      { movieId, deviceId },
-      { nickname, rating, comment },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
+    // Wrap review upsert + activity + recomputeAvg in a transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    let review;
+    try {
+      review = await Review.findOneAndUpdate(
+        { movieId, deviceId },
+        { nickname, rating, comment },
+        { new: true, upsert: true, setDefaultsOnInsert: true, session }
+      );
 
-    if (req.user && isNewReview) {
-      try {
-        await Activity.create({
+      if (req.user && isNewReview) {
+        await Activity.create([{
           userId: req.user.id,
           type: 'review',
           movieId,
           reviewId: review!._id,
           rating,
           content: comment
-        });
-      } catch (activityError) {
-        logger.error('Failed to create activity for review:', { error: (activityError as Error).message });
+        }], { session });
       }
+
+      await recomputeAvg(movieId, session);
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
     }
 
-    await recomputeAvg(movieId);
+    // Side effects after commit
     clearCache();
 
-    // Emit socket event for real-time update
     try {
       const io = getIO();
       io.to(`movie:${movieId}`).emit('review:updated', {
@@ -207,11 +217,24 @@ reviewRouter.delete('/:id', reviewDeleteLimiter, reviewDeleteSlow, validateRevie
     }
 
     const movieId = review.movieId;
-    await Review.findByIdAndDelete(req.params.id);
-    await recomputeAvg(movieId);
+
+    // Wrap delete + recomputeAvg in a transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      await Review.findByIdAndDelete(req.params.id, { session });
+      await recomputeAvg(movieId, session);
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+
+    // Side effects after commit
     clearCache();
 
-    // Emit socket event for real-time update
     try {
       const io = getIO();
       io.to(`movie:${movieId}`).emit('review:deleted', { reviewId: req.params.id });

@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import { User } from '../models/user.model.js';
@@ -816,11 +817,23 @@ userRoutes.post('/follow/:userId', authMiddleware, async (req: AuthenticatedRequ
       return;
     }
 
+    // Wrap both user saves in a transaction
     currentUser!.following.push(userId as any);
     targetUser.followers.push(req.user!.id as any);
-    await Promise.all([currentUser!.save(), targetUser.save()]);
 
-    // Create notification for the followed user
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      await Promise.all([currentUser!.save({ session }), targetUser.save({ session })]);
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+
+    // Side effects after commit
     try {
       const { createNotification } = await import('./notifications.routes.js');
       await createNotification({
@@ -831,7 +844,6 @@ userRoutes.post('/follow/:userId', authMiddleware, async (req: AuthenticatedRequ
         relatedUserId: req.user!.id
       });
     } catch (notifError) {
-      // Log but don't fail the request
       console.error('Failed to create follow notification:', notifError);
     }
 
@@ -849,7 +861,18 @@ userRoutes.delete('/follow/:userId', authMiddleware, async (req: AuthenticatedRe
 
     currentUser!.following = currentUser!.following.filter(id => id.toString() !== userId);
     targetUser.followers = targetUser.followers.filter(id => id.toString() !== req.user!.id);
-    await Promise.all([currentUser!.save(), targetUser.save()]);
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      await Promise.all([currentUser!.save({ session }), targetUser.save({ session })]);
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
 
     res.json({ message: 'Successfully unfollowed user', following: currentUser!.following, followingCount: currentUser!.following.length });
   } catch (error) {
@@ -899,7 +922,17 @@ userRoutes.post('/block/:userId', authMiddleware, async (req: AuthenticatedReque
     targetUser.following = targetUser.following.filter(id => id.toString() !== req.user!.id);
     targetUser.followers = targetUser.followers.filter(id => id.toString() !== req.user!.id);
 
-    await Promise.all([currentUser.save(), targetUser.save()]);
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      await Promise.all([currentUser.save({ session }), targetUser.save({ session })]);
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
 
     securityLogger('USER_BLOCKED', { userId: req.user!.id, blockedUserId: userId }, req as Request);
     res.json({
@@ -997,41 +1030,35 @@ userRoutes.delete('/account', authMiddleware, async (req: AuthenticatedRequest, 
       }
     }
 
-    // Delete all user-related data in parallel
-    await Promise.all([
-      // Delete user's reviews
-      Review.deleteMany({ userId }),
+    // Wrap all deletions in a transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      await Promise.all([
+        Review.deleteMany({ userId }).session(session),
+        Comment.deleteMany({ userId }).session(session),
+        Activity.deleteMany({ userId }).session(session),
+        Notification.deleteMany({ userId }).session(session),
+        Message.deleteMany({ senderId: userId }).session(session),
+        Conversation.deleteMany({ participants: userId }).session(session),
+        User.updateMany(
+          { followers: userId },
+          { $pull: { followers: userId } }
+        ).session(session),
+        User.updateMany(
+          { following: userId },
+          { $pull: { following: userId } }
+        ).session(session)
+      ]);
 
-      // Delete user's comments
-      Comment.deleteMany({ userId }),
-
-      // Delete user's activities
-      Activity.deleteMany({ userId }),
-
-      // Delete user's notifications (sent to them)
-      Notification.deleteMany({ userId }),
-
-      // Delete user's messages
-      Message.deleteMany({ senderId: userId }),
-
-      // Delete conversations where user is a participant
-      Conversation.deleteMany({ participants: userId }),
-
-      // Remove user from other users' followers lists
-      User.updateMany(
-        { followers: userId },
-        { $pull: { followers: userId } }
-      ),
-
-      // Remove user from other users' following lists
-      User.updateMany(
-        { following: userId },
-        { $pull: { following: userId } }
-      )
-    ]);
-
-    // Delete the user
-    await User.findByIdAndDelete(userId);
+      await User.findByIdAndDelete(userId, { session });
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
 
     // Clear auth cookie
     res.clearCookie('userToken', {
