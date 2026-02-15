@@ -107,6 +107,7 @@ const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
 
     if (!formData.login || !formData.password) {
       setError(t('login.enterCredentials'));
