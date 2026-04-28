@@ -38,7 +38,7 @@ interface WatchSession {
 }
 
 interface RecommendedMovie extends Movie {
-  recommendationType?: 'personalized' | 'popular'
+  recommendationType?: 'behavior' | 'personalized' | 'popular'
 }
 
 interface Testimonial {
@@ -137,7 +137,9 @@ const HomePage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true)
   const [continueWatching, setContinueWatching] = useState<WatchSession[]>([])
   const [recommendations, setRecommendations] = useState<RecommendedMovie[]>([])
-  const [recommendationType, setRecommendationType] = useState<'popular' | 'personalized'>('popular')
+  const [recommendationType, setRecommendationType] = useState<'popular' | 'personalized' | 'behavior'>('popular')
+  const [trendingMovies, setTrendingMovies] = useState<Movie[]>([])
+  const [becauseYouWatched, setBecauseYouWatched] = useState<{ anchorMovie: { _id: string; title: string; posterUrl: string | null } | null; recommendations: Movie[] }>({ anchorMovie: null, recommendations: [] })
 
   // Filter states (for authenticated users)
   const [filterOpen, setFilterOpen] = useState<boolean>(false)
@@ -155,6 +157,8 @@ const HomePage: React.FC = () => {
   const featuredFilmsRef = useRef<HTMLElement>(null)
   const continueWatchingRef = useRef<HTMLDivElement>(null)
   const recommendationsRef = useRef<HTMLDivElement>(null)
+  const trendingRef = useRef<HTMLDivElement>(null)
+  const becauseYouWatchedRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handleScroll = (): void => {
@@ -284,6 +288,49 @@ const HomePage: React.FC = () => {
     fetchRecommendations()
   }, [isAuthenticated])
 
+  useEffect(() => {
+    const fetchTrending = async (): Promise<void> => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/movies/trending?days=7&limit=12`)
+        if (response.ok) {
+          const data: Movie[] = await response.json()
+          setTrendingMovies(Array.isArray(data) ? data : [])
+        }
+      } catch (err) {
+        console.error('Failed to fetch trending movies:', err)
+      }
+    }
+
+    fetchTrending()
+  }, [])
+
+  useEffect(() => {
+    const fetchBecauseYouWatched = async (): Promise<void> => {
+      try {
+        const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken')
+        const headers: HeadersInit = { 'Content-Type': 'application/json' }
+        if (token) (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
+
+        const response = await fetch(`${API_BASE_URL}/api/movies/because-you-watched?limit=12`, {
+          credentials: 'include',
+          headers
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setBecauseYouWatched({
+            anchorMovie: data.anchorMovie || null,
+            recommendations: Array.isArray(data.recommendations) ? data.recommendations : []
+          })
+        }
+      } catch (err) {
+        console.error('Failed to fetch because-you-watched:', err)
+      }
+    }
+
+    fetchBecauseYouWatched()
+  }, [isAuthenticated])
+
   const scrollToFeatured = (): void => {
     featuredFilmsRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -302,6 +349,26 @@ const HomePage: React.FC = () => {
     if (recommendationsRef.current) {
       const scrollAmount = 400
       recommendationsRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      })
+    }
+  }
+
+  const scrollTrending = (direction: 'left' | 'right'): void => {
+    if (trendingRef.current) {
+      const scrollAmount = 400
+      trendingRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      })
+    }
+  }
+
+  const scrollBecauseYouWatched = (direction: 'left' | 'right'): void => {
+    if (becauseYouWatchedRef.current) {
+      const scrollAmount = 400
+      becauseYouWatchedRef.current.scrollBy({
         left: direction === 'left' ? -scrollAmount : scrollAmount,
         behavior: 'smooth'
       })
@@ -900,12 +967,98 @@ const HomePage: React.FC = () => {
     )
   }
 
+  const BecauseYouWatchedSection: React.FC = () => {
+    if (!becauseYouWatched.anchorMovie || becauseYouWatched.recommendations.length === 0) return null
+
+    return (
+      <div className="mb-10">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-light tracking-wide text-white">
+            {`Because you watched ${becauseYouWatched.anchorMovie.title}`}
+          </h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => scrollBecauseYouWatched('left')}
+              className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft className="w-4 h-4 text-white/70" />
+            </button>
+            <button
+              onClick={() => scrollBecauseYouWatched('right')}
+              className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+              aria-label="Scroll right"
+            >
+              <ChevronRight className="w-4 h-4 text-white/70" />
+            </button>
+          </div>
+        </div>
+
+        <div
+          ref={becauseYouWatchedRef}
+          className="flex gap-4 overflow-x-auto scrollbar-hide pb-2"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {becauseYouWatched.recommendations.map((movie) => (
+            <RecommendationCard key={movie._id} movie={movie} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  const TrendingSection: React.FC = () => {
+    if (trendingMovies.length === 0) return null
+
+    return (
+      <div className="mb-10">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-light tracking-wide text-white">
+            {t('home.trendingNow') || 'Trending Now'}
+          </h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => scrollTrending('left')}
+              className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft className="w-4 h-4 text-white/70" />
+            </button>
+            <button
+              onClick={() => scrollTrending('right')}
+              className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+              aria-label="Scroll right"
+            >
+              <ChevronRight className="w-4 h-4 text-white/70" />
+            </button>
+          </div>
+        </div>
+
+        <div
+          ref={trendingRef}
+          className="flex gap-4 overflow-x-auto scrollbar-hide pb-2"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {trendingMovies.map((movie) => (
+            <RecommendationCard key={movie._id} movie={movie} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   const RecommendationsSection: React.FC = () => {
     if (recommendations.length === 0) return null
 
-    const sectionTitle = recommendationType === 'personalized'
+    const isPersonalized = recommendationType === 'personalized' || recommendationType === 'behavior'
+    const sectionTitle = isPersonalized
       ? (t('home.recommendedForYou') || 'Recommended For You')
       : (t('home.popularNow') || 'Popular Now')
+    const subtitle = recommendationType === 'behavior'
+      ? (t('home.basedOnWatching') || "Based on what you've been watching")
+      : recommendationType === 'personalized'
+        ? (t('home.basedOnPreferences') || 'Based on your favorite genres')
+        : null
 
     return (
       <div className="mb-10">
@@ -914,9 +1067,9 @@ const HomePage: React.FC = () => {
             <h3 className="text-xl font-light tracking-wide text-white">
               {sectionTitle}
             </h3>
-            {recommendationType === 'personalized' && (
+            {subtitle && (
               <p className="text-xs text-white/50 mt-1">
-                {t('home.basedOnPreferences') || 'Based on your favorite genres'}
+                {subtitle}
               </p>
             )}
           </div>
@@ -996,6 +1149,10 @@ const HomePage: React.FC = () => {
             <div className="pt-8">
               <ContinueWatchingSection />
             </div>
+
+            <BecauseYouWatchedSection />
+
+            <TrendingSection />
 
             <RecommendationsSection />
 

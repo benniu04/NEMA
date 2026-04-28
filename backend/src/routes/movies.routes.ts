@@ -2,9 +2,12 @@ import express, { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { Movie } from '../models/movie.model.js';
 import { User } from '../models/user.model.js';
+import { WatchTime } from '../models/watchTime.model.js';
 import { authMiddleware, adminMiddleware, optionalAuthMiddleware } from '../middleware/auth.middleware.js';
 import { generateCloudfrontSignedUrl, deleteS3Object } from '../config/s3.js';
 import { cache, clearCache } from '../config/cache.js';
+import { getClientIp } from '../utils/clientIp.js';
+import { getBehaviorRecommendations, scoreMoviesByTaste } from '../services/recommendations.service.js';
 import logger from '../config/logger.js';
 import type { AuthenticatedRequest, IMovie } from '../types/index.js';
 
@@ -251,7 +254,7 @@ moviesRoutes.get('/featured', async (req: Request, res: Response): Promise<void>
 moviesRoutes.get('/recommendations', optionalAuthMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
-    const cacheKey = req.user ? `recommendations:${req.user.id}` : 'recommendations:anonymous';
+    const cacheKey = req.user ? `recommendations:${req.user.id}` : `recommendations:device:${getClientIp(req)}`;
 
     const cached = cache.get(cacheKey);
     if (cached) {
@@ -262,47 +265,42 @@ moviesRoutes.get('/recommendations', optionalAuthMiddleware, async (req: Authent
     }
 
     let recommendations: IMovie[] = [];
-    let recommendationType = 'popular';
+    let recommendationType: 'behavior' | 'personalized' | 'popular' = 'popular';
 
-    if (req.user) {
+    const identity = req.user
+      ? { userId: req.user.id }
+      : { deviceId: getClientIp(req) };
+
+    const { movies: behaviorMovies } = await getBehaviorRecommendations(identity, limit);
+    if (behaviorMovies.length > 0) {
+      recommendations = behaviorMovies;
+      recommendationType = 'behavior';
+    }
+
+    if (recommendations.length === 0 && req.user) {
       const user = await User.findById(req.user.id);
-
       if (user) {
         const favoriteGenres = user.favoriteGenres || [];
         const watchedMovieIds = (user.watchedFilms || []).map(w => w.movieId);
         const favoriteFilmIds = user.favoriteFilms || [];
         const watchlistIds = user.watchlist || [];
-
-        const excludeIds = [...new Set([...watchedMovieIds, ...favoriteFilmIds, ...watchlistIds].map(id => id?.toString()).filter(Boolean))];
+        const excludeIds = [...new Set(
+          [...watchedMovieIds, ...favoriteFilmIds, ...watchlistIds]
+            .map(id => id?.toString())
+            .filter(Boolean)
+        )];
 
         if (favoriteGenres.length > 0) {
-          recommendationType = 'personalized';
-
           const excludeObjectIds = excludeIds.map(id => new mongoose.Types.ObjectId(id));
-
-          recommendations = await Movie.aggregate([
-            {
-              $match: {
-                _id: { $nin: excludeObjectIds },
-                genre: { $in: favoriteGenres }
-              }
-            },
-            {
-              $addFields: {
-                genreMatchScore: {
-                  $size: {
-                    $setIntersection: ['$genre', favoriteGenres]
-                  }
-                }
-              }
-            },
-            {
-              $sort: { genreMatchScore: -1, rating: -1, views: -1 }
-            },
-            {
-              $limit: limit
-            }
-          ]);
+          recommendations = await scoreMoviesByTaste({
+            topGenres: favoriteGenres,
+            topDirectors: [],
+            excludeMovieIds: excludeObjectIds,
+            limit
+          });
+          if (recommendations.length > 0) {
+            recommendationType = 'personalized';
+          }
         }
       }
     }
@@ -322,7 +320,9 @@ moviesRoutes.get('/recommendations', optionalAuthMiddleware, async (req: Authent
       })
     );
 
-    const ttl = req.user ? 1000 * 60 * 5 : 1000 * 60 * 15;
+    const ttl = recommendationType === 'behavior'
+      ? 1000 * 60 * 10
+      : req.user ? 1000 * 60 * 5 : 1000 * 60 * 15;
     cache.set(cacheKey, moviesWithFreshUrls, { ttl });
 
     res.set('Cache-Control', req.user ? 'private, max-age=300' : 'public, max-age=900');
@@ -332,6 +332,222 @@ moviesRoutes.get('/recommendations', optionalAuthMiddleware, async (req: Authent
     const err = error as Error;
     logger.error('Error fetching recommendations:', { error: err.message, stack: err.stack });
     res.status(500).json({ message: 'Failed to fetch recommendations' });
+  }
+});
+
+moviesRoutes.get('/because-you-watched', optionalAuthMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 12, 30);
+    const cacheKey = req.user
+      ? `becauseYouWatched:${req.user.id}:${limit}`
+      : `becauseYouWatched:device:${getClientIp(req)}:${limit}`;
+
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      res.set('Cache-Control', 'private, max-age=300');
+      res.set('X-Cache', 'HIT');
+      res.json(cached);
+      return;
+    }
+
+    const match = req.user
+      ? { userId: new mongoose.Types.ObjectId(req.user.id), completionPercentage: { $gte: 50 } }
+      : { deviceId: getClientIp(req), completionPercentage: { $gte: 50 } };
+
+    const [anchorSession] = await WatchTime.aggregate([
+      { $match: match },
+      { $sort: { lastUpdatedAt: -1 } },
+      { $limit: 1 },
+      {
+        $lookup: {
+          from: 'movies',
+          localField: 'movieId',
+          foreignField: '_id',
+          as: 'movie'
+        }
+      },
+      { $unwind: '$movie' }
+    ]);
+
+    if (!anchorSession) {
+      const empty = { anchorMovie: null, recommendations: [] };
+      cache.set(cacheKey, empty, { ttl: 1000 * 60 * 5 });
+      res.set('X-Cache', 'MISS');
+      res.status(200).json(empty);
+      return;
+    }
+
+    const anchor = anchorSession.movie as IMovie;
+    const watchedIds = await WatchTime.distinct('movieId', match.userId
+      ? { userId: match.userId }
+      : { deviceId: match.deviceId });
+    const excludeIds = [
+      new mongoose.Types.ObjectId(String(anchor._id)),
+      ...watchedIds.map((id: mongoose.Types.ObjectId) => new mongoose.Types.ObjectId(String(id)))
+    ];
+
+    const scored = await scoreMoviesByTaste({
+      topGenres: anchor.genre || [],
+      topDirectors: anchor.director ? [anchor.director] : [],
+      excludeMovieIds: excludeIds,
+      limit
+    });
+
+    const recommendations = await Promise.all(
+      scored.map(async (movie) => {
+        const freshUrls = await generateFreshSignedUrls(movie);
+        return { ...movie, ...freshUrls };
+      })
+    );
+
+    let anchorPosterUrl: string | null = null;
+    if (anchor.posterKey) {
+      try {
+        anchorPosterUrl = await generateCloudfrontSignedUrl(anchor.posterKey);
+      } catch (error) {
+        logger.error('Error signing anchor poster:', { error: (error as Error).message });
+      }
+    }
+
+    const payload = {
+      anchorMovie: {
+        _id: anchor._id,
+        title: anchor.title,
+        posterUrl: anchorPosterUrl,
+        genre: anchor.genre || []
+      },
+      recommendations
+    };
+
+    cache.set(cacheKey, payload, { ttl: 1000 * 60 * 5 });
+    res.set('Cache-Control', 'private, max-age=300');
+    res.set('X-Cache', 'MISS');
+    res.status(200).json(payload);
+  } catch (error) {
+    const err = error as Error;
+    logger.error('Error fetching because-you-watched:', { error: err.message, stack: err.stack });
+    res.status(500).json({ message: 'Failed to fetch recommendations' });
+  }
+});
+
+moviesRoutes.get('/trending', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const days = Math.min(Math.max(parseInt(req.query.days as string) || 7, 1), 30);
+    const limit = Math.min(parseInt(req.query.limit as string) || 12, 50);
+    const cacheKey = `movies:trending:${days}:${limit}`;
+
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      res.set('Cache-Control', 'public, max-age=900');
+      res.set('X-Cache', 'HIT');
+      res.json(cached);
+      return;
+    }
+
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const trending = await WatchTime.aggregate([
+      { $match: { createdAt: { $gte: since } } },
+      { $group: { _id: '$movieId', sessionCount: { $sum: 1 } } },
+      { $sort: { sessionCount: -1 } },
+      { $limit: limit * 2 },
+      {
+        $lookup: {
+          from: 'movies',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'movie'
+        }
+      },
+      { $unwind: '$movie' },
+      { $limit: limit },
+      {
+        $replaceRoot: {
+          newRoot: { $mergeObjects: ['$movie', { trendingScore: '$sessionCount' }] }
+        }
+      }
+    ]);
+
+    const moviesWithFreshUrls = await Promise.all(
+      trending.map(async (movie: IMovie & { trendingScore: number }) => {
+        const freshUrls = await generateFreshSignedUrls(movie);
+        return { ...movie, ...freshUrls };
+      })
+    );
+
+    cache.set(cacheKey, moviesWithFreshUrls, { ttl: 1000 * 60 * 15 });
+    res.set('Cache-Control', 'public, max-age=900');
+    res.set('X-Cache', 'MISS');
+    res.status(200).json(moviesWithFreshUrls);
+  } catch (error) {
+    const err = error as Error;
+    logger.error('Error fetching trending movies:', { error: err.message, stack: err.stack });
+    res.status(500).json({ message: 'Failed to fetch trending movies' });
+  }
+});
+
+moviesRoutes.get('/:id/similar', optionalAuthMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 12, 30);
+    const id = req.params.id;
+
+    if (!mongoose.isValidObjectId(id)) {
+      res.status(400).json({ message: 'Invalid movie id' });
+      return;
+    }
+
+    const cacheKey = `movies:similar:${id}:${limit}`;
+    const cached = cache.get(cacheKey) as Array<Record<string, unknown>> | undefined;
+    let pool: Array<Record<string, unknown>>;
+    let cacheHit = true;
+
+    if (cached) {
+      pool = cached;
+    } else {
+      cacheHit = false;
+      const source = await Movie.findById(id);
+      if (!source) {
+        res.status(404).json({ message: 'Movie not found' });
+        return;
+      }
+
+      const fetchSize = Math.max(limit + 20, 30);
+      const scored = await scoreMoviesByTaste({
+        topGenres: source.genre || [],
+        topDirectors: source.director ? [source.director] : [],
+        excludeMovieIds: [new mongoose.Types.ObjectId(id)],
+        limit: fetchSize
+      });
+
+      pool = await Promise.all(
+        scored.map(async (movie) => {
+          const freshUrls = await generateFreshSignedUrls(movie);
+          return { ...movie, ...freshUrls } as Record<string, unknown>;
+        })
+      );
+      cache.set(cacheKey, pool, { ttl: 1000 * 60 * 30 });
+    }
+
+    let filtered = pool;
+    if (req.user) {
+      const user = await User.findById(req.user.id).select('watchedFilms favoriteFilms watchlist');
+      if (user) {
+        const watched = new Set([
+          ...(user.watchedFilms || []).map(w => String(w.movieId)),
+          ...(user.favoriteFilms || []).map(String),
+          ...(user.watchlist || []).map(String)
+        ]);
+        filtered = pool.filter(m => !watched.has(String(m._id)));
+      }
+    }
+
+    res.set('Cache-Control', 'private, max-age=300');
+    res.set('X-Cache', cacheHit ? 'HIT' : 'MISS');
+    res.status(200).json(filtered.slice(0, limit));
+  } catch (error) {
+    const err = error as Error;
+    logger.error('Error fetching similar movies:', { error: err.message, stack: err.stack });
+    res.status(500).json({ message: 'Failed to fetch similar movies' });
   }
 });
 

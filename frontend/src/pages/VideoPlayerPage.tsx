@@ -7,6 +7,7 @@ import API_BASE_URL from '../config/api'
 import CommentSection from '../components/CommentSection'
 import ReviewSection from '../components/ReviewSection'
 import CarouselRow from '../components/CarouselRow'
+import UpNextOverlay from '../components/UpNextOverlay'
 import Footer from '../components/Footer'
 import { analytics } from '../config/analytics'
 import { useUser } from '../context/UserContext'
@@ -29,6 +30,11 @@ const VideoPlayerPage: React.FC = () => {
   const { t } = useSettings()
   const [movie, setMovie] = useState<Movie | null>(null)
   const [relatedMovies, setRelatedMovies] = useState<Movie[]>([])
+  const [autoPlayEnabled, setAutoPlayEnabled] = useState<boolean>(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('nema:autoPlayNext') : null
+    return stored === null ? true : stored === 'true'
+  })
+  const [upNextDismissed, setUpNextDismissed] = useState<boolean>(false)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string>('')
   const [selectedQuality, setSelectedQuality] = useState<string>('')
@@ -171,29 +177,35 @@ const VideoPlayerPage: React.FC = () => {
     
     const fetchMovieAndRelated = async () => {
       try {
-        const [movieResponse, relatedResponse] = await Promise.all([
+        const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken')
+        const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
+
+        const [movieResponse, similarResponse] = await Promise.all([
           fetch(`${API_BASE_URL}/api/movies/${id}`),
-          fetch(`${API_BASE_URL}/api/movies?limit=6&exclude=${id}`)
+          fetch(`${API_BASE_URL}/api/movies/${id}/similar?limit=12`, {
+            credentials: 'include',
+            headers: authHeaders,
+          })
         ])
-        
+
         if (!movieResponse.ok) {
           throw new Error('Failed to fetch movie')
         }
         const movieData: Movie = await movieResponse.json()
-        
+
         setMovie(movieData)
 
         const availableQualities = Object.entries(movieData.videoUrls || {}).filter(([, url]) => url && url.trim() !== '')
-        
+
         if (availableQualities.length > 0) {
           const hlsQuality = availableQualities.find(([q]) => q === 'hls')
           const firstQuality = hlsQuality ? hlsQuality[0] : availableQualities[0][0]
           setSelectedQuality(firstQuality)
         }
 
-        if (relatedResponse.ok) {
-          const relatedData: Movie[] = await relatedResponse.json()
-          setRelatedMovies(relatedData)
+        if (similarResponse.ok) {
+          const similarData: Movie[] = await similarResponse.json()
+          setRelatedMovies(Array.isArray(similarData) ? similarData : [])
         }
       } catch (err) {
         console.error('Error fetching movie data:', err)
@@ -213,6 +225,27 @@ const VideoPlayerPage: React.FC = () => {
       }
     }
   }, [id])
+
+  useEffect(() => {
+    setUpNextDismissed(false)
+  }, [id])
+
+  const nextMovie = relatedMovies.length > 0 ? relatedMovies[0] : null
+  const remaining = duration > 0 ? duration - currentTime : Infinity
+  const showUpNext = !upNextDismissed && !!nextMovie && duration > 0 && remaining > 0 && remaining <= 10
+
+  useEffect(() => {
+    if (!nextMovie || upNextDismissed || !autoPlayEnabled) return
+    if (duration === 0) return
+    if (duration - currentTime <= 0.5) {
+      navigate(`/video/${nextMovie._id}`)
+    }
+  }, [currentTime, duration, nextMovie, autoPlayEnabled, upNextDismissed, navigate])
+
+  const handleToggleAutoPlay = (enabled: boolean): void => {
+    setAutoPlayEnabled(enabled)
+    localStorage.setItem('nema:autoPlayNext', String(enabled))
+  }
 
   // Preload the poster image so the first frame renders as soon as possible
   useEffect(() => {
@@ -1145,6 +1178,17 @@ const VideoPlayerPage: React.FC = () => {
           {/* Gradient Overlays */}
           <div className={`absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/80 via-black/40 to-transparent pointer-events-none transition-opacity duration-500 ${showControls ? 'opacity-100' : 'opacity-0'}`}></div>
           <div className={`absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black via-black/60 to-transparent pointer-events-none transition-opacity duration-500 ${showControls ? 'opacity-100' : 'opacity-0'}`}></div>
+
+          {showUpNext && nextMovie && (
+            <UpNextOverlay
+              nextMovie={nextMovie}
+              secondsRemaining={remaining}
+              onPlayNext={() => navigate(`/video/${nextMovie._id}`)}
+              onCancel={() => setUpNextDismissed(true)}
+              autoPlayEnabled={autoPlayEnabled}
+              onToggleAutoPlay={handleToggleAutoPlay}
+            />
+          )}
 
           {/* Top Bar - Title and Back Button */}
           <div className={`absolute top-0 left-0 right-0 p-4 md:p-6 flex items-center justify-between transition-all duration-500 ${showControls ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>

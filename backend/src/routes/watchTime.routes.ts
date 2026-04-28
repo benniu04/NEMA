@@ -8,17 +8,10 @@ import logger from '../config/logger.js';
 import { clearCache } from '../config/cache.js';
 import { optionalAuthMiddleware } from '../middleware/auth.middleware.js';
 import { generateCloudfrontSignedUrl } from '../config/s3.js';
+import { getClientIp } from '../utils/clientIp.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 
 const watchTimeRouter = express.Router();
-
-const getClientIp = (req: Request): string => {
-  const forwardedFor = req.headers['x-forwarded-for'];
-  if (forwardedFor) {
-    return (forwardedFor as string).split(',')[0].trim();
-  }
-  return req.socket?.remoteAddress || 'unknown';
-};
 
 const watchTimeLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
