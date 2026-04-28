@@ -11,6 +11,7 @@ import Footer from '../components/Footer'
 import { analytics } from '../config/analytics'
 import { useUser } from '../context/UserContext'
 import { useSettings } from '../context/SettingsContext'
+import { useConnectionQuality, hlsHintFromConnection } from '../hooks/useConnectionQuality'
 
 import { Movie } from '../types'
 
@@ -45,8 +46,37 @@ const VideoPlayerPage: React.FC = () => {
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [visibleSections, setVisibleSections] = useState<Record<string, boolean>>({})
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const hlsRef = useRef<Hls | null>(null)
   const progressBarRef = useRef<HTMLDivElement | null>(null)
   const videoContainerRef = useRef<HTMLDivElement | null>(null)
+
+  const connection = useConnectionQuality()
+  const debugMode = searchParams.get('debug') === '1'
+  const forcedCapHeight: number | null = (() => {
+    const raw = searchParams.get('cap')
+    if (!raw) return null
+    const n = parseInt(raw.replace(/p$/i, ''), 10)
+    return [360, 480, 720, 1080].includes(n) ? n : null
+  })()
+
+  interface HlsDebugStats {
+    currentHeight: number | null
+    nextHeight: number | null
+    capHeight: number | null
+    bandwidthMbps: number | null
+    stalls: number
+    levels: number[]
+    lastSegmentMs: number | null
+  }
+  const [hlsDebug, setHlsDebug] = useState<HlsDebugStats>({
+    currentHeight: null,
+    nextHeight: null,
+    capHeight: null,
+    bandwidthMbps: null,
+    stalls: 0,
+    levels: [],
+    lastSegmentMs: null,
+  })
 
   // Playback speed state
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1)
@@ -174,7 +204,7 @@ const VideoPlayerPage: React.FC = () => {
     }
 
     fetchMovieAndRelated()
-    
+
     return () => {
       localStorage.removeItem(`watchSession_${id}`)
       if (watchTimeIntervalRef.current) {
@@ -183,6 +213,19 @@ const VideoPlayerPage: React.FC = () => {
       }
     }
   }, [id])
+
+  // Preload the poster image so the first frame renders as soon as possible
+  useEffect(() => {
+    if (!movie?.posterUrl) return
+    const link = document.createElement('link')
+    link.rel = 'preload'
+    link.as = 'image'
+    link.href = movie.posterUrl
+    document.head.appendChild(link)
+    return () => {
+      document.head.removeChild(link)
+    }
+  }, [movie?.posterUrl])
 
   // Handle video player controls visibility
   useEffect(() => {
@@ -449,20 +492,92 @@ const VideoPlayerPage: React.FC = () => {
       
       if (selectedQuality === 'hls' || videoUrl.endsWith('.m3u8')) {
         if (Hls.isSupported()) {
+          const hint = hlsHintFromConnection(connection)
           hls = new Hls({
             debug: false,
             enableWorker: true,
             lowLatencyMode: false,
+            startLevel: -1,
+            abrEwmaDefaultEstimate: hint.defaultEstimate,
+            abrEwmaFastVoD: 3.0,
+            abrEwmaSlowVoD: 9.0,
+            maxBufferLength: 30,
+            maxMaxBufferLength: 60,
+            backBufferLength: 30,
           })
+          hlsRef.current = hls
           hls.loadSource(videoUrl)
           hls.attachMedia(video)
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (hls && hint.capHeight !== null) {
+              const capIdx = hls.levels.findIndex(l => l.height === hint.capHeight)
+              if (capIdx >= 0) hls.autoLevelCapping = capIdx
+            }
+            if (hls && forcedCapHeight !== null) {
+              const idx = hls.levels.findIndex(l => l.height === forcedCapHeight)
+              if (idx >= 0) hls.autoLevelCapping = idx
+            }
+            if (debugMode && hls) {
+              setHlsDebug(prev => ({
+                ...prev,
+                levels: hls!.levels.map(l => l.height),
+                capHeight: hls!.autoLevelCapping >= 0 ? hls!.levels[hls!.autoLevelCapping]?.height ?? null : null,
+              }))
+            }
             video.currentTime = previousTime
             if (wasPlaying) video.play().catch(e => console.error("Auto-play blocked:", e))
           })
+
+          if (debugMode) {
+            hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
+              if (!hls) return
+              const level = hls.levels[data.level]
+              setHlsDebug(prev => ({
+                ...prev,
+                currentHeight: level?.height ?? null,
+                nextHeight: hls!.nextAutoLevel >= 0 ? hls!.levels[hls!.nextAutoLevel]?.height ?? null : null,
+                capHeight: hls!.autoLevelCapping >= 0 ? hls!.levels[hls!.autoLevelCapping]?.height ?? null : null,
+                bandwidthMbps: hls!.bandwidthEstimate ? +(hls!.bandwidthEstimate / 1_000_000).toFixed(2) : null,
+              }))
+            })
+            hls.on(Hls.Events.FRAG_LOADED, (_, data) => {
+              const ms = data.frag?.stats?.loading?.end && data.frag?.stats?.loading?.start
+                ? Math.round(data.frag.stats.loading.end - data.frag.stats.loading.start)
+                : null
+              if (!hls) return
+              setHlsDebug(prev => ({
+                ...prev,
+                bandwidthMbps: hls!.bandwidthEstimate ? +(hls!.bandwidthEstimate / 1_000_000).toFixed(2) : prev.bandwidthMbps,
+                lastSegmentMs: ms,
+              }))
+            })
+          }
           hls.on(Hls.Events.ERROR, (_, data) => {
+            if (!hls) return
+            // Buffer stalls on slow networks: downshift one level so the next
+            // segment is smaller and the buffer can refill.
+            if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+              const currentLevel = hls.currentLevel >= 0 ? hls.currentLevel : hls.nextAutoLevel
+              if (currentLevel > 0) {
+                const target = currentLevel - 1
+                hls.nextLevel = target
+                if (hls.autoLevelCapping < 0 || target < hls.autoLevelCapping) {
+                  hls.autoLevelCapping = target
+                }
+              }
+              if (debugMode) setHlsDebug(prev => ({ ...prev, stalls: prev.stalls + 1 }))
+              return
+            }
+            // Teardown race: a segment downloaded after destroy(); hls.js
+            // already self-recovered. Don't pollute the console.
+            if (
+              data.details === Hls.ErrorDetails.BUFFER_APPEND_ERROR &&
+              data.errorAction?.resolved
+            ) {
+              return
+            }
             console.error('HLS error:', data.type, data.details, data)
-            if (data.fatal && hls) {
+            if (data.fatal) {
               switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
                   hls.startLoad()
@@ -501,10 +616,38 @@ const VideoPlayerPage: React.FC = () => {
 
     return () => {
       if (hls) {
+        hls.detachMedia()
         hls.destroy()
+      }
+      if (hlsRef.current === hls) {
+        hlsRef.current = null
       }
     }
   }, [movie, selectedQuality, searchParams])
+
+  // Retune quality cap when the viewer's connection changes mid-playback
+  useEffect(() => {
+    const hls = hlsRef.current
+    if (!hls || !hls.levels?.length) return
+    if (forcedCapHeight !== null) {
+      const idx = hls.levels.findIndex(l => l.height === forcedCapHeight)
+      if (idx >= 0) {
+        hls.autoLevelCapping = idx
+        if (hls.currentLevel > idx) hls.nextLevel = idx
+      }
+      return
+    }
+    const hint = hlsHintFromConnection(connection)
+    if (hint.capHeight === null) {
+      hls.autoLevelCapping = -1
+      return
+    }
+    const capIdx = hls.levels.findIndex(l => l.height === hint.capHeight)
+    if (capIdx >= 0) {
+      hls.autoLevelCapping = capIdx
+      if (hls.currentLevel > capIdx) hls.nextLevel = capIdx
+    }
+  }, [connection, forcedCapHeight])
 
   const handlePlayPause = (): void => {
     const video = videoRef.current
@@ -919,9 +1062,25 @@ const VideoPlayerPage: React.FC = () => {
               `}
             </style>
           
+              {debugMode && (
+                <div className="absolute top-4 left-4 z-50 bg-black/80 text-white text-xs font-mono p-3 rounded border border-white/20 pointer-events-none leading-relaxed min-w-[260px]">
+                  <div className="text-amber-400 font-semibold mb-1">HLS DEBUG</div>
+                  <div>current: <span className="text-green-400">{hlsDebug.currentHeight ? `${hlsDebug.currentHeight}p` : '—'}</span></div>
+                  <div>next:    <span className="text-cyan-400">{hlsDebug.nextHeight ? `${hlsDebug.nextHeight}p` : 'auto'}</span></div>
+                  <div>cap:     <span className="text-yellow-400">{hlsDebug.capHeight ? `${hlsDebug.capHeight}p` : 'none'}</span></div>
+                  <div>bw est:  <span className="text-white">{hlsDebug.bandwidthMbps !== null ? `${hlsDebug.bandwidthMbps} Mbps` : '—'}</span></div>
+                  <div>last seg: <span className="text-white">{hlsDebug.lastSegmentMs !== null ? `${hlsDebug.lastSegmentMs} ms` : '—'}</span></div>
+                  <div>stalls:  <span className={hlsDebug.stalls > 0 ? 'text-red-400' : 'text-white/60'}>{hlsDebug.stalls}</span></div>
+                  <div className="mt-1 pt-1 border-t border-white/10 text-white/60">
+                    <div>levels: {hlsDebug.levels.length ? hlsDebug.levels.map(h => `${h}p`).join(', ') : '—'}</div>
+                    <div>net: {connection.effectiveType} / {connection.downlinkMbps !== null ? `${connection.downlinkMbps} Mbps` : '?'}{connection.saveData ? ' / saveData' : ''}</div>
+                  </div>
+                </div>
+              )}
               {movie && selectedQuality && movie.videoUrls[selectedQuality] ? (
                 <video
                   ref={videoRef}
+                  poster={movie.posterUrl}
               className="w-full h-full object-contain bg-black"
                   onTimeUpdate={handleTimeUpdate}
                   onLoadedMetadata={handleLoadedMetadata}
@@ -941,7 +1100,7 @@ const VideoPlayerPage: React.FC = () => {
                   controlsList="nodownload nofullscreen noremoteplayback"
                   disablePictureInPicture
                   playsInline
-                  preload="auto"
+                  preload="metadata"
                 >
                   {movie.subtitleUrls && Object.entries(movie.subtitleUrls).map(
                     ([lang, url], idx) => url && (

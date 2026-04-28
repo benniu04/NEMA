@@ -23,6 +23,7 @@ import { ENV_VARS } from './config/envVars.js';
 import logger from './config/logger.js';
 import { setupGracefulShutdown } from './utils/gracefulShutdown.js';
 import { initializeSocket } from './config/socket.js';
+import { startTranscodeWorker } from './workers/transcode.worker.js';
 import { 
   requestId, 
   securityHeaders, 
@@ -256,6 +257,7 @@ app.use((err: ErrorWithStatus, req: Request, res: Response, next: NextFunction) 
 // Create HTTP server and initialize Socket.io
 const httpServer = createServer(app);
 initializeSocket(httpServer);
+startTranscodeWorker();
 
 httpServer.listen(PORT, () => {
   logger.info(`Server starting on port ${PORT}`);

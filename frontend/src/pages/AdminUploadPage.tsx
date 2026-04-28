@@ -7,6 +7,7 @@ import API_BASE_URL from '../config/api';
 interface VideoUrls {
   '720p': string;
   '1080p': string;
+  hls?: string;
 }
 
 interface SubtitleUrls {
@@ -91,6 +92,20 @@ interface UserData {
 interface UploadResponse {
   key: string;
   message?: string;
+}
+
+interface TranscodeEnqueueResponse {
+  jobId: string;
+  originalKey: string;
+  message?: string;
+}
+
+interface TranscodeStatusResponse {
+  jobId: string;
+  status: 'waiting' | 'active' | 'delayed' | 'completed' | 'failed' | 'paused' | 'stuck';
+  progress: number | Record<string, unknown>;
+  hlsKey: string | null;
+  failedReason: string | null;
 }
 
 type TabKey = 'overview' | 'upload' | 'manage';
@@ -429,6 +444,28 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const pollTranscodeJob = async (jobId: string, progressKey: string): Promise<string> => {
+    const pollIntervalMs = 2000;
+    const timeoutMs = 60 * 60 * 1000;
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < timeoutMs) {
+      await new Promise(r => setTimeout(r, pollIntervalMs));
+      const res = await fetch(`${API_BASE_URL}/api/upload/video/${jobId}`, {
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error(`Status check failed (${res.status})`);
+      const status: TranscodeStatusResponse = await res.json();
+
+      const pct = typeof status.progress === 'number' ? Math.max(1, Math.min(99, status.progress)) : 50;
+      setUploadProgress(prev => ({ ...prev, [progressKey]: pct }));
+
+      if (status.status === 'completed' && status.hlsKey) return status.hlsKey;
+      if (status.status === 'failed') throw new Error(status.failedReason || 'Transcoding failed');
+    }
+    throw new Error('Transcoding timed out');
+  };
+
   const handleFileUpload = async (
     file: File | undefined,
     type: UploadType,
@@ -444,7 +481,6 @@ const AdminDashboard: React.FC = () => {
       const uploadFormData = new FormData();
       const endpoint = type === 'video' ? 'video' : 'image';
       uploadFormData.append(type === 'video' ? 'video' : 'image', file);
-      if (type === 'video' && quality) uploadFormData.append('quality', quality);
       if (type !== 'video') uploadFormData.append('type', type);
 
       const response = await fetch(`${API_BASE_URL}/api/upload/${endpoint}`, {
@@ -454,22 +490,33 @@ const AdminDashboard: React.FC = () => {
       });
 
       const responseText = await response.text();
-      const data: UploadResponse = JSON.parse(responseText);
 
-      if (!response.ok) throw new Error(data.message || 'Upload failed');
+      if (type === 'video') {
+        const enqueued: TranscodeEnqueueResponse = JSON.parse(responseText);
+        if (!response.ok) throw new Error(enqueued.message || 'Upload failed');
 
-      if (type === 'video' && quality) {
+        setSuccess('Video uploaded, transcoding in progress...');
+        const hlsKey = await pollTranscodeJob(enqueued.jobId, progressKey);
+
         setFormData(prev => ({
           ...prev,
-          videoUrls: { ...prev.videoUrls, [quality]: data.key }
+          videoUrls: {
+            ...prev.videoUrls,
+            hls: hlsKey,
+            ...(quality ? { [quality]: hlsKey } : {})
+          }
         }));
+        setUploadProgress(prev => ({ ...prev, [progressKey]: 100 }));
+        setSuccess('Video transcoded and ready!');
       } else {
+        const data: UploadResponse = JSON.parse(responseText);
+        if (!response.ok) throw new Error(data.message || 'Upload failed');
+
         const keyField = type === 'thumbnail' ? 'thumbnailKey' : 'posterKey';
         setFormData(prev => ({ ...prev, [keyField]: data.key }));
+        setUploadProgress(prev => ({ ...prev, [progressKey]: 100 }));
+        setSuccess(`${type} uploaded successfully!`);
       }
-
-      setUploadProgress(prev => ({ ...prev, [progressKey]: 100 }));
-      setSuccess(`${type === 'video' ? 'Video' : type} uploaded successfully!`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(`Failed to upload ${type}: ${message}`);

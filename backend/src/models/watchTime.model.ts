@@ -11,7 +11,7 @@ export interface IWatchTime extends Document {
   completionPercentage: number;
   completed: boolean;
   rewatched: boolean;
-  quality: '720p' | '1080p';
+  quality: '720p' | '1080p' | 'hls';
   startedAt: Date;
   lastUpdatedAt: Date;
   endedAt?: Date;
@@ -79,7 +79,7 @@ const watchTimeSchema = new Schema<IWatchTime>({
   // Quality watched
   quality: {
     type: String,
-    enum: ['720p', '1080p'],
+    enum: ['720p', '1080p', 'hls'],
     default: '720p'
   },
   // Timestamps

@@ -64,6 +64,7 @@ export const ENV_VARS: EnvVars = {
   CLOUDFRONT_DOMAIN: process.env.CLOUDFRONT_DOMAIN,
   CLOUDFRONT_KEY_PAIR_ID: process.env.CLOUDFRONT_KEY_PAIR_ID,
   CLOUDFRONT_PRIVATE_KEY: process.env.CLOUDFRONT_PRIVATE_KEY,
+  REDIS_URL: process.env.REDIS_URL,
   // Firebase Admin SDK (Optional - for OAuth) - Remove quotes
   FIREBASE_PROJECT_ID: removeQuotes(process.env.FIREBASE_PROJECT_ID),
   FIREBASE_CLIENT_EMAIL: removeQuotes(process.env.FIREBASE_CLIENT_EMAIL),

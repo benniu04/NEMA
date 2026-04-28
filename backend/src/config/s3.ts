@@ -88,6 +88,88 @@ export const uploadFolderToS3 = async (localDirPath: string, s3Prefix: string): 
   return Promise.all(uploadPromises);
 };
 
+/**
+ * Recursively upload a directory (including subdirectories) to S3
+ */
+export const uploadFolderToS3Recursive = async (localDirPath: string, s3Prefix: string): Promise<string[]> => {
+  const uploadedKeys: string[] = [];
+
+  const uploadDir = async (dirPath: string, prefix: string): Promise<void> => {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const localPath = path.join(dirPath, entry.name);
+      const s3Key = `${prefix}/${entry.name}`;
+      if (entry.isDirectory()) {
+        await uploadDir(localPath, s3Key);
+      } else {
+        await uploadFileToS3(localPath, s3Key);
+        uploadedKeys.push(s3Key);
+      }
+    }
+  };
+
+  await uploadDir(localDirPath, s3Prefix);
+  return uploadedKeys;
+};
+
+/**
+ * Download an S3 object to a local file path (streamed).
+ */
+export const downloadS3ObjectToFile = async (s3Key: string, localPath: string): Promise<void> => {
+  const dir = path.dirname(localPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  const command = new GetObjectCommand({
+    Bucket: ENV_VARS.AWS_BUCKET_NAME,
+    Key: s3Key,
+  });
+  const response = await s3Client.send(command);
+  const body = response.Body as NodeJS.ReadableStream | undefined;
+  if (!body) {
+    throw new Error(`S3 object body missing for key: ${s3Key}`);
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const writeStream = fs.createWriteStream(localPath);
+    body.pipe(writeStream);
+    writeStream.on('finish', () => resolve());
+    writeStream.on('error', reject);
+    body.on('error', reject);
+  });
+};
+
+export const videoOriginalsUpload = multer({
+  storage: multerS3({
+    s3: s3Client,
+    bucket: ENV_VARS.AWS_BUCKET_NAME,
+    metadata: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, metadata?: Record<string, string>) => void) => {
+      cb(null, { fieldName: file.fieldname });
+    },
+    key: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, key?: string) => void) => {
+      const timestamp = Date.now();
+      let ext = '.mp4';
+      if (file.mimetype === 'video/quicktime') ext = '.mov';
+      else if (file.mimetype === 'video/x-msvideo') ext = '.avi';
+      else if (file.mimetype === 'video/webm') ext = '.webm';
+      cb(null, `videos/originals/${timestamp}${ext}`);
+    },
+    contentType: multerS3.AUTO_CONTENT_TYPE
+  }),
+  limits: {
+    fileSize: 3 * 1024 * 1024 * 1024,
+    files: 1
+  },
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
+    if (file.mimetype.startsWith('video/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only video files are allowed for this endpoint.'));
+    }
+  }
+});
+
 export const upload = multer({
   storage: multerS3({
     s3: s3Client,
@@ -97,7 +179,7 @@ export const upload = multer({
     },
     key: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, key?: string) => void) => {
       const timestamp = Date.now();
-      
+
       let ext = '.bin';
       if (file.mimetype === 'video/mp4') ext = '.mp4';
       else if (file.mimetype === 'video/quicktime') ext = '.mov';
@@ -105,9 +187,9 @@ export const upload = multer({
       else if (file.mimetype === 'image/jpeg') ext = '.jpg';
       else if (file.mimetype === 'image/png') ext = '.png';
       else if (file.mimetype === 'image/webp') ext = '.webp';
-      
+
       const key = `${file.fieldname}/${timestamp}${ext}`;
-      
+
       cb(null, key);
     },
     contentType: multerS3.AUTO_CONTENT_TYPE

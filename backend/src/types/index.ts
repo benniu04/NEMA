@@ -20,6 +20,7 @@ export interface EnvVars {
   CLOUDFRONT_DOMAIN?: string;
   CLOUDFRONT_KEY_PAIR_ID?: string;
   CLOUDFRONT_PRIVATE_KEY?: string;
+  REDIS_URL?: string;
   FIREBASE_PROJECT_ID?: string;
   FIREBASE_CLIENT_EMAIL?: string;
   FIREBASE_PRIVATE_KEY?: string;
