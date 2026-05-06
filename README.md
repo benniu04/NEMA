@@ -16,7 +16,7 @@ A full-stack Netflix-like streaming platform built with modern web technologies.
 
 **Key Metrics:**
 - ⚡ **5.5x faster** response times (250ms → 45ms)
-- 🚀 **850 requests/second** capacity
+- 🚀 **~30 RPS sustained / ~250–300 concurrent users** measured on the current stack ([LOADTEST_RESULTS.md](LOADTEST_RESULTS.md))
 - 📊 **90% test coverage** with Jest/Vitest
 - 🌍 **Global CDN** delivery via CloudFront
 - 💰 **$0.003** cost per user
@@ -63,9 +63,8 @@ MongoDB      AWS S3 + CloudFront
 
 ## 📊 Performance
 
-**Response Times:** 250ms → 45ms (5.5x faster)  
-**Cache Hit Rate:** 90% (instant responses)  
-**Capacity:** 850 requests/second, 5,000 concurrent users  
+**Response Times:** 250ms → 45ms (5.5x faster, healthy cached path)  
+**Capacity:** ~30 RPS sustained at ~250–300 concurrent users (measured against the current single-process Node + Atlas M0 stack — see [LOADTEST_RESULTS.md](LOADTEST_RESULTS.md))  
 **Lighthouse Score:** 95/100  
 **Test Coverage:** 90% across frontend and backend
 

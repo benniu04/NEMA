@@ -44,3 +44,9 @@ Thumbs.db
 # MongoDB Memory Server
 .mongodb-memory-server/
 globalConfig.json
+
+# Load testing
+loadtest/
+backend/.env.loadtest
+loadtest/fixtures.json
+loadtest/results/*.json

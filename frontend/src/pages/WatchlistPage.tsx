@@ -94,6 +94,8 @@ const WatchlistPage: React.FC = () => {
                         <img
                           src={movie.posterUrl}
                           alt={movie.title}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       ) : (

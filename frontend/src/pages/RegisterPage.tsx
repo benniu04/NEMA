@@ -207,7 +207,7 @@ const RegisterPage: React.FC = () => {
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: "url('/hero-image.png')" }}
+          style={{ backgroundImage: "url('/hero-image.jpg')" }}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#0a0a0a]" />
         <div className="absolute inset-0 bg-black/40" />

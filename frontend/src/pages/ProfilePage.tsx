@@ -582,7 +582,7 @@ const ProfilePage: React.FC = () => {
                           <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 via-amber-500 to-amber-500 rounded opacity-0 group-hover:opacity-75 blur transition-all duration-500"></div>
                           <div className="relative aspect-[2/3] bg-white/5 overflow-hidden rounded shadow-lg group-hover:shadow-2xl group-hover:shadow-rose-500/20 transition-all duration-300">
                             {movie.posterUrl ? (
-                              <img src={movie.posterUrl} alt={movie.title} className="w-full h-full object-cover transition-all duration-500 ease-out group-hover:scale-110" />
+                              <img src={movie.posterUrl} alt={movie.title} loading="lazy" decoding="async" className="w-full h-full object-cover transition-all duration-500 ease-out group-hover:scale-110" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-white/20">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -666,7 +666,7 @@ const ProfilePage: React.FC = () => {
                     </div>
                     {activity.movieId?.posterUrl && (
                       <Link to={`/video/${activity.movieId._id}`}>
-                        <img src={activity.movieId.posterUrl} alt={activity.movieId.title} className="w-12 h-16 object-cover hover:opacity-80 transition-opacity" />
+                        <img src={activity.movieId.posterUrl} alt={activity.movieId.title} loading="lazy" decoding="async" className="w-12 h-16 object-cover hover:opacity-80 transition-opacity" />
                       </Link>
                     )}
                   </div>
@@ -703,7 +703,7 @@ const ProfilePage: React.FC = () => {
 
                         <Link to={`/video/${session.movieId._id}${!session.completed && resumeTime > 0 ? `?t=${Math.floor(resumeTime)}` : ''}`} className="w-20 h-28 flex-shrink-0 bg-white/5 overflow-hidden relative block">
                           {session.movieId.posterUrl ? (
-                            <img src={session.movieId.posterUrl} alt={session.movieId.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                            <img src={session.movieId.posterUrl} alt={session.movieId.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-white/20">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -786,7 +786,7 @@ const ProfilePage: React.FC = () => {
                         <Link to={`/video/${review.movieId._id}`} className="flex-shrink-0 group">
                           <div className="w-24 h-36 bg-white/5 overflow-hidden rounded">
                             {review.movieId.posterUrl ? (
-                              <img src={review.movieId.posterUrl} alt={review.movieId.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                              <img src={review.movieId.posterUrl} alt={review.movieId.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-white/20">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -849,7 +849,7 @@ const ProfilePage: React.FC = () => {
                       <Link key={movie._id} to={`/video/${movie._id}`} className="group">
                         <div className="aspect-[2/3] bg-white/5 overflow-hidden mb-2">
                           {movie.posterUrl ? (
-                            <img src={movie.posterUrl} alt={movie.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                            <img src={movie.posterUrl} alt={movie.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-white/20">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">

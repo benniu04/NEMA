@@ -52,7 +52,7 @@ const ForgotPasswordPage: React.FC = () => {
       <div
         className="absolute inset-0 z-0 opacity-60"
         style={{
-          backgroundImage: "url('/hero-image.png')",
+          backgroundImage: "url('/hero-image.jpg')",
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}

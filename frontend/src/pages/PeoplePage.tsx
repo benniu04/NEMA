@@ -388,7 +388,7 @@ const UserCard: React.FC<UserCardProps> = ({ user, currentUserId, onFollow, load
       <Link to={`/profile/${user.username}`} className="flex-shrink-0">
         <div className="w-16 h-16 rounded-full bg-white/10 overflow-hidden">
           {user.avatar ? (
-            <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
+            <img src={user.avatar} alt={user.displayName} loading="lazy" decoding="async" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-2xl font-light text-white/40">
               {user.displayName?.charAt(0).toUpperCase() || user.username?.charAt(0).toUpperCase()}
@@ -537,7 +537,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({ activity, t }) => {
       <Link to={`/profile/${activityUser?.username}`} className="flex-shrink-0">
         <div className="w-12 h-12 rounded-full bg-white/10 overflow-hidden">
           {activityUser?.avatar ? (
-            <img src={activityUser.avatar} alt={activityUser.displayName} className="w-full h-full object-cover" />
+            <img src={activityUser.avatar} alt={activityUser.displayName} loading="lazy" decoding="async" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-lg font-light text-white/40">
               {activityUser?.displayName?.charAt(0).toUpperCase() || activityUser?.username?.charAt(0).toUpperCase() || '?'}
@@ -565,7 +565,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({ activity, t }) => {
         <Link to={`/video/${movie._id}`} className="flex-shrink-0">
           <div className="w-16 h-24 bg-white/10 rounded overflow-hidden">
             {movie.posterUrl ? (
-              <img src={movie.posterUrl} alt={movie.title} className="w-full h-full object-cover" />
+              <img src={movie.posterUrl} alt={movie.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <Film className="w-6 h-6 text-white/20" />

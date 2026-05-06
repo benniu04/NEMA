@@ -62,18 +62,19 @@ watchTimeRouter.post('/track', watchTimeLimiter, optionalAuthMiddleware, async (
         startedAt: new Date()
       });
 
-      // Wrap views increment + initial save in a transaction
-      const session = await mongoose.startSession();
-      session.startTransaction();
+      // Save the WatchTime record first (real state). The view counter is a
+      // stat — eventually consistent is fine, and $inc on a single document
+      // is atomic without a transaction. A multi-document transaction here
+      // caused WriteConflict cascades under load when many viewers watched
+      // the same movie concurrently.
+      await watchTime.save();
       try {
-        await Movie.findByIdAndUpdate(movieId, { $inc: { views: 1 } }, { session });
-        await watchTime.save({ session });
-        await session.commitTransaction();
-      } catch (error) {
-        await session.abortTransaction();
-        throw error;
-      } finally {
-        session.endSession();
+        await Movie.findByIdAndUpdate(movieId, { $inc: { views: 1 } });
+      } catch (incErr) {
+        logger.warn('Failed to increment view counter', {
+          movieId,
+          error: (incErr as Error).message,
+        });
       }
 
       shouldClearCache = true;

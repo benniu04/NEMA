@@ -1,5 +1,4 @@
 import express, { Request, Response } from 'express';
-import mongoose from 'mongoose';
 import { Vote } from '../models/vote.model.js';
 import { Comment } from '../models/comment.model.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
@@ -38,14 +37,13 @@ const voteSlow = slowDown({
 });
 
 // Recalculate and update a comment's vote score
-const updateCommentScore = async (commentId: string, session?: mongoose.ClientSession): Promise<number> => {
-  const opts = session ? { session } : {};
+const updateCommentScore = async (commentId: string): Promise<number> => {
   const [upvotes, downvotes] = await Promise.all([
-    Vote.countDocuments({ commentId, voteType: 'upvote' }).session(session ?? null),
-    Vote.countDocuments({ commentId, voteType: 'downvote' }).session(session ?? null)
+    Vote.countDocuments({ commentId, voteType: 'upvote' }),
+    Vote.countDocuments({ commentId, voteType: 'downvote' })
   ]);
   const newScore = upvotes - downvotes;
-  await Comment.findByIdAndUpdate(commentId, { voteScore: newScore }, opts);
+  await Comment.findByIdAndUpdate(commentId, { voteScore: newScore });
   return newScore;
 };
 
@@ -86,27 +84,19 @@ const handleVote = async (req: AuthenticatedRequest, res: Response, voteType: 'u
       }
     }
 
-    // Wrap vote mutation + score update in a transaction
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    let newScore: number;
-    try {
-      if (existingVote) {
-        previousVote = existingVote.voteType;
-        existingVote.voteType = voteType;
-        await existingVote.save({ session });
-      } else {
-        await Vote.create([{ commentId, userId, voteType }], { session });
-      }
-
-      newScore = await updateCommentScore(commentId, session);
-      await session.commitTransaction();
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
+    // Run vote write + score recompute sequentially without a transaction.
+    // The count-based recompute in updateCommentScore is self-healing under
+    // concurrency: the next vote will read the correct count regardless of
+    // interleaving. Wrapping these in a transaction caused WriteConflict
+    // cascades on popular comments (same anti-pattern as watchTime $inc).
+    if (existingVote) {
+      previousVote = existingVote.voteType;
+      existingVote.voteType = voteType;
+      await existingVote.save();
+    } else {
+      await Vote.create({ commentId, userId, voteType });
     }
+    const newScore = await updateCommentScore(commentId);
 
     // Side effects after commit
     emitVoteUpdate(comment.movieId, commentId, newScore);
@@ -163,20 +153,8 @@ router.delete('/comments/:commentId', voteLimiter, voteSlow, authMiddleware, asy
       return;
     }
 
-    // Wrap delete + score update in a transaction
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    let newScore: number;
-    try {
-      await Vote.findOneAndDelete({ commentId, userId }, { session });
-      newScore = await updateCommentScore(commentId, session);
-      await session.commitTransaction();
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
-    }
+    await Vote.findOneAndDelete({ commentId, userId });
+    const newScore = await updateCommentScore(commentId);
 
     // Side effects after commit
     emitVoteUpdate(comment.movieId, commentId, newScore);

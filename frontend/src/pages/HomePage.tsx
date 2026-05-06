@@ -836,6 +836,8 @@ const HomePage: React.FC = () => {
         <img
           src={imageUrl}
           alt={movie.title}
+          loading="lazy"
+          decoding="async"
           className="absolute inset-0 w-full h-full object-cover"
         />
 
@@ -925,6 +927,8 @@ const HomePage: React.FC = () => {
         <img
           src={imageUrl}
           alt={movie.title}
+          loading="lazy"
+          decoding="async"
           className="absolute inset-0 w-full h-full object-cover"
         />
 
@@ -1312,14 +1316,9 @@ const HomePage: React.FC = () => {
       >
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black z-10"></div>
 
-        <div className="absolute inset-0 bg-[url('/film-grain.png')] opacity-[0.03] mix-blend-overlay z-10 pointer-events-none"></div>
-
         <div
           className="absolute z-0 opacity-60 parallax"
           style={{
-            backgroundImage: "url('/hero-image.png')",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
             left: "-5vw",
             right: "-5vw",
             top: "-5vh",
@@ -1327,7 +1326,18 @@ const HomePage: React.FC = () => {
             willChange: "transform",
             transform: "translateZ(0)",
           }}
-        ></div>
+        >
+          <picture className="block w-full h-full">
+            <source srcSet="/hero-image.webp" type="image/webp" />
+            <img
+              src="/hero-image.jpg"
+              alt=""
+              fetchPriority="high"
+              decoding="async"
+              className="w-full h-full object-cover"
+            />
+          </picture>
+        </div>
 
         <div className="relative z-20 text-center px-4 max-w-5xl mx-auto">
           <div className="mb-6 opacity-0 animate-fade-in" style={{ animationDelay: '0.2s', animationDuration: '1.5s', animationFillMode: 'forwards' }}>

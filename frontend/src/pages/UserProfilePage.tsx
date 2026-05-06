@@ -437,9 +437,11 @@ const UserProfilePage: React.FC = () => {
                   >
                     <div className="aspect-[2/3] bg-white/5 overflow-hidden mb-2 rounded shadow-lg group-hover:shadow-xl group-hover:shadow-amber-500/20 transition-all">
                       {movie.posterUrl ? (
-                        <img 
-                          src={movie.posterUrl} 
+                        <img
+                          src={movie.posterUrl}
                           alt={movie.title}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       ) : (
