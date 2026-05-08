@@ -15,7 +15,7 @@ const movieSchema = new Schema<IMovie>({
     type: Number,
     required: true,
     min: 0,
-    max: 10,
+    max: 5,
   },
   releaseDate: {
     type: Date,

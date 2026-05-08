@@ -466,7 +466,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({ activity, t }) => {
             <span className="text-white/60"> reviewed </span>
             <span className="font-medium text-amber-500">{movieTitle}</span>
             {activity.rating && (
-              <span className="text-white/60"> - {activity.rating}/10</span>
+              <span className="text-white/60"> - {activity.rating}/5</span>
             )}
           </>
         );

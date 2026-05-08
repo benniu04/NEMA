@@ -258,7 +258,7 @@ const AdminDashboard: React.FC = () => {
     const avgRating = ratings.length > 0
       ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
       : 0;
-    const highRatedMovies = movies.filter(m => parseFloat(String(m.rating)) >= 8).length;
+    const highRatedMovies = movies.filter(m => parseFloat(String(m.rating)) >= 4).length;
 
     const currentYear = new Date().getFullYear();
     const recentMovies = movies.filter(
