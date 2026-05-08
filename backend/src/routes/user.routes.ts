@@ -13,6 +13,7 @@ import { ENV_VARS } from '../config/envVars.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.middleware.js';
 import { validateUserRegister, validateUserLogin, validateUserUpdate } from '../middleware/validation.middleware.js';
 import { generateCloudfrontSignedUrl } from '../config/s3.js';
+import { attachPosterUrls } from '../utils/imageVariants.js';
 import logger from '../config/logger.js';
 import { verifyFirebaseToken } from '../config/firebase-admin.js';
 import { sendEmail, emailTemplates } from '../config/email.js';
@@ -304,8 +305,8 @@ userRoutes.post('/reset-password/:token', async (req: Request, res: Response): P
 userRoutes.get('/me', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const user = await User.findById(req.user!.id)
-      .populate('watchlist', 'title posterKey posterUrl director rating releaseDate')
-      .populate('favoriteFilms', 'title posterKey posterUrl director rating releaseDate');
+      .populate('watchlist', 'title posterKey posterUrl director rating releaseDate hasImageVariants')
+      .populate('favoriteFilms', 'title posterKey posterUrl director rating releaseDate hasImageVariants');
     
     if (!user) { res.status(404).json({ message: 'User not found' }); return; }
 
@@ -320,16 +321,12 @@ userRoutes.get('/me', authMiddleware, async (req: AuthenticatedRequest, res: Res
     const [watchlistWithUrls, favoritesWithUrls] = await Promise.all([
       Promise.all(user.watchlist.map(async (movie: any) => {
         const movieObj = movie.toObject();
-        if (movieObj.posterKey) {
-          try { movieObj.posterUrl = await generateCloudfrontSignedUrl(movieObj.posterKey); } catch {}
-        }
+        await attachPosterUrls(movieObj);
         return movieObj;
       })),
       Promise.all(user.favoriteFilms.map(async (movie: any) => {
         const movieObj = movie.toObject();
-        if (movieObj.posterKey) {
-          try { movieObj.posterUrl = await generateCloudfrontSignedUrl(movieObj.posterKey); } catch {}
-        }
+        await attachPosterUrls(movieObj);
         return movieObj;
       }))
     ]);
@@ -437,12 +434,10 @@ userRoutes.post('/favorites/:movieId', authMiddleware, async (req: Authenticated
     await user.save();
     await Activity.create({ userId: req.user!.id, type: 'favorite_add', movieId: req.params.movieId });
     // Populate favorites with movie details and generate signed URLs
-    const populatedUser = await User.findById(req.user!.id).populate('favoriteFilms', 'title posterKey posterUrl director rating releaseDate');
+    const populatedUser = await User.findById(req.user!.id).populate('favoriteFilms', 'title posterKey posterUrl director rating releaseDate hasImageVariants');
     const favoritesWithUrls = await Promise.all((populatedUser?.favoriteFilms || []).map(async (movie: any) => {
       const movieObj = movie.toObject();
-      if (movieObj.posterKey) {
-        try { movieObj.posterUrl = await generateCloudfrontSignedUrl(movieObj.posterKey); } catch {}
-      }
+      await attachPosterUrls(movieObj);
       return movieObj;
     }));
     res.json({ message: 'Added to favorites', favorites: favoritesWithUrls });
@@ -458,12 +453,10 @@ userRoutes.delete('/favorites/:movieId', authMiddleware, async (req: Authenticat
     user.favoriteFilms = user.favoriteFilms.filter(id => id.toString() !== req.params.movieId);
     await user.save();
     // Populate favorites with movie details and generate signed URLs
-    const populatedUser = await User.findById(req.user!.id).populate('favoriteFilms', 'title posterKey posterUrl director rating releaseDate');
+    const populatedUser = await User.findById(req.user!.id).populate('favoriteFilms', 'title posterKey posterUrl director rating releaseDate hasImageVariants');
     const favoritesWithUrls = await Promise.all((populatedUser?.favoriteFilms || []).map(async (movie: any) => {
       const movieObj = movie.toObject();
-      if (movieObj.posterKey) {
-        try { movieObj.posterUrl = await generateCloudfrontSignedUrl(movieObj.posterKey); } catch {}
-      }
+      await attachPosterUrls(movieObj);
       return movieObj;
     }));
     res.json({ message: 'Removed from favorites', favorites: favoritesWithUrls });
@@ -576,17 +569,13 @@ userRoutes.get('/activity', authMiddleware, async (req: AuthenticatedRequest, re
     const activities = await Activity.find({ userId: req.user!.id })
       .sort({ createdAt: -1 })
       .limit(limit)
-      .populate('movieId', 'title posterUrl posterKey');
+      .populate('movieId', 'title posterUrl posterKey hasImageVariants');
 
     // Generate signed URLs for posters
     const activitiesWithUrls = await Promise.all(activities.map(async (activity) => {
       const activityObj = activity.toObject() as any;
-      if (activityObj.movieId && activityObj.movieId.posterKey) {
-        try {
-          activityObj.movieId.posterUrl = await generateCloudfrontSignedUrl(activityObj.movieId.posterKey);
-        } catch (error) {
-          logger.warn('Failed to generate signed URL for activity poster', { posterKey: activityObj.movieId.posterKey });
-        }
+      if (activityObj.movieId) {
+        await attachPosterUrls(activityObj.movieId);
       }
       return activityObj;
     }));
@@ -615,7 +604,7 @@ userRoutes.get('/feed', authMiddleware, async (req: AuthenticatedRequest, res: R
     .skip(offset)
     .limit(limit + 1)
     .populate('userId', 'username displayName avatar')
-    .populate('movieId', 'title posterUrl posterKey');
+    .populate('movieId', 'title posterUrl posterKey hasImageVariants');
 
     const hasMore = activities.length > limit;
     const finalActivities = activities.slice(0, limit);
@@ -623,12 +612,8 @@ userRoutes.get('/feed', authMiddleware, async (req: AuthenticatedRequest, res: R
     // Generate signed URLs for posters in parallel
     const activitiesWithUrls = await Promise.all(finalActivities.map(async (activity) => {
       const activityObj = activity.toObject() as any;
-      if (activityObj.movieId && activityObj.movieId.posterKey) {
-        try {
-          activityObj.movieId.posterUrl = await generateCloudfrontSignedUrl(activityObj.movieId.posterKey);
-        } catch (error) {
-          logger.warn('Failed to generate signed URL for feed poster', { posterKey: activityObj.movieId.posterKey });
-        }
+      if (activityObj.movieId) {
+        await attachPosterUrls(activityObj.movieId);
       }
       return activityObj;
     }));

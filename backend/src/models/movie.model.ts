@@ -46,10 +46,14 @@ const movieSchema = new Schema<IMovie>({
     es: String,   // Spanish
     fr: String    // …etc
   },
-  posterKey: String,     
-  thumbnailKey: String,  
+  posterKey: String,
+  thumbnailKey: String,
   posterUrl: String,
   thumbnailUrl: String,
+  hasImageVariants: {
+    type: Boolean,
+    default: false,
+  },
   views: {
     type: Number,
     default: 0,

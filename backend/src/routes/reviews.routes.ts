@@ -9,6 +9,7 @@ import { clearCache } from '../config/cache.js';
 import { validateReview } from '../middleware/validation.middleware.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.middleware.js';
 import { generateCloudfrontSignedUrl } from '../config/s3.js';
+import { attachPosterUrls } from '../utils/imageVariants.js';
 import logger from '../config/logger.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 import { getIO } from '../config/socket.js';
@@ -91,20 +92,18 @@ reviewRouter.get('/movie/:movieId', async (req: Request, res: Response): Promise
 reviewRouter.get('/user/my-reviews', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
 
     const reviews = await Review.find({ userId })
-      .populate('movieId', 'title posterUrl posterKey director releaseDate')
-      .sort({ createdAt: -1 });
+      .populate('movieId', 'title posterUrl posterKey director releaseDate hasImageVariants')
+      .sort({ createdAt: -1 })
+      .limit(limit);
 
     const reviewsWithUrls = await Promise.all(
       reviews.map(async (review) => {
         const reviewObj = review.toObject() as any;
-        if (reviewObj.movieId && reviewObj.movieId.posterKey) {
-          try {
-            reviewObj.movieId.posterUrl = await generateCloudfrontSignedUrl(reviewObj.movieId.posterKey);
-          } catch (error) {
-            logger.error('Error generating poster URL for review:', { error: (error as Error).message });
-          }
+        if (reviewObj.movieId) {
+          await attachPosterUrls(reviewObj.movieId);
         }
         return reviewObj;
       })

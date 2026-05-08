@@ -84,6 +84,8 @@ export interface Movie {
   thumbnailKey?: string;
   posterUrl?: string;
   thumbnailUrl?: string;
+  posterUrls?: { thumb: string; medium: string; full: string };
+  hasImageVariants?: boolean;
   views: number;
   isFeatured: boolean;
   tags: string[];

@@ -4,16 +4,24 @@ import { useUser } from '../context/UserContext';
 import { useSettings } from '../context/SettingsContext';
 import NavBar from '../components/NavBar';
 import Footer from '../components/Footer';
+import LazyImage from '../components/LazyImage';
 import API_BASE_URL from '../config/api';
+
+const WATCH_HISTORY_PAGE_SIZE = 10;
+const REVIEWS_PAGE_SIZE = 10;
 
 // Types
 interface Movie {
   _id: string;
   title: string;
   posterUrl?: string;
+  posterUrls?: { thumb: string; medium: string; full: string };
   director?: string;
   releaseDate: string;
 }
+
+const buildSrcSet = (urls?: { thumb: string; medium: string; full: string }): string | undefined =>
+  urls ? `${urls.thumb} 200w, ${urls.medium} 400w, ${urls.full} 800w` : undefined;
 
 interface Activity {
   _id: string;
@@ -110,6 +118,13 @@ const ProfilePage: React.FC = () => {
   const [loadingSocial, setLoadingSocial] = useState(false);
   const [followActionLoading, setFollowActionLoading] = useState<Record<string, boolean>>({});
 
+  const [loadingActivities, setLoadingActivities] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [historyLimit, setHistoryLimit] = useState(WATCH_HISTORY_PAGE_SIZE);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
+
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -125,29 +140,21 @@ const ProfilePage: React.FC = () => {
   }, [locationState]);
 
   useEffect(() => {
-    if (user) {
-      setBio(user.bio || '');
-      loadActivities();
-      loadFavorites();
-      loadWatchHistory();
+    if (!user) return;
+    setBio(user.bio || '');
+    if (user.favoriteFilms) {
+      setFavorites(user.favoriteFilms as Movie[]);
     }
-  }, [user]);
-
-  // Reload favorites when favoriteFilms changes
-  useEffect(() => {
-    if (user) {
-      loadFavorites();
-      loadActivities(); // Also reload activities in case favorites were added
-    }
-  }, [user?.favoriteFilms?.length]);
-
-  useEffect(() => {
-    if (user) {
-      loadUserReviews();
-    }
+    void Promise.all([
+      loadActivities(),
+      loadWatchHistory(WATCH_HISTORY_PAGE_SIZE),
+      loadUserReviews()
+    ]);
+    setHistoryLimit(WATCH_HISTORY_PAGE_SIZE);
   }, [user]);
 
   const loadActivities = async (): Promise<void> => {
+    setLoadingActivities(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/users/activity?limit=10`, {
         credentials: 'include'
@@ -158,19 +165,20 @@ const ProfilePage: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to load activities:', error);
+    } finally {
+      setLoadingActivities(false);
     }
   };
 
-  const loadFavorites = (): void => {
-    // Use favoriteFilms from user context (already populated via /api/users/me)
-    if (user?.favoriteFilms) {
-      setFavorites(user.favoriteFilms as Movie[]);
+  const loadWatchHistory = async (limit: number): Promise<void> => {
+    const isFirstPage = limit === WATCH_HISTORY_PAGE_SIZE;
+    if (isFirstPage) {
+      setLoadingHistory(true);
+    } else {
+      setLoadingMoreHistory(true);
     }
-  };
-
-  const loadWatchHistory = async (): Promise<void> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/watch-time/history?limit=50`, {
+      const response = await fetch(`${API_BASE_URL}/api/watch-time/history?limit=${limit}`, {
         credentials: 'include'
       });
       if (response.ok) {
@@ -185,15 +193,26 @@ const ProfilePage: React.FC = () => {
           }
         });
         setWatchHistory(Array.from(movieMap.values()));
+        setHistoryHasMore(data.length >= limit);
       }
     } catch (error) {
       console.error('Failed to load watch history:', error);
+    } finally {
+      setLoadingHistory(false);
+      setLoadingMoreHistory(false);
     }
   };
 
+  const handleLoadMoreHistory = (): void => {
+    const next = historyLimit + WATCH_HISTORY_PAGE_SIZE;
+    setHistoryLimit(next);
+    void loadWatchHistory(next);
+  };
+
   const loadUserReviews = async (): Promise<void> => {
+    setLoadingReviews(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/reviews/user/my-reviews`, {
+      const response = await fetch(`${API_BASE_URL}/api/reviews/user/my-reviews?limit=${REVIEWS_PAGE_SIZE}`, {
         credentials: 'include'
       });
       if (response.ok) {
@@ -202,6 +221,8 @@ const ProfilePage: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to load user reviews:', error);
+    } finally {
+      setLoadingReviews(false);
     }
   };
 
@@ -392,7 +413,7 @@ const ProfilePage: React.FC = () => {
     try {
       const result = await removeFromFavorites(movieId);
       if (result.success) {
-        await loadFavorites();
+        setFavorites(prev => prev.filter(m => m._id !== movieId));
       } else {
         alert(result.error || t('profile.removeFavoriteError'));
       }
@@ -426,7 +447,7 @@ const ProfilePage: React.FC = () => {
         <div className="relative h-64 bg-white/5 group">
           {typedUser.banner ? (
             <>
-              <img src={typedUser.banner} alt="Banner" className="w-full h-full object-cover object-center" />
+              <img src={typedUser.banner} alt="Banner" width={1920} height={256} decoding="async" className="w-full h-full object-cover object-center" />
               <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/60"></div>
             </>
           ) : (
@@ -465,7 +486,7 @@ const ProfilePage: React.FC = () => {
               <div className="relative z-20">
                 <div className="w-32 h-32 bg-white/5 border-4 border-black overflow-hidden shadow-xl">
                   {typedUser.avatar ? (
-                    <img src={typedUser.avatar} alt={typedUser.displayName} className="w-full h-full object-cover" />
+                    <img src={typedUser.avatar} alt={typedUser.displayName} width={128} height={128} decoding="async" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-4xl font-light text-white/40">
                       {typedUser.displayName?.charAt(0).toUpperCase() || typedUser.username?.charAt(0).toUpperCase()}
@@ -565,7 +586,7 @@ const ProfilePage: React.FC = () => {
                           <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 via-amber-500 to-amber-500 rounded opacity-0 group-hover:opacity-75 blur transition-all duration-500"></div>
                           <div className="relative aspect-[2/3] bg-white/5 overflow-hidden rounded shadow-lg group-hover:shadow-2xl group-hover:shadow-rose-500/20 transition-all duration-300">
                             {movie.posterUrl ? (
-                              <img src={movie.posterUrl} alt={movie.title} loading="lazy" decoding="async" className="w-full h-full object-cover transition-all duration-500 ease-out group-hover:scale-110" />
+                              <LazyImage src={movie.posterUrls?.medium || movie.posterUrl} srcSet={buildSrcSet(movie.posterUrls)} sizes="(max-width: 640px) 30vw, 200px" alt={movie.title} decoding="async" className="w-full h-full object-cover transition-all duration-500 ease-out group-hover:scale-110" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-white/20">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -631,7 +652,18 @@ const ProfilePage: React.FC = () => {
           {/* Tab Content */}
           {activeTab === 'activity' && (
             <div className="space-y-4 pb-12">
-              {activities.length === 0 ? (
+              {loadingActivities && activities.length === 0 ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex gap-4 pb-4 border-b border-white/5 animate-pulse">
+                    <div className="w-8 h-8 bg-white/10 rounded" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 bg-white/10 rounded w-3/4" />
+                      <div className="h-2 bg-white/10 rounded w-1/4" />
+                    </div>
+                    <div className="w-12 h-16 bg-white/10 rounded" />
+                  </div>
+                ))
+              ) : activities.length === 0 ? (
                 <p className="text-white/30 text-center py-12">{t('profile.noRecentActivity')}</p>
               ) : (
                 activities.map((activity) => (
@@ -648,8 +680,8 @@ const ProfilePage: React.FC = () => {
                       {activity.rating && <p className="text-white/60 text-sm mt-2">★ {activity.rating}/5</p>}
                     </div>
                     {activity.movieId?.posterUrl && (
-                      <Link to={`/video/${activity.movieId._id}`}>
-                        <img src={activity.movieId.posterUrl} alt={activity.movieId.title} loading="lazy" decoding="async" className="w-12 h-16 object-cover hover:opacity-80 transition-opacity" />
+                      <Link to={`/video/${activity.movieId._id}`} className="block w-12 h-16">
+                        <LazyImage src={activity.movieId.posterUrls?.thumb || activity.movieId.posterUrl} srcSet={buildSrcSet(activity.movieId.posterUrls)} sizes="48px" alt={activity.movieId.title} decoding="async" className="w-full h-full object-cover hover:opacity-80 transition-opacity" />
                       </Link>
                     )}
                   </div>
@@ -660,7 +692,20 @@ const ProfilePage: React.FC = () => {
 
           {activeTab === 'films' && (
             <div className="pb-12">
-              {watchHistory.length === 0 ? (
+              {loadingHistory && watchHistory.length === 0 ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex gap-4 p-4 bg-white/5 border border-white/10 animate-pulse">
+                      <div className="w-20 h-28 bg-white/10 flex-shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-white/10 rounded w-2/3" />
+                        <div className="h-3 bg-white/10 rounded w-1/2" />
+                        <div className="h-1.5 bg-white/10 rounded mt-4" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : watchHistory.length === 0 ? (
                 <div className="text-center py-12">
                   <p className="text-white/30 mb-4">{t('profile.noFilmsWatched')}</p>
                   <Link to="/catalog" className="inline-block px-6 py-2 bg-white text-black hover:bg-white/90 transition-colors">
@@ -686,7 +731,7 @@ const ProfilePage: React.FC = () => {
 
                         <Link to={`/video/${session.movieId._id}${!session.completed && resumeTime > 0 ? `?t=${Math.floor(resumeTime)}` : ''}`} className="w-20 h-28 flex-shrink-0 bg-white/5 overflow-hidden relative block">
                           {session.movieId.posterUrl ? (
-                            <img src={session.movieId.posterUrl} alt={session.movieId.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                            <LazyImage src={session.movieId.posterUrls?.thumb || session.movieId.posterUrl} srcSet={buildSrcSet(session.movieId.posterUrls)} sizes="80px" alt={session.movieId.title} decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-white/20">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -747,6 +792,17 @@ const ProfilePage: React.FC = () => {
                       </div>
                     );
                   })}
+                  {historyHasMore && (
+                    <div className="flex justify-center pt-4">
+                      <button
+                        onClick={handleLoadMoreHistory}
+                        disabled={loadingMoreHistory}
+                        className="px-6 py-2 border border-white/20 text-white/70 hover:text-white hover:border-white/40 transition-colors text-sm disabled:opacity-50"
+                      >
+                        {loadingMoreHistory ? t('profile.loading') || 'Loading...' : t('profile.loadMore') || 'Load more'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -754,7 +810,23 @@ const ProfilePage: React.FC = () => {
 
           {activeTab === 'reviews' && (
             <div className="pb-12">
-              {userReviews.length === 0 ? (
+              {loadingReviews && userReviews.length === 0 ? (
+                <div className="space-y-6">
+                  {Array.from({ length: 2 }).map((_, i) => (
+                    <div key={i} className="bg-white/5 border border-white/10 p-6 rounded animate-pulse">
+                      <div className="flex gap-4">
+                        <div className="w-24 h-36 bg-white/10 flex-shrink-0 rounded" />
+                        <div className="flex-1 space-y-3">
+                          <div className="h-5 bg-white/10 rounded w-1/2" />
+                          <div className="h-3 bg-white/10 rounded w-1/3" />
+                          <div className="h-3 bg-white/10 rounded w-full mt-4" />
+                          <div className="h-3 bg-white/10 rounded w-5/6" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : userReviews.length === 0 ? (
                 <div className="text-center py-12">
                   <p className="text-white/30 mb-4">{t('profile.noReviews')}</p>
                   <Link to="/catalog" className="inline-block px-6 py-2 bg-white text-black hover:bg-white/90 transition-colors">
@@ -769,7 +841,7 @@ const ProfilePage: React.FC = () => {
                         <Link to={`/video/${review.movieId._id}`} className="flex-shrink-0 group">
                           <div className="w-24 h-36 bg-white/5 overflow-hidden rounded">
                             {review.movieId.posterUrl ? (
-                              <img src={review.movieId.posterUrl} alt={review.movieId.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                              <LazyImage src={review.movieId.posterUrls?.medium || review.movieId.posterUrl} srcSet={buildSrcSet(review.movieId.posterUrls)} sizes="96px" alt={review.movieId.title} decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-white/20">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -832,7 +904,7 @@ const ProfilePage: React.FC = () => {
                       <Link key={movie._id} to={`/video/${movie._id}`} className="group">
                         <div className="aspect-[2/3] bg-white/5 overflow-hidden mb-2">
                           {movie.posterUrl ? (
-                            <img src={movie.posterUrl} alt={movie.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                            <LazyImage src={movie.posterUrls?.medium || movie.posterUrl} srcSet={buildSrcSet(movie.posterUrls)} sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 200px" alt={movie.title} decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-white/20">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -884,7 +956,7 @@ const ProfilePage: React.FC = () => {
   );
 };
 
-const SocialModal: React.FC<SocialModalProps> = ({
+const SocialModal: React.FC<SocialModalProps> = React.memo(({
   title,
   emptyMessage,
   users,
@@ -925,7 +997,7 @@ const SocialModal: React.FC<SocialModalProps> = ({
                   <Link to={`/profile/${user.username}`} onClick={onClose} className="flex-shrink-0">
                     <div className="w-12 h-12 rounded-full bg-white/10 overflow-hidden">
                       {user.avatar ? (
-                        <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
+                        <LazyImage src={user.avatar} alt={user.displayName || user.username} decoding="async" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-lg font-light text-white/40">
                           {user.displayName?.charAt(0).toUpperCase() || user.username?.charAt(0).toUpperCase()}
@@ -964,6 +1036,6 @@ const SocialModal: React.FC<SocialModalProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default ProfilePage;

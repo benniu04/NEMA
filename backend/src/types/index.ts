@@ -142,6 +142,7 @@ export interface IMovie extends Document {
   thumbnailKey?: string;
   posterUrl?: string;
   thumbnailUrl?: string;
+  hasImageVariants?: boolean;
   views: number;
   isFeatured: boolean;
   isHero: boolean;

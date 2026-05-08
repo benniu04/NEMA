@@ -4,6 +4,7 @@ import { authMiddleware, adminMiddleware } from '../middleware/auth.middleware.j
 import logger from '../config/logger.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 import { getTranscodeQueue } from '../config/queue.js';
+import { generateImageVariants } from '../utils/imageVariants.js';
 
 interface MulterRequest extends AuthenticatedRequest {
   file?: Express.Multer.File & { key?: string; location?: string };
@@ -100,12 +101,19 @@ uploadRoutes.post('/image',
       }
 
       const imageType = (req.body as { type?: string }).type || 'poster';
+      const key = req.file.key;
+      if (!key) {
+        res.status(500).json({ message: 'Upload succeeded but no key returned' });
+        return;
+      }
+      const hasVariants = await generateImageVariants(key);
 
-      logger.info('Image uploaded successfully', { key: req.file.key, type: imageType });
+      logger.info('Image uploaded successfully', { key, type: imageType, hasVariants });
       res.status(200).json({
         message: 'Image uploaded successfully',
-        key: req.file.key,
-        type: imageType
+        key,
+        type: imageType,
+        hasVariants
       });
     } catch (error) {
       const err = error as Error;

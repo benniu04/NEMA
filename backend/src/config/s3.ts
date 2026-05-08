@@ -9,7 +9,7 @@ import { Request } from 'express';
 import path from 'path';
 import fs from 'fs';
 
-const s3Client = new S3Client({
+export const s3Client = new S3Client({
   region: ENV_VARS.AWS_REGION,
   credentials: {
     accessKeyId: ENV_VARS.AWS_ACCESS_KEY_ID,

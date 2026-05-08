@@ -8,6 +8,7 @@ import logger from '../config/logger.js';
 import { clearCache } from '../config/cache.js';
 import { optionalAuthMiddleware } from '../middleware/auth.middleware.js';
 import { generateCloudfrontSignedUrl } from '../config/s3.js';
+import { attachPosterUrls } from '../utils/imageVariants.js';
 import { getClientIp } from '../utils/clientIp.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 
@@ -202,6 +203,7 @@ watchTimeRouter.get('/history', optionalAuthMiddleware, async (req: Authenticate
             posterKey: '$movieData.posterKey',
             posterUrl: '$movieData.posterUrl',
             thumbnailKey: '$movieData.thumbnailKey',
+            hasImageVariants: '$movieData.hasImageVariants',
             releaseDate: '$movieData.releaseDate'
           },
           watchTime: 1,
@@ -219,18 +221,14 @@ watchTimeRouter.get('/history', optionalAuthMiddleware, async (req: Authenticate
     // Note: aggregation returns plain objects, not mongoose documents
     const historyWithUrls = await Promise.all(
       watchHistory.map(async (session: any) => {
-        if (session.movieId && session.movieId.posterKey) {
-          try {
-            session.movieId.posterUrl = await generateCloudfrontSignedUrl(session.movieId.posterKey);
-          } catch (error) {
-            logger.error('Error generating poster URL:', { error: (error as Error).message });
-          }
-        }
-        if (session.movieId && session.movieId.thumbnailKey) {
-          try {
-            session.movieId.thumbnailUrl = await generateCloudfrontSignedUrl(session.movieId.thumbnailKey);
-          } catch (error) {
-            logger.error('Error generating thumbnail URL:', { error: (error as Error).message });
+        if (session.movieId) {
+          await attachPosterUrls(session.movieId);
+          if (session.movieId.thumbnailKey) {
+            try {
+              session.movieId.thumbnailUrl = await generateCloudfrontSignedUrl(session.movieId.thumbnailKey);
+            } catch (error) {
+              logger.error('Error generating thumbnail URL:', { error: (error as Error).message });
+            }
           }
         }
         return session;

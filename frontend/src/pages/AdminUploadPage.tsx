@@ -37,6 +37,7 @@ interface Movie {
   posterUrl: string;
   thumbnailKey?: string;
   posterKey?: string;
+  hasImageVariants?: boolean;
   isFeatured: boolean;
   isHero: boolean;
   tags: string | string[];
@@ -60,6 +61,7 @@ interface FormData {
   posterUrl: string;
   thumbnailKey?: string;
   posterKey?: string;
+  hasImageVariants?: boolean;
   isFeatured: boolean;
   tags: string;
 }
@@ -91,6 +93,7 @@ interface UserData {
 
 interface UploadResponse {
   key: string;
+  hasVariants?: boolean;
   message?: string;
 }
 
@@ -129,6 +132,7 @@ const INITIAL_FORM_DATA: FormData = {
   },
   thumbnailUrl: '',
   posterUrl: '',
+  hasImageVariants: false,
   isFeatured: false,
   tags: ''
 };
@@ -306,6 +310,7 @@ const AdminDashboard: React.FC = () => {
       posterUrl: movie.posterUrl || '',
       thumbnailKey: movie.thumbnailKey || '',
       posterKey: movie.posterKey || '',
+      hasImageVariants: movie.hasImageVariants === true,
       isFeatured: movie.isFeatured,
       tags: Array.isArray(movie.tags) ? movie.tags.join(', ') : movie.tags
     });
@@ -513,7 +518,11 @@ const AdminDashboard: React.FC = () => {
         if (!response.ok) throw new Error(data.message || 'Upload failed');
 
         const keyField = type === 'thumbnail' ? 'thumbnailKey' : 'posterKey';
-        setFormData(prev => ({ ...prev, [keyField]: data.key }));
+        setFormData(prev => ({
+          ...prev,
+          [keyField]: data.key,
+          ...(type === 'poster' ? { hasImageVariants: data.hasVariants === true } : {})
+        }));
         setUploadProgress(prev => ({ ...prev, [progressKey]: 100 }));
         setSuccess(`${type} uploaded successfully!`);
       }

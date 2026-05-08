@@ -34,6 +34,7 @@ const MOVIE_WRITABLE_FIELDS = [
   'thumbnailKey',
   'posterUrl',
   'thumbnailUrl',
+  'hasImageVariants',
   'isFeatured',
   'isHero',
   'tags'
