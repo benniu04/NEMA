@@ -11,7 +11,6 @@ interface Comment {
   movieId: string;
   content: string;
   nickname: string;
-  deviceId?: string;
   userId?: string;
   parentId?: string;
   isEdited?: boolean;
@@ -231,7 +230,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
     }
 
     try {
-      await axios.delete(`${API_BASE_URL}/api/comments/${commentId}?deviceId=${encodeURIComponent(deviceId)}`, {
+      await axios.delete(`${API_BASE_URL}/api/comments/${commentId}`, {
         withCredentials: true
       });
       // Refresh comments to update the tree structure
@@ -407,17 +406,11 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
     const isEditing = editingCommentId === comment._id;
     const isReplying = replyingToId === comment._id;
 
-    // Determine ownership based on authentication state
-    // - If comment has userId (authenticated), check if current user ID matches
-    // - If comment has no userId (anonymous), check deviceId matches AND user is not authenticated
-    let isOwner = false;
-    if (comment.userId) {
-      // Authenticated comment - check userId
-      isOwner = user?.id === comment.userId;
-    } else {
-      // Anonymous comment - check deviceId AND user must not be authenticated
-      isOwner = comment.deviceId === deviceId && !user;
-    }
+    // Only authenticated users can be identified as comment owners.
+    // Anonymous comments have no safe ownership signal (deviceId is no
+    // longer returned by the API to prevent IDOR), so they cannot be edited
+    // or deleted from the UI.
+    const isOwner = !!(user && comment.userId && user.id === comment.userId);
 
     return (
       <div key={comment._id} className={`${depth > 0 ? 'ml-8 mt-4' : ''}`}>

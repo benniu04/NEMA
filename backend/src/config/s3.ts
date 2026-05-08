@@ -269,12 +269,21 @@ export const generateCloudfrontSignedUrl = async (key: string): Promise<string> 
     const dateLessThan = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
     
     // For HLS content, we need a signed URL with a custom policy that covers
-    // all files in the HLS folder (master playlist, variant playlists, and segments)
-    if (key.includes('/hls/') && key.endsWith('master.m3u8')) {
+    // all files in the HLS folder (master playlist, variant playlists, and segments).
+    //
+    // SECURITY: this branch grants 24h wildcard read access to every object
+    // under the key's parent directory. We MUST only enter it when the key
+    // matches the canonical layout the transcoder writes
+    // (`videos/hls/<timestamp>/master.m3u8`, see hls-transcoder.ts and
+    // transcode.worker.ts). Without this anchor, an attacker who can write
+    // any *Key field on a Movie (e.g., via mass assignment on PUT /movies/:id)
+    // can choose an arbitrary S3 prefix and have it wildcard-signed for any
+    // public visitor.
+    const HLS_CANONICAL_KEY = /^videos\/hls\/\d+\/master\.m3u8$/;
+    if (HLS_CANONICAL_KEY.test(key)) {
       // Get the HLS folder path (e.g., videos/hls/1234567890/)
       const hlsFolderPath = key.substring(0, key.lastIndexOf('/') + 1);
-      
-      // Create a custom policy that allows access to all files in this HLS folder
+
       const policy = {
         Statement: [{
           Resource: `https://${cloudFrontDomain}/${hlsFolderPath}*`,
@@ -285,12 +294,12 @@ export const generateCloudfrontSignedUrl = async (key: string): Promise<string> 
           }
         }]
       };
-      
+
       return getCloudfrontSignedUrl({
-        url, // Return the actual master.m3u8 URL
+        url,
         keyPairId: ENV_VARS.CLOUDFRONT_KEY_PAIR_ID,
         privateKey,
-        policy: JSON.stringify(policy), // Use custom policy for wildcard access
+        policy: JSON.stringify(policy),
       });
     }
     

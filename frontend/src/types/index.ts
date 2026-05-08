@@ -98,7 +98,7 @@ export interface Movie {
 export interface Comment {
   _id: string;
   movieId: string;
-  deviceId: string;
+  userId?: string;
   nickname: string;
   content: string;
   createdAt: string;
@@ -110,7 +110,7 @@ export interface Comment {
 export interface Review {
   _id: string;
   movieId: string | Movie;
-  deviceId: string;
+  userId?: string;
   nickname: string;
   rating: number;
   comment: string;

@@ -8,16 +8,9 @@ import logger from '../config/logger.js';
 import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
 import type { AuthenticatedRequest } from '../types/index.js';
+import { getClientIp } from '../utils/clientIp.js';
 
 const router = express.Router();
-
-const getClientIp = (req: Request): string => {
-  const forwardedFor = req.headers['x-forwarded-for'];
-  if (forwardedFor) {
-    return (forwardedFor as string).split(',')[0].trim();
-  }
-  return req.socket?.remoteAddress || 'unknown';
-};
 
 const voteLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,

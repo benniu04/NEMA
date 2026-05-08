@@ -6,8 +6,8 @@ import { Activity } from '../models/activity.model.js';
 import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
 import { clearCache } from '../config/cache.js';
-import { validateReview, validateReviewDelete } from '../middleware/validation.middleware.js';
-import { optionalAuthMiddleware } from '../middleware/auth.middleware.js';
+import { validateReview } from '../middleware/validation.middleware.js';
+import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.middleware.js';
 import { generateCloudfrontSignedUrl } from '../config/s3.js';
 import logger from '../config/logger.js';
 import type { AuthenticatedRequest } from '../types/index.js';
@@ -15,16 +15,12 @@ import { getIO } from '../config/socket.js';
 
 const reviewRouter = express.Router();
 
-const getClientIp = (req: Request): string => {
-  const forwardedFor = req.headers['x-forwarded-for'];
-  if (forwardedFor) {
-    return (forwardedFor as string).split(',')[0].trim();
-  }
-  return req.socket?.remoteAddress || 'unknown';
-};
+// Use Express's req.ip — it honors `trust proxy 1` and is not spoofable by a
+// raw X-Forwarded-For from the client. Never trust client-supplied deviceId.
+const serverDeviceId = (req: Request): string => req.ip || 'unknown';
 
-const reviewPostKey = (req: Request): string => `${getClientIp(req)}:${req.body?.movieId || ''}`;
-const reviewDeleteKey = (req: Request): string => getClientIp(req);
+const reviewPostKey = (req: Request): string => `${serverDeviceId(req)}:${req.body?.movieId || ''}`;
+const reviewDeleteKey = (req: AuthenticatedRequest): string => req.user?.id || serverDeviceId(req);
 
 const reviewPostLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
@@ -83,6 +79,7 @@ async function recomputeAvg(movieId: string | mongoose.Types.ObjectId, session?:
 reviewRouter.get('/movie/:movieId', async (req: Request, res: Response): Promise<void> => {
   try {
     const reviews = await Review.find({ movieId: req.params.movieId }).sort({ createdAt: -1 });
+    // The schema's toJSON transform strips deviceId from the response.
     res.json(reviews);
   } catch (error) {
     const err = error as Error;
@@ -91,19 +88,14 @@ reviewRouter.get('/movie/:movieId', async (req: Request, res: Response): Promise
   }
 });
 
-reviewRouter.get('/user/my-reviews', async (req: Request, res: Response): Promise<void> => {
+reviewRouter.get('/user/my-reviews', authMiddleware, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const deviceId = req.query.deviceId as string;
-    
-    if (!deviceId) {
-      res.status(400).json({ message: 'Device ID is required' });
-      return;
-    }
+    const userId = req.user!.id;
 
-    const reviews = await Review.find({ deviceId })
+    const reviews = await Review.find({ userId })
       .populate('movieId', 'title posterUrl posterKey director releaseDate')
       .sort({ createdAt: -1 });
-    
+
     const reviewsWithUrls = await Promise.all(
       reviews.map(async (review) => {
         const reviewObj = review.toObject() as any;
@@ -117,7 +109,7 @@ reviewRouter.get('/user/my-reviews', async (req: Request, res: Response): Promis
         return reviewObj;
       })
     );
-    
+
     res.json(reviewsWithUrls);
   } catch (error) {
     const err = error as Error;
@@ -128,25 +120,36 @@ reviewRouter.get('/user/my-reviews', async (req: Request, res: Response): Promis
 
 reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, optionalAuthMiddleware, validateReview, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { movieId, nickname, rating, comment, deviceId } = req.body;
+    const { movieId, nickname, rating, comment } = req.body;
 
-    // Validate deviceId is provided
-    if (!deviceId || typeof deviceId !== 'string') {
-      res.status(400).json({ message: 'Device ID is required' });
-      return;
-    }
+    // deviceId is ALWAYS derived server-side. Never trust req.body.deviceId.
+    const deviceId = serverDeviceId(req);
+    const userId = req.user?.id ? new mongoose.Types.ObjectId(req.user.id) : null;
 
-    const existingReview = await Review.findOne({ movieId, deviceId });
+    // Authenticated users dedup on userId; anonymous users dedup on deviceId
+    // (with userId explicitly null so an authed-then-logged-out user doesn't
+    // overwrite their authenticated review).
+    const dedupQuery = userId
+      ? { movieId, userId }
+      : { movieId, userId: null, deviceId };
+
+    const existingReview = await Review.findOne(dedupQuery);
     const isNewReview = !existingReview;
 
-    // Wrap review upsert + activity + recomputeAvg in a transaction
     const session = await mongoose.startSession();
     session.startTransaction();
     let review;
     try {
       review = await Review.findOneAndUpdate(
-        { movieId, deviceId },
-        { nickname, rating, comment },
+        dedupQuery,
+        {
+          $set: { nickname, rating, comment },
+          $setOnInsert: {
+            movieId,
+            ...(userId ? { userId } : { userId: null }),
+            deviceId
+          }
+        },
         { new: true, upsert: true, setDefaultsOnInsert: true, session }
       );
 
@@ -170,7 +173,6 @@ reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, optionalAuthMiddleware
       session.endSession();
     }
 
-    // Side effects after commit
     clearCache();
 
     try {
@@ -184,7 +186,7 @@ reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, optionalAuthMiddleware
       logger.error('Failed to emit socket event:', { error: (socketError as Error).message });
     }
 
-    logger.info('Review created/updated', { reviewId: review!._id, movieId, rating, deviceId: deviceId.substring(0, 8) + '...' });
+    logger.info('Review created/updated', { reviewId: review!._id, movieId, rating, userId: userId?.toString() });
     res.status(201).json(review);
   } catch (error) {
     const err = error as Error;
@@ -193,32 +195,30 @@ reviewRouter.post('/', reviewPostLimiter, reviewPostSlow, optionalAuthMiddleware
   }
 });
 
-reviewRouter.delete('/:id', reviewDeleteLimiter, reviewDeleteSlow, validateReviewDelete, async (req: Request, res: Response): Promise<void> => {
+reviewRouter.delete('/:id', authMiddleware, reviewDeleteLimiter, reviewDeleteSlow, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    // Accept deviceId from query parameter (for DELETE requests)
-    const deviceId = req.query.deviceId as string;
-    
-    if (!deviceId) {
-      res.status(400).json({ message: 'Device ID is required' });
-      return;
-    }
-
     const review = await Review.findById(req.params.id);
-    
+
     if (!review) {
       res.status(404).json({ message: 'Review not found' });
       return;
     }
-    
-    if (review.deviceId !== deviceId) {
-      logger.warn('Unauthorized review deletion attempt', { reviewId: req.params.id, attemptedFrom: deviceId.substring(0, 8) + '...', reviewOwner: review.deviceId.substring(0, 8) + '...' });
+
+    // Only the review's author may delete it. Legacy anonymous reviews
+    // (userId unset) cannot be deleted by users — there is no safe way to
+    // prove ownership of an anonymous review across requests.
+    if (!review.userId || review.userId.toString() !== req.user!.id) {
+      logger.warn('Unauthorized review deletion attempt', {
+        reviewId: req.params.id,
+        attemptedBy: req.user!.id,
+        reviewOwner: review.userId?.toString() || 'anonymous'
+      });
       res.status(403).json({ message: 'Not authorized to delete this review' });
       return;
     }
 
     const movieId = review.movieId;
 
-    // Wrap delete + recomputeAvg in a transaction
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
@@ -232,7 +232,6 @@ reviewRouter.delete('/:id', reviewDeleteLimiter, reviewDeleteSlow, validateRevie
       session.endSession();
     }
 
-    // Side effects after commit
     clearCache();
 
     try {
@@ -243,7 +242,7 @@ reviewRouter.delete('/:id', reviewDeleteLimiter, reviewDeleteSlow, validateRevie
       logger.error('Failed to emit socket event:', { error: (socketError as Error).message });
     }
 
-    logger.info('Review deleted', { reviewId: req.params.id, movieId, deviceId: deviceId.substring(0, 8) + '...' });
+    logger.info('Review deleted', { reviewId: req.params.id, movieId, userId: req.user!.id });
     res.json({ message: 'Review deleted successfully' });
   } catch (error) {
     const err = error as Error;
@@ -253,4 +252,3 @@ reviewRouter.delete('/:id', reviewDeleteLimiter, reviewDeleteSlow, validateRevie
 });
 
 export default reviewRouter;
-

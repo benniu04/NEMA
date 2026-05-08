@@ -390,7 +390,7 @@ const VideoPlayerPage: React.FC = () => {
       if (!videoRef.current?.paused) {
         trackProgress()
       }
-    }, 5000)
+    }, 30000)
 
     watchTimeIntervalRef.current = interval
 

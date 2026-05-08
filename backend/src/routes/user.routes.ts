@@ -163,7 +163,27 @@ userRoutes.post('/firebase-auth', async (req: Request, res: Response): Promise<v
       return;
     }
 
-    let user = await User.findOne({ $or: [{ firebaseUid: decodedToken.uid }, { email: decodedToken.email?.toLowerCase() }] });
+    // Hard-gate the provider and verification status. Without these, an
+    // attacker could create an unverified Firebase account (e.g., via
+    // Email/Password) for a victim's email and trigger the email-based
+    // user lookup below, silently linking their firebaseUid to the
+    // victim's existing local account → account takeover.
+    if (decodedToken.provider !== 'google.com') {
+      securityLogger('FIREBASE_AUTH_REJECTED', { reason: 'unsupported_provider', provider: decodedToken.provider }, req);
+      res.status(401).json({ message: 'Only Google sign-in is supported' });
+      return;
+    }
+    if (!decodedToken.emailVerified) {
+      securityLogger('FIREBASE_AUTH_REJECTED', { reason: 'email_not_verified', email: decodedToken.email }, req);
+      res.status(401).json({ message: 'Email must be verified with the authentication provider' });
+      return;
+    }
+    if (!decodedToken.email) {
+      res.status(401).json({ message: 'Authentication provider did not supply an email' });
+      return;
+    }
+
+    let user = await User.findOne({ $or: [{ firebaseUid: decodedToken.uid }, { email: decodedToken.email.toLowerCase() }] });
 
     if (user) {
       if (!user.firebaseUid) {

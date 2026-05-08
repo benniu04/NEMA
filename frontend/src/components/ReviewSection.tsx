@@ -5,14 +5,15 @@ import API_BASE_URL from '../config/api';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import { analytics } from '../config/analytics';
 import { useSettings } from '../context/SettingsContext';
+import { useUser } from '../context/UserContext';
 
 interface Review {
   _id: string;
   movieId: string;
+  userId?: string;
   nickname: string;
   rating: number;
   comment?: string;
-  deviceId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -38,6 +39,8 @@ interface ReviewSectionProps {
 
 const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) => {
   const { t } = useSettings();
+  const { user } = useUser();
+  const userId = user?.id || user?._id;
   const [deviceId, setDeviceId] = useState('');
   const [nickname, setNickname] = useState('');
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -69,8 +72,8 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
                  : Array.isArray(data.reviews) ? data.reviews
                  : [];
       setReviews(list);
-      // Find user's own review by deviceId
-      const mine = list.find((r: Review) => r.deviceId === deviceId);
+      // Only authenticated users can have an "own review" we can identify.
+      const mine = userId ? list.find((r: Review) => r.userId === userId) : null;
       setMyReview(mine || null);
       setLoading(false);
     } catch (error) {
@@ -81,7 +84,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
 
   useEffect(() => {
     if (deviceId) fetchReviews();
-  }, [deviceId]);
+  }, [deviceId, userId]);
 
   // Socket.io connection for real-time updates
   useEffect(() => {
@@ -174,7 +177,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
 
     try {
       await axios.delete(
-        `${API_BASE_URL}/api/reviews/${reviewId}?deviceId=${encodeURIComponent(deviceId)}`,
+        `${API_BASE_URL}/api/reviews/${reviewId}`,
         {
           withCredentials: true
         }
@@ -266,8 +269,8 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-amber-100/60 text-sm">{new Date(r.createdAt).toLocaleDateString()}</span>
-                  {/* Delete button - only show for user's own reviews */}
-                  {r.deviceId === deviceId && (
+                  {/* Delete button - only show for user's own reviews (authenticated users only) */}
+                  {userId && r.userId === userId && (
                     <button
                       onClick={() => handleDelete(r._id)}
                       className="text-red-400/60 hover:text-red-400 transition-colors"

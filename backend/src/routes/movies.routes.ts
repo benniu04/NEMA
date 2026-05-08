@@ -4,6 +4,7 @@ import { Movie } from '../models/movie.model.js';
 import { User } from '../models/user.model.js';
 import { WatchTime } from '../models/watchTime.model.js';
 import { authMiddleware, adminMiddleware, optionalAuthMiddleware } from '../middleware/auth.middleware.js';
+import { validateMovie } from '../middleware/validation.middleware.js';
 import { generateCloudfrontSignedUrl, deleteS3Object } from '../config/s3.js';
 import { cache, clearCache } from '../config/cache.js';
 import { getClientIp } from '../utils/clientIp.js';
@@ -12,6 +13,41 @@ import logger from '../config/logger.js';
 import type { AuthenticatedRequest, IMovie } from '../types/index.js';
 
 const moviesRoutes = express.Router();
+
+// Allow-list for admin-settable Movie fields. Anything not on this list (e.g.
+// `views`, `_id`, `createdAt`, `updatedAt`, `__v`, or any future field) is
+// stripped from req.body before reaching Mongoose. Prevents mass assignment
+// where an admin (or any future bug that loosens the admin gate) could
+// flip server-managed fields by including them in the JSON body.
+const MOVIE_WRITABLE_FIELDS = [
+  'title',
+  'description',
+  'rating',
+  'releaseDate',
+  'genre',
+  'director',
+  'cast',
+  'language',
+  'videoUrls',
+  'subtitleUrls',
+  'posterKey',
+  'thumbnailKey',
+  'posterUrl',
+  'thumbnailUrl',
+  'isFeatured',
+  'isHero',
+  'tags'
+] as const;
+
+const pickMovieFields = (body: Record<string, unknown>): Record<string, unknown> => {
+  const out: Record<string, unknown> = {};
+  for (const key of MOVIE_WRITABLE_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) {
+      out[key] = body[key];
+    }
+  }
+  return out;
+};
 
 interface UrlResult {
   type: 'video' | 'poster' | 'thumbnail';
@@ -584,9 +620,9 @@ moviesRoutes.get('/:id', async (req: Request, res: Response): Promise<void> => {
 });
 
 // Protected admin routes
-moviesRoutes.post('/', [authMiddleware, adminMiddleware], async (req: Request, res: Response): Promise<void> => {
+moviesRoutes.post('/', [authMiddleware, adminMiddleware, ...validateMovie], async (req: Request, res: Response): Promise<void> => {
   try {
-    const movie = new Movie(req.body);
+    const movie = new Movie(pickMovieFields(req.body));
     await movie.save();
     clearCache();
     res.status(201).json(movie);
@@ -601,15 +637,15 @@ moviesRoutes.put('/:id', [authMiddleware, adminMiddleware], async (req: Request,
   try {
     const movie = await Movie.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      pickMovieFields(req.body),
       { new: true, runValidators: true }
     );
-    
+
     if (!movie) {
       res.status(404).json({ message: "Movie not found" });
       return;
     }
-    
+
     clearCache();
     res.status(200).json(movie);
   } catch (error) {

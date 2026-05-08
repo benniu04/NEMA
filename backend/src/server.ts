@@ -112,11 +112,12 @@ const customSanitize = (req: Request, res: Response, next: NextFunction): void =
         } else if (typeof obj[key] === 'string') {
           const value = obj[key] as string;
           // Don't sanitize S3 keys, URLs, email addresses, tokens, or file-related fields
-          const isFileOrUrl = 
+          const isFileOrUrl =
             key === 'email' ||               // Email addresses need dots
+            key === 'login' ||               // Login accepts email-or-username; emails contain dots
             key === 'firebaseToken' ||       // Firebase JWT tokens need dots
             key.includes('Url') ||           // posterUrl, thumbnailUrl, etc.
-            key.includes('Key') ||           // posterKey, thumbnailKey, etc.  
+            key.includes('Key') ||           // posterKey, thumbnailKey, etc.
             key === 'key' ||                 // S3 key field
             fullPath.includes('videoUrls') || // video URLs object
             value.startsWith('http') ||   // Any HTTP URLs

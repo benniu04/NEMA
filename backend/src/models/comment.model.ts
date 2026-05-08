@@ -57,6 +57,20 @@ const commentSchema = new Schema<IComment>({
     default: 0,
     index: true
   }
+}, {
+  toJSON: {
+    transform: (_doc, ret: Record<string, unknown>) => {
+      // deviceId is a private fingerprint — never expose it in API responses.
+      delete ret.deviceId;
+      return ret;
+    }
+  },
+  toObject: {
+    transform: (_doc, ret: Record<string, unknown>) => {
+      delete ret.deviceId;
+      return ret;
+    }
+  }
 });
 
 // 1. Get comments for a movie, sorted by most recent first
