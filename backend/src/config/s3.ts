@@ -239,12 +239,22 @@ export const upload = multer({
   }
 });
 
-export const generateCloudfrontSignedUrl = async (key: string): Promise<string> => {
+const DEFAULT_SIGNED_URL_EXPIRY_SECONDS = 24 * 60 * 60;
+
+export interface SignedUrlOptions {
+  expiresInSeconds?: number;
+}
+
+export const generateCloudfrontSignedUrl = async (
+  key: string,
+  options: SignedUrlOptions = {}
+): Promise<string> => {
   const cloudFrontDomain = ENV_VARS.CLOUDFRONT_DOMAIN;
+  const expiresInSeconds = options.expiresInSeconds ?? DEFAULT_SIGNED_URL_EXPIRY_SECONDS;
 
   if (!cloudFrontDomain) {
     logger.warn('CLOUDFRONT_DOMAIN is not set, using S3 signed URL instead', { key });
-    return generatePresignedUrl(key);
+    return generatePresignedUrl(key, options);
   }
 
   // If key is already a full CloudFront URL, extract just the path
@@ -266,7 +276,7 @@ export const generateCloudfrontSignedUrl = async (key: string): Promise<string> 
 
   if (ENV_VARS.CLOUDFRONT_KEY_PAIR_ID && ENV_VARS.CLOUDFRONT_PRIVATE_KEY) {
     const privateKey = ENV_VARS.CLOUDFRONT_PRIVATE_KEY.replace(/\\n/g, '\n');
-    const dateLessThan = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    const dateLessThan = new Date(Date.now() + expiresInSeconds * 1000);
     
     // For HLS content, we need a signed URL with a custom policy that covers
     // all files in the HLS folder (master playlist, variant playlists, and segments).
@@ -314,14 +324,18 @@ export const generateCloudfrontSignedUrl = async (key: string): Promise<string> 
   return url;
 };
 
-export const generatePresignedUrl = async (key: string): Promise<string> => {
+export const generatePresignedUrl = async (
+  key: string,
+  options: SignedUrlOptions = {}
+): Promise<string> => {
+  const expiresIn = options.expiresInSeconds ?? DEFAULT_SIGNED_URL_EXPIRY_SECONDS;
   try {
     const command = new GetObjectCommand({
       Bucket: ENV_VARS.AWS_BUCKET_NAME,
       Key: key
     });
-    
-    return await getS3SignedUrl(s3Client, command, { expiresIn: 86400 });
+
+    return await getS3SignedUrl(s3Client, command, { expiresIn });
   } catch (error) {
     const err = error as Error;
     logger.error('Error generating presigned URL', { error: err.message, key, stack: err.stack });

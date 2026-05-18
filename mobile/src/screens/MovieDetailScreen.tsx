@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { moviesService } from '../services/movies';
 import { useAuth } from '../context/AuthContext';
+import { useDownloads } from '../context/DownloadsContext';
 import type { Movie, Review } from '../types';
 import type { RootStackScreenProps } from '../navigation/types';
 
@@ -25,7 +26,10 @@ const POSTER_HEIGHT = height * 0.55;
 
 const MovieDetailScreen = ({ route, navigation }: Props) => {
   const { movieId } = route.params;
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, isAuthenticated } = useAuth();
+  const downloadsCtx = useDownloads();
+  const downloadEntry = downloadsCtx.getDownload(movieId);
+  const activeDownload = downloadsCtx.getActiveDownload(movieId);
   const [movie, setMovie] = useState<Movie | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -102,6 +106,74 @@ const MovieDetailScreen = ({ route, navigation }: Props) => {
     } catch (error) {
       Alert.alert('Error', 'Failed to update favorites');
     }
+  };
+
+  const handleDownloadPress = () => {
+    if (!movie) return;
+
+    if (!isAuthenticated) {
+      Alert.alert(
+        'Sign in required',
+        'You need an account to download movies for offline viewing.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign in', onPress: () => navigation.navigate('Login') },
+        ]
+      );
+      return;
+    }
+
+    if (downloadEntry) {
+      Alert.alert(
+        'Delete download?',
+        `Remove "${movie.title}" from your downloads. You can re-download it later.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => downloadsCtx.deleteDownload(movie._id),
+          },
+        ]
+      );
+      return;
+    }
+
+    if (activeDownload) {
+      Alert.alert(
+        'Cancel download?',
+        `Stop downloading "${movie.title}"?`,
+        [
+          { text: 'Keep downloading', style: 'cancel' },
+          {
+            text: 'Cancel download',
+            style: 'destructive',
+            onPress: () => downloadsCtx.cancelDownload(movie._id),
+          },
+        ]
+      );
+      return;
+    }
+
+    // Check if movie has a downloadable source.
+    const hasDownloadableSource = !!(
+      movie.videoUrls?.['1080p']?.trim() || movie.videoUrls?.['720p']?.trim()
+    );
+    if (!hasDownloadableSource) {
+      Alert.alert(
+        'Not available for download',
+        'This movie is not available for offline viewing.'
+      );
+      return;
+    }
+
+    downloadsCtx.startDownload(movie).catch((error) => {
+      const message =
+        error?.response?.status === 429
+          ? 'You\'ve hit the download limit. Try again later.'
+          : 'Could not start the download. Please try again.';
+      Alert.alert('Download failed', message);
+    });
   };
 
   const handleWatchNow = () => {
@@ -202,17 +274,18 @@ const MovieDetailScreen = ({ route, navigation }: Props) => {
             ))}
           </ScrollView>
 
-          {/* Action Buttons */}
-          <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={styles.watchNowButton}
-              activeOpacity={0.8}
-              onPress={handleWatchNow}
-            >
-              <Ionicons name="play" size={20} color="#000" />
-              <Text style={styles.watchNowText}>Watch Now</Text>
-            </TouchableOpacity>
+          {/* Watch Now (full-width primary action) */}
+          <TouchableOpacity
+            style={styles.watchNowButton}
+            activeOpacity={0.8}
+            onPress={handleWatchNow}
+          >
+            <Ionicons name="play" size={22} color="#000" />
+            <Text style={styles.watchNowText}>Watch Now</Text>
+          </TouchableOpacity>
 
+          {/* Secondary actions */}
+          <View style={styles.actionRow}>
             <TouchableOpacity
               style={[styles.iconButton, isInWatchlist && styles.iconButtonActive]}
               onPress={handleWatchlistToggle}
@@ -235,6 +308,32 @@ const MovieDetailScreen = ({ route, navigation }: Props) => {
                 size={22}
                 color={isInFavorites ? "#EF4444" : "#FFFFFF"}
               />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={handleDownloadPress}
+              activeOpacity={0.7}
+              accessibilityLabel={
+                downloadEntry
+                  ? 'Downloaded — tap to remove'
+                  : activeDownload
+                    ? `Downloading ${Math.round(activeDownload.progress * 100)}%`
+                    : 'Download for offline viewing'
+              }
+            >
+              {downloadEntry ? (
+                <Ionicons name="checkmark-circle" size={22} color="#10B981" />
+              ) : activeDownload ? (
+                <View style={styles.downloadProgressWrap}>
+                  <ActivityIndicator size="small" color="#F59E0B" />
+                  <Text style={styles.downloadProgressText}>
+                    {Math.round(activeDownload.progress * 100)}%
+                  </Text>
+                </View>
+              ) : (
+                <Ionicons name="download-outline" size={22} color="#FFFFFF" />
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.iconButton} activeOpacity={0.7}>
@@ -452,22 +551,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 28,
-    gap: 12,
+    gap: 14,
   },
   watchNowButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F59E0B',
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 14,
+    gap: 10,
+    marginBottom: 14,
   },
   watchNowText: {
     color: '#000',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
   },
   iconButton: {
     width: 48,
@@ -482,6 +581,16 @@ const styles = StyleSheet.create({
   iconButtonActive: {
     borderColor: 'transparent',
     backgroundColor: '#1F1F1F',
+  },
+  downloadProgressWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  downloadProgressText: {
+    color: '#F59E0B',
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: 2,
   },
   section: {
     marginBottom: 24,

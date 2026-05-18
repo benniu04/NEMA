@@ -13,18 +13,34 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
+import { useGoogleSignIn } from '../hooks/useGoogleSignIn';
 import type { RootStackScreenProps } from '../navigation/types';
 
 type NavigationProp = RootStackScreenProps<'Login'>['navigation'];
 
 const LoginScreen = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
+  const google = useGoogleSignIn();
   const [login_input, setLoginInput] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
+
+  // Close the modal once auth state flips to signed-in (covers Google flow,
+  // which completes asynchronously via the OAuth response handler).
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      navigation.goBack();
+    }
+  }, [isAuthenticated, navigation]);
+
+  React.useEffect(() => {
+    if (google.error) {
+      Alert.alert('Google sign-in', google.error);
+    }
+  }, [google.error]);
 
   const handleLogin = async () => {
     if (!login_input.trim() || !password.trim()) {
@@ -152,14 +168,17 @@ const LoginScreen = () => {
         </View>
 
         <View style={styles.socialButtons}>
-          <TouchableOpacity style={styles.socialButton} activeOpacity={0.7}>
-            <Ionicons name="logo-google" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButton} activeOpacity={0.7}>
-            <Ionicons name="logo-apple" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButton} activeOpacity={0.7}>
-            <Ionicons name="logo-facebook" size={22} color="#FFFFFF" />
+          <TouchableOpacity
+            style={styles.socialButton}
+            activeOpacity={0.7}
+            onPress={google.signIn}
+            disabled={!google.isReady || google.isPending}
+          >
+            {google.isPending ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Ionicons name="logo-google" size={22} color="#FFFFFF" />
+            )}
           </TouchableOpacity>
         </View>
 

@@ -2,6 +2,8 @@
   "expo": {
     "name": "mobile",
     "slug": "mobile",
+    "owner": "benny04327",
+    "scheme": "nema",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -12,7 +14,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.benny04327.nema"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,10 +23,19 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.benny04327.nema"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-web-browser"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "05cd5e67-fac0-49ec-b450-d4b422d8250f"
+      }
     }
   }
 }

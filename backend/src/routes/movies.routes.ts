@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import mongoose from 'mongoose';
+import rateLimit from 'express-rate-limit';
 import { Movie } from '../models/movie.model.js';
 import { User } from '../models/user.model.js';
 import { WatchTime } from '../models/watchTime.model.js';
@@ -587,6 +588,74 @@ moviesRoutes.get('/:id/similar', optionalAuthMiddleware, async (req: Authenticat
     res.status(500).json({ message: 'Failed to fetch similar movies' });
   }
 });
+
+// Per-user rate limiter for download URL requests. IP-based limiting is wrong
+// here because multiple authenticated users behind one NAT would share a quota.
+const downloadUrlLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10,
+  message: { message: 'Too many download requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request): string => {
+    const authReq = req as AuthenticatedRequest;
+    return authReq.user?.id ?? getClientIp(req);
+  }
+});
+
+// Authenticated download endpoint: returns a signed URL for the best non-HLS
+// source on a movie so the mobile app can download it for offline playback.
+moviesRoutes.get(
+  '/:id/download-url',
+  authMiddleware,
+  downloadUrlLimiter,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        res.status(400).json({ message: 'Invalid movie id' });
+        return;
+      }
+
+      const movie = await Movie.findById(req.params.id);
+      if (!movie) {
+        res.status(404).json({ message: 'Movie not found' });
+        return;
+      }
+
+      // Prefer 1080p, fall back to 720p. HLS is unsuitable for a single-file
+      // offline download (hundreds of segments + playlists).
+      const downloadKey =
+        movie.videoUrls?.['1080p']?.trim() ||
+        movie.videoUrls?.['720p']?.trim();
+
+      if (!downloadKey) {
+        res.status(404).json({ message: 'No downloadable source available for this movie' });
+        return;
+      }
+
+      const expiresInSeconds = 6 * 60 * 60; // 6 hours - enough time to finish a slow download
+      const url = await generateCloudfrontSignedUrl(downloadKey, { expiresInSeconds });
+      const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+
+      logger.info('Issued download URL', {
+        userId: req.user?.id,
+        movieId: req.params.id,
+        title: movie.title
+      });
+
+      res.set('Cache-Control', 'no-store');
+      res.status(200).json({ url, expiresAt });
+    } catch (error) {
+      const err = error as Error;
+      logger.error('Error generating download URL:', {
+        error: err.message,
+        movieId: req.params.id,
+        stack: err.stack
+      });
+      res.status(500).json({ message: 'Failed to generate download URL' });
+    }
+  }
+);
 
 moviesRoutes.get('/:id', async (req: Request, res: Response): Promise<void> => {
   try {

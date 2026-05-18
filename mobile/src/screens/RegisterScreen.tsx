@@ -14,13 +14,28 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
+import { useGoogleSignIn } from '../hooks/useGoogleSignIn';
 import type { RootStackScreenProps } from '../navigation/types';
 
 type NavigationProp = RootStackScreenProps<'Register'>['navigation'];
 
 const RegisterScreen = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { register } = useAuth();
+  const { register, isAuthenticated } = useAuth();
+  const google = useGoogleSignIn();
+
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      navigation.goBack();
+    }
+  }, [isAuthenticated, navigation]);
+
+  React.useEffect(() => {
+    if (google.error) {
+      Alert.alert('Google sign-in', google.error);
+    }
+  }, [google.error]);
+
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -186,14 +201,17 @@ const RegisterScreen = () => {
           </View>
 
           <View style={styles.socialButtons}>
-            <TouchableOpacity style={styles.socialButton} activeOpacity={0.7}>
-              <Ionicons name="logo-google" size={22} color="#FFFFFF" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.socialButton} activeOpacity={0.7}>
-              <Ionicons name="logo-apple" size={22} color="#FFFFFF" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.socialButton} activeOpacity={0.7}>
-              <Ionicons name="logo-facebook" size={22} color="#FFFFFF" />
+            <TouchableOpacity
+              style={styles.socialButton}
+              activeOpacity={0.7}
+              onPress={google.signIn}
+              disabled={!google.isReady || google.isPending}
+            >
+              {google.isPending ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Ionicons name="logo-google" size={22} color="#FFFFFF" />
+              )}
             </TouchableOpacity>
           </View>
 

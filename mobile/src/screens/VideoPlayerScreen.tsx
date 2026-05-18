@@ -16,6 +16,7 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import Slider from '@react-native-community/slider';
 import { moviesService } from '../services/movies';
 import { watchProgressService } from '../services/watchProgress';
+import { useDownloads } from '../context/DownloadsContext';
 import type { Movie } from '../types';
 import type { RootStackScreenProps } from '../navigation/types';
 
@@ -25,6 +26,10 @@ const { width, height } = Dimensions.get('window');
 const VideoPlayerScreen = ({ route, navigation }: Props) => {
   const { movieId, startTime = 0 } = route.params;
   const videoRef = useRef<Video>(null);
+
+  const { getDownload } = useDownloads();
+  const downloadEntry = getDownload(movieId);
+  const isOffline = !!downloadEntry;
 
   const [movie, setMovie] = useState<Movie | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -91,6 +96,32 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
   };
 
   const loadMovie = async () => {
+    // Offline path: play from local file without hitting the network.
+    if (downloadEntry) {
+      setMovie({
+        _id: downloadEntry.movieId,
+        title: downloadEntry.title,
+        description: '',
+        rating: 0,
+        releaseDate: '',
+        genre: [],
+        director: '',
+        cast: [],
+        language: '',
+        videoUrls: { local: downloadEntry.localUri },
+        posterUrl: downloadEntry.posterUrl,
+        thumbnailUrl: downloadEntry.posterUrl,
+        views: 0,
+        isFeatured: false,
+        tags: [],
+        createdAt: downloadEntry.downloadedAt,
+        updatedAt: downloadEntry.downloadedAt,
+      });
+      setSelectedQuality('local');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const movieData = await moviesService.getMovieById(movieId);
       if (!movieData) {
@@ -398,13 +429,20 @@ const VideoPlayerScreen = ({ route, navigation }: Props) => {
               <Text style={styles.movieTitle} numberOfLines={1}>
                 {movie?.title}
               </Text>
-              <TouchableOpacity
-                style={styles.qualityButton}
-                onPress={() => setShowQualityMenu(!showQualityMenu)}
-              >
-                <Text style={styles.qualityText}>{selectedQuality}</Text>
-                <Ionicons name="chevron-down" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
+              {isOffline ? (
+                <View style={styles.offlineBadge}>
+                  <Ionicons name="cloud-offline-outline" size={14} color="#FFFFFF" />
+                  <Text style={styles.qualityText}>Offline</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.qualityButton}
+                  onPress={() => setShowQualityMenu(!showQualityMenu)}
+                >
+                  <Text style={styles.qualityText}>{selectedQuality}</Text>
+                  <Ionicons name="chevron-down" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Quality Menu */}
@@ -590,6 +628,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '500',
+  },
+  offlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16,185,129,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.5)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 6,
   },
   qualityMenu: {
     position: 'absolute',

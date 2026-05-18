@@ -9,6 +9,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
   register: (credentials: RegisterCredentials) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: (googleIdToken: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -61,6 +62,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: result.success, error: result.error };
   }, []);
 
+  const loginWithGoogle = useCallback(async (googleIdToken: string) => {
+    const result = await authService.loginWithGoogle(googleIdToken);
+    if (result.success && result.user) {
+      setUser(result.user);
+    }
+    return { success: result.success, error: result.error };
+  }, []);
+
   const logout = useCallback(async () => {
     await authService.logout();
     setUser(null);
@@ -79,6 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: !!user,
         login,
         register,
+        loginWithGoogle,
         logout,
         refreshUser,
       }}

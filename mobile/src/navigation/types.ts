@@ -22,6 +22,7 @@ export type MainTabParamList = {
   Home: undefined;
   Catalog: undefined;
   Watchlist: undefined;
+  Downloads: undefined;
   ProfileTab: undefined;
 };
 

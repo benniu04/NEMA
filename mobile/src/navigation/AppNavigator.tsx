@@ -13,6 +13,7 @@ import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
 import CatalogScreen from '../screens/CatalogScreen';
 import WatchlistScreen from '../screens/WatchlistScreen';
+import DownloadsScreen from '../screens/DownloadsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import MovieDetailScreen from '../screens/MovieDetailScreen';
 import SearchScreen from '../screens/SearchScreen';
@@ -70,6 +71,16 @@ const MainTabs = () => {
           tabBarLabel: 'Watchlist',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="bookmark" size={22} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Downloads"
+        component={DownloadsScreen}
+        options={{
+          tabBarLabel: 'Downloads',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="download" size={22} color={color} />
           ),
         }}
       />
